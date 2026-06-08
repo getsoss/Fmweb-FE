@@ -25,8 +25,14 @@ namespace Fmweb
             Console.WriteLine("begin main");
             Console.WriteLine("cw: " + Directory.GetCurrentDirectory());
 
+            if (!File.Exists("fmclient.db"))
+            {
+                throw new FileNotFoundException("File 'fmclient.db' not found.");
+            }
+
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
             WebApplication app = builder.Build();
+            
             using (SQLiteConnectionB conn = new SQLiteConnectionB("fmclient.db"))
             {
                 Regex injectionSafeRegex = new Regex("[A-Za-z0-9]+");
