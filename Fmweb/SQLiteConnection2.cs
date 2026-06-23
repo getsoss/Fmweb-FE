@@ -6,14 +6,14 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace Fmweb.Data.SQLite
+namespace Fmweb
 {
-    public class SQLiteConnectionB : IDisposable
+    public class SQLiteConnection2 : IDisposable
     {
         private readonly SQLiteConnection _conn;
         private readonly SQLiteCommand _cmd;
 
-        public SQLiteConnectionB(string dataSource)
+        public SQLiteConnection2(string dataSource)
         {
             _conn = new SQLiteConnection("Data Source=\"" + dataSource + "\"");
             _conn.Open();
