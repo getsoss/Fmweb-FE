@@ -8,9 +8,11 @@
             _repo = new FmRepository();
         }
 
-        public IResult Opt10081()
+        
+        public List<ModifiedCandle> GetModifiedCandles(string ticker)
         {
-            return Results.Ok();
+            return _repo.GetModifiedCandles(ticker);
         }
+
     }
 }

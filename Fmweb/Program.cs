@@ -13,28 +13,28 @@ namespace Fmweb
 
         public static void Main(string[] args)
         {
-            Console.WriteLine("begin main");
-            Console.WriteLine("cw: " + Directory.GetCurrentDirectory());
+            Console.WriteLine("-----BEGIN MAIN-----");
+            Console.WriteLine("current directory: " + Directory.GetCurrentDirectory());
 
             if (!File.Exists("fmclient.db"))
             {
                 throw new FileNotFoundException("File 'fmclient.db' not found.");
             }
 
-            // Do not initialize FmService before checking existence of "fmclient.db".
+            // Do not initialize FmService before checking existence of "fmclient.db"
+            // because FmService makes "fmclient.db" if it does not exist yet.
 
-            FmService serv = new FmService();
-
+            FmController serv = new FmController();
+            
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
             WebApplication app = builder.Build();
 
-            Regex injectionSafeRegex = new Regex("[A-Za-z0-9]+");
+            
 
-            app.MapGet("/opt10081", serv.Opt10081);
-
+            app.MapGet("/modified-candles", serv.GetModifiedCandles);
             app.Run();
 
-            Console.WriteLine("end main");
+            Console.WriteLine("-----END MAIN-----");
         }
     }
 }
