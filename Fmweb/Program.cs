@@ -30,17 +30,7 @@ namespace Fmweb
 
             Regex injectionSafeRegex = new Regex("[A-Za-z0-9]+");
 
-            app.MapGet("/opt10081", (string ticker) =>
-            {
-                if (injectionSafeRegex.IsMatch(ticker))
-                {
-
-
-                }
-
-                return string.Empty;
-
-            });
+            app.MapGet("/opt10081", serv.Opt10081);
 
             app.Run();
 

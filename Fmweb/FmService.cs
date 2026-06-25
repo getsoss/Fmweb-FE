@@ -7,5 +7,10 @@
         {
             _repo = new FmRepository();
         }
+
+        public IResult Opt10081()
+        {
+            return Results.Ok();
+        }
     }
 }
