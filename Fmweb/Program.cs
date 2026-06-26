@@ -30,6 +30,7 @@ namespace Fmweb
             WebApplication app = builder.Build();
 
             app.MapGet("/modified-candles", ctrl.GetModifiedCandles);
+            app.MapGet("/ticker-exists", ctrl.TickerExists);
             app.Run();
 
             Console.WriteLine("-----END MAIN-----");

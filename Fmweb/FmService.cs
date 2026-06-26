@@ -14,5 +14,10 @@
             return _repo.GetModifiedCandles(ticker);
         }
 
+        public HashSet<string> GetAllTickers()
+        {
+            return _repo.GetAllTickers();
+        }
+
     }
 }

@@ -41,7 +41,7 @@ namespace Fmweb
 
         public string Encode(Dictionary<string, object> payload)
         {
-            string token = _encoder.Encode(payload, (string?)null);
+            string token = _encoder.Encode(payload, (string)null);
             return token;
         }
 

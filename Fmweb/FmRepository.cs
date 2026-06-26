@@ -123,6 +123,17 @@ namespace Fmweb
         }
 
 
+        private HashSet<string> _allTickers;
+        public HashSet<string> GetAllTickers()
+        {
+            if (_allTickers is null)
+            {
+                _allTickers = ReadAllJongmoks().Select(x => x.종목코드).ToHashSet();
+            }
+
+            return _allTickers;
+        }
+
     }
 
 }
