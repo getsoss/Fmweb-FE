@@ -24,14 +24,12 @@ namespace Fmweb
             // Do not initialize FmService before checking existence of "fmclient.db"
             // because FmService makes "fmclient.db" if it does not exist yet.
 
-            FmController serv = new FmController();
+            FmController ctrl = new FmController();
             
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
             WebApplication app = builder.Build();
 
-            
-
-            app.MapGet("/modified-candles", serv.GetModifiedCandles);
+            app.MapGet("/modified-candles", ctrl.GetModifiedCandles);
             app.Run();
 
             Console.WriteLine("-----END MAIN-----");

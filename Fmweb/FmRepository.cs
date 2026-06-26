@@ -86,5 +86,43 @@ namespace Fmweb
                 return ret;
             }
         }
+
+
+        private List<Jongmok> _allJongmoks;
+        public List<Jongmok> ReadAllJongmoks()
+        {
+            lock (_dbReadLock)
+            {
+                if (_allJongmoks is null)
+                {
+                    var tmp = new List<Jongmok>();
+                    _conn.CommandText = "SELECT 종목코드,종목명,결산월,액면가,자본금,상장주식,유통주식,유통비율,상장일 FROM opt10001";
+                    using (SQLiteDataReader rdr = _conn.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            Jongmok row = new Jongmok();
+                            row.종목코드 = rdr.GetString(0);
+                            row.종목명 = rdr.GetString(1);
+                            row.결산월 = rdr.GetByte(2);
+                            row.액면가 = rdr.GetInt64(3);
+                            row.자본금 = rdr.GetInt64(4);
+                            row.상장주식 = rdr.GetInt64(5);
+                            row.유통주식 = rdr.GetInt64(6);
+                            row.유통비율 = rdr.GetDouble(7);
+                            row.상장일 = rdr.GetInt32(8);
+                            tmp.Add(row);
+                        }
+                        rdr.Close();
+                    }
+                    _allJongmoks = tmp;
+                }
+
+                return _allJongmoks;
+            }
+        }
+
+
     }
+
 }
