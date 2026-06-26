@@ -1,0 +1,6 @@
+#!/bin/bash
+
+echo "-----BEGIN Fmweb-----"
+./bin/Debug/net8.0/Fmweb --urls http://localhost:25572
+echo "-----END Fmweb-----"
+
