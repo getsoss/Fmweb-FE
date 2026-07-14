@@ -29,6 +29,7 @@ namespace Fmweb
 
             app.MapGet("/modified-candles", ctrl.GetModifiedCandles);
             app.MapGet("/ticker-exists", ctrl.TickerExists);
+            app.MapGet("/bojong", ctrl.Bojong);
             app.Run();
 
             Console.WriteLine("-----END MAIN-----");

@@ -7,6 +7,9 @@ namespace Fmweb
     public class FmController
     {
         private readonly FmService _serv;
+
+        // Regex is always thread-safe.
+
         private static readonly Regex _sqlInjectionSafeRegex = new Regex("^[A-Za-z0-9]{6}$");
 
         private const string ERRNO = "errno";
@@ -21,27 +24,22 @@ namespace Fmweb
         {
             JObject jo = new JObject();
             bool isMatch = _sqlInjectionSafeRegex.IsMatch(ticker);
-            
+
             if (!isMatch)
             {
-                jo[ERRNO] = 1001;
-                jo[RESULT] = "ticker가 정규표현식 ^[A-Za-z0-9]{6}$ 과 매치되지 않습니다.";
-            }
-            else
-            {
-                if (_serv.GetAllTickers().Contains(ticker))
-                {
-                    List<ModifiedCandle> modifiedCandles = _serv.GetModifiedCandles(ticker);
-                    jo[ERRNO] = 0;
-                    jo[RESULT] = JArray.FromObject( modifiedCandles.Select(x=>(object[])x));
-                }
-                else
-                {
-                    jo[ERRNO] = 1002;
-                    jo[RESULT] = "해당 ticker가 존재하지 않습니다.";
-                }
+                jo[ERRNO] = 1;
+                return ResultHelper.FromJo(jo);
             }
 
+            if (!_serv.GetAllTickers().Contains(ticker))
+            {
+                jo[ERRNO] = 1;
+                return ResultHelper.FromJo(jo);
+            }
+
+            List<ModifiedCandle> modifiedCandles = _serv.GetModifiedCandles(ticker);
+            jo[ERRNO] = 0;
+            jo[RESULT] = JArray.FromObject(modifiedCandles.Select(x => (object[])x));
             return ResultHelper.FromJo(jo);
         }
 
@@ -60,6 +58,31 @@ namespace Fmweb
 
             return ResultHelper.FromJo(jo);
         }
+
+
+        public IResult Bojong(string ticker)
+        {
+            var jo = new JObject();
+            bool isMatch = _sqlInjectionSafeRegex.IsMatch(ticker);
+
+            if (!isMatch)
+            {
+                jo[ERRNO] = 1;
+                return ResultHelper.FromJo(jo);
+            }
+
+            if (!_serv.GetAllTickers().Contains(ticker))
+            {
+                jo[ERRNO] = 1;
+                return ResultHelper.FromJo(jo);
+            }
+
+            var bojongRows = _serv.ReadAllBojongRows(ticker);
+            jo[ERRNO] = 0;
+            jo[RESULT] = JArray.FromObject(bojongRows.Select(x => (object[])x));
+            return ResultHelper.FromJo(jo);
+        }
+
 
     }
 }
