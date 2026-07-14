@@ -95,22 +95,22 @@ namespace Fmweb
             {
                 if (_allJongmoks is null)
                 {
-                    var tmp = new List<Jongmok>();
+                    List<Jongmok> tmp = new List<Jongmok>();
                     _conn.CommandText = "SELECT 종목코드,종목명,결산월,액면가,자본금,상장주식,유통주식,유통비율,상장일 FROM opt10001";
                     using (SQLiteDataReader rdr = _conn.ExecuteReader())
                     {
                         while (rdr.Read())
                         {
                             Jongmok row = new Jongmok();
-                            row.종목코드 = rdr.GetString(0);
-                            row.종목명 = rdr.GetString(1);
-                            row.결산월 = rdr.GetByte(2);
-                            row.액면가 = rdr.GetInt64(3);
-                            row.자본금 = rdr.GetInt64(4);
-                            row.상장주식 = rdr.GetInt64(5);
-                            row.유통주식 = rdr.GetInt64(6);
-                            row.유통비율 = rdr.GetDouble(7);
-                            row.상장일 = rdr.GetInt32(8);
+                            row.Jmcode = rdr.GetString(0);
+                            row.Jmname = rdr.GetString(1);
+                            row.ReportMonth = rdr.GetByte(2);
+                            row.FaceValue = rdr.GetInt64(3);
+                            row.Capital = rdr.GetInt64(4);
+                            row.ListedStock = rdr.GetInt64(5);
+                            row.OutstandingStock = rdr.GetInt64(6);
+                            row.OutstandingRatio = rdr.GetDouble(7);
+                            row.ListDate = rdr.GetInt32(8);
                             tmp.Add(row);
                         }
                         rdr.Close();
@@ -128,10 +128,70 @@ namespace Fmweb
         {
             if (_allTickers is null)
             {
-                _allTickers = ReadAllJongmoks().Select(x => x.종목코드).ToHashSet();
+                _allTickers = ReadAllJongmoks().Select(x => x.Jmcode).ToHashSet();
             }
 
             return _allTickers;
+        }
+
+
+        public List<BojongRow> ReadAllBojongRows(string ticker)
+        {
+            lock (_dbReadLock)
+            {
+                List<string> allBojongTables = new List<string>();
+
+                _conn.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name like 'bojong_%';";
+                using(var rdr = _conn.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        string s = rdr.GetString(0);
+                        allBojongTables.Add(s);
+                    }
+                    rdr.Close();
+                }
+
+                List<BojongRow> tmp = new List<BojongRow>();
+
+                foreach (var bojongTable in allBojongTables)
+                {
+                    _conn.CommandText = $"SELECT 종목코드,보유순위,보유계좌수,보유평균매수가,보유계좌수익률 FROM {bojongTable} WHERE 종목코드 = $a1 ;";
+                    _conn.AddParamWithValue("$a1", ticker);
+
+                    using (SQLiteDataReader rdr = _conn.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            BojongRow row = new BojongRow();
+                            row.Jmcode = rdr.GetString(0);
+                            row.Rank = rdr.GetInt32(1);
+                            row.NHaveAcc = rdr.GetInt64(2);
+                            row.AvgPrice = rdr.GetInt64(3);
+                            row.ProfitRate = rdr.GetDouble(4);
+                            row.Date = int.Parse(bojongTable.Substring(bojongTable.Length - 8));
+                            tmp.Add(row);
+                        }
+                        rdr.Close();
+                    }
+                }
+
+                tmp.Sort((a, b) =>
+                {
+                    return b.Date.CompareTo(a.Date);
+                });
+
+
+
+                if(tmp.Count > DAY_MAX)
+                {
+                    tmp.RemoveRange(DAY_MAX, tmp.Count - DAY_MAX);
+                }
+
+                return tmp;
+
+            }
+
         }
 
     }

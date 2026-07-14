@@ -9,8 +9,6 @@ namespace Fmweb
     public static class Program
     {
 
-
-
         public static void Main(string[] args)
         {
             Console.WriteLine("-----BEGIN MAIN-----");
@@ -37,3 +35,4 @@ namespace Fmweb
         }
     }
 }
+

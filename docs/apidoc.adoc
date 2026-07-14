@@ -1,29 +1,35 @@
 = 세력모니터 웹 API 문서
 :sectnums:
 
-모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 한다.
+모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 합니다.
+
+이름에 (미완성) 이 붙은 것은 내부 구현이 덜 됐거나 API 명세가 확정되지 않은 것입니다.
 
 == 주식 일봉 차트 조회
 
 GET /modified-candles?ticker={ticker}
 
-수정주가가 적용된 주식 일봉 차트를 제공한다.
+수정주가가 적용된 주식 일봉 차트를 제공합니다.
+
+최대 길이는 600일입니다.
 
 === 요청
 
-{ticker} 자리에는 6자리 종목코드를 넣어야 한다. 예) 005930, 000020 등.
+{ticker} 자리에는 6자리 종목코드를 넣어야 합니다. 예) 005930, 000020 등.
 
 === 응답
 
+Content-Type: application/json
+
+{"errno":?,"result":?} 꼴의 json이 응답으로 옵니다.
+
 ==== 정상 응답
 
-application/json 형식으로 응답이 온다.
+errno는 0, result에는 2차원 배열이 담깁니다.
 
-errno는 0, result에는 2차원 배열이 담긴다.
+2차원 배열은 날짜 내림차순(즉, 가장 최근 날짜가 가장 앞에 옴)으로 정렬되어 있습니다.
 
-2차원 배열은 날짜 내림차순(즉, 가장 최근 날짜가 가장 앞에 옴)으로 정렬되어 있다.
-
-각 배열의 칼럼은 [날짜(yyyyMMdd 형식), 종가, 거래량, 거래대금, 시가, 고가, 저가]순으로 구성되어 있다.
+각 배열의 칼럼은 [날짜(yyyyMMdd 형식), 종가, 거래량, 거래대금, 시가, 고가, 저가]순으로 구성되어 있습니다.
 
 예시:
 
@@ -47,12 +53,28 @@ errno는 0, result에는 2차원 배열이 담긴다.
 
 GET /ticker-exists?ticker={ticker}
 
-해당 종목코드가 존재하는 종목코드인지 아닌지 true/false를 반환해준다.
+해당 종목코드가 존재하는 종목코드인지 아닌지 true/false를 반환해줍니다.
 
 === 요청
 
-{ticker} 자리에는 6자리 종목코드를 넣어야 한다.
+{ticker} 자리에는 6자리 종목코드를 넣어야 합니다.
 
 === 응답
 
-존재한다면 {"result":true}, 존재하지 않는다면 {"result":false}를 JSON 형식으로 반환한다.
+존재한다면 {"result":true}, 존재하지 않는다면 {"result":false}를 JSON 형식으로 반환합니다.
+
+== 개미 지수 (미완성)
+
+GET /ant-index?ticker={ticker}
+
+해당 종목의 개미 지수를 제공합니다.
+
+=== 요청
+
+{ticker} 자리에는 6자리 종목코드를 넣어야 합니다.
+
+=== 응답
+
+Content-Type: application/json
+
+
