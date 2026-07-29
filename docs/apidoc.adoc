@@ -1,9 +1,11 @@
 = 세력모니터 웹 API 문서
 :sectnums:
 
-모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 합니다.
+마지막 업데이트: 2026년 07월 15일
 
-이름에 (미완성) 이 붙은 것은 내부 구현이 덜 됐거나 API 명세가 확정되지 않은 것입니다.
+API 버전: 2
+
+모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 합니다.
 
 == 주식 일봉 차트 조회
 
