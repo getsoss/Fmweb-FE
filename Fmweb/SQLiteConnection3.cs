@@ -202,6 +202,54 @@ namespace Fmweb
 
         }
 
+
+        public List<ModifiedAverageTradePriceRow> GetModifiedAverageTradePrices(string ticker)
+        {
+            lock (_readLock)
+            {
+                var ret = new List<ModifiedAverageTradePriceRow>();
+
+                _conn.CommandText = $"SELECT 일자,개인투자자B,개인투자자S,외국인투자자B,외국인투자자S,기관계B,기관계S,금융투자B,금융투자S,보험B,보험S,투신B,투신S,기타금융B,기타금융S,은행B,은행S,연기금등B,연기금등S,사모펀드B,사모펀드S,국가B,국가S,기타법인B,기타법인S,내외국인B,내외국인S FROM mvgtradeprice_{ticker} ORDER BY 일자 DESC LIMIT {DAY_MAX};";
+                using (SQLiteDataReader rdr = _conn.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        var row = new ModifiedAverageTradePriceRow();
+                        row.Date = rdr.GetInt32(0);
+                        row.개인투자자B = rdr.GetDouble(1);
+                        row.개인투자자S = rdr.GetDouble(2);
+                        row.외국인투자자B = rdr.GetDouble(3);
+                        row.외국인투자자S = rdr.GetDouble(4);
+                        row.기관계B = rdr.GetDouble(5);
+                        row.기관계S = rdr.GetDouble(6);
+                        row.금융투자B = rdr.GetDouble(7);
+                        row.금융투자S = rdr.GetDouble(8);
+                        row.보험B = rdr.GetDouble(9);
+                        row.보험S = rdr.GetDouble(10);
+                        row.투신B = rdr.GetDouble(11);
+                        row.투신S = rdr.GetDouble(12);
+                        row.기타금융B = rdr.GetDouble(13);
+                        row.기타금융S = rdr.GetDouble(14);
+                        row.은행B = rdr.GetDouble(15);
+                        row.은행S = rdr.GetDouble(16);
+                        row.연기금등B = rdr.GetDouble(17);
+                        row.연기금등S = rdr.GetDouble(18);
+                        row.사모펀드B = rdr.GetDouble(19);
+                        row.사모펀드S = rdr.GetDouble(20);
+                        row.국가B = rdr.GetDouble(21);
+                        row.국가S = rdr.GetDouble(22);
+                        row.기타법인B = rdr.GetDouble(23);
+                        row.기타법인S = rdr.GetDouble(24);
+                        row.내외국인B = rdr.GetDouble(25);
+                        row.내외국인S = rdr.GetDouble(26);
+                        ret.Add(row);
+                    }
+                }
+
+                return ret;
+            }
+        }
+
     }
 }
 
