@@ -1,9 +1,9 @@
-= 세력모니터 데이터베이스 포맷 문서
-:sectnums:
+# 세력모니터 SQLite 데이터베이스 포맷 문서
 
-== 서버의 원본 데이터
 
-=== 테이블 이름: opt10081_{jmcode}
+## 서버의 원본 데이터
+
+### 테이블 이름: opt10081_{jmcode}
 
 일자 int PRIMARY KEY
 
@@ -23,7 +23,7 @@
 
 수정비율 real
 
-=== 업종 차트 테이블 이름: opt20006_{001|101}
+### 업종 차트 테이블 이름: opt20006_{001|101}
 
 001: KOSPI,  101: KOSDAQ
 
@@ -41,7 +41,7 @@
 
 저가 int
 
-=== 테이블 이름: opt10059_{buy|sel}_{jmcode}
+### 테이블 이름: opt10059_{buy|sel}\_{jmcode}
 
 일자 int PRIMARY KEY
 
@@ -71,7 +71,7 @@
 
 내외국인 int
 
-=== 테이블 이름: bojong_{yyyyMMdd}
+### 테이블 이름: bojong_{yyyyMMdd}
 
 각 table 당 대략 3000개의 row가 있다.
 
@@ -85,7 +85,7 @@
 
 보유계좌수익률 real
 
-=== 테이블 이름: top_{yyyyMMdd}
+### 테이블 이름: top_{yyyyMMdd}
 
 각 table 당 정확히 200개의 row가 있다.
 
@@ -109,7 +109,7 @@
 
 상위수익률 real
 
-=== 테이블 이름: opt10001
+### 테이블 이름: opt10001
 
 종목코드 TEXT PRIMARY KEY
 
@@ -129,7 +129,7 @@
 
 상장일 int
 
-=== 테이블 이름: kospidaq
+### 테이블 이름: kospidaq
 
 시장은 0일 경우 KOSPI, 10일 경우 KOSDAQ이다.
 
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS kospidaq(
 
 );
 
-=== 테이블 이름: others
+### 테이블 이름: others
 
 CREATE TABLE IF NOT EXISTS others(
 
@@ -153,14 +153,14 @@ svalue TEXT
 
 skey=uploadtime, svalue={long DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}
 
-== 세력모니터 Windows C# 클라이언트 측에서 추가로 만들 수 있는 tables
+## 세력모니터 Windows C# 클라이언트 측에서 추가로 만들 수 있는 tables
 
-=== 테이블 이름: datelength
+### 테이블 이름: datelength
 
 - opt10081 tables를 이용하여 만든다.
 - CREATE TABLE IF NOT EXISTS datelength(종목코드 TEXT PRIMARY KEY, ndate int);
 
-=== 테이블 이름: mpt10081_{jmcode}
+### 테이블 이름: mpt10081_{jmcode}
 
 - forcemonitor.db의 opt10081 table에 수정주가를 적용하고 가공한다.
 - opt10081_{jmcode}를 가공하여 만든다.
@@ -172,14 +172,14 @@ skey=uploadtime, svalue={long DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}
 
 수정인수 real);
 
-=== 테이블 이름: mvgtradeprice_{jmcode}
+### 테이블 이름: mvgtradeprice_{jmcode}
 
 - 🧡 mpt10081 table이 먼저 만들어진 상태여야만 이 table을 만들 수 있다.
 - DB의 opt10081, opt10059 table에 mpt10081의 수정주가를 적용하고 가공한다.
-- opt10081_{jmcode}, opt10059_{buy&sel}_{jmcode}, mpt10081_{jmcode}를 가공하여 만든다.
+- opt10081_{jmcode}, opt10059_{buy&sel}\_{jmcode}, mpt10081_{jmcode}를 가공하여 만든다.
 - 날짜 내림차순으로 수정비율 [0, 0, 0, -30, 0, -40, 0]이라면 수정인수는 [1, 1, 1, 1, 0.7, 0.7, 0.42]이다.
-[%linenums,sql]
-----
+
+```sql
 CREATE TABLE IF NOT EXISTS mvgtradeprice_{jmcode}(
 일자 int PRIMARY KEY,
 개인투자자B real,
@@ -208,4 +208,6 @@ CREATE TABLE IF NOT EXISTS mvgtradeprice_{jmcode}(
 기타법인S real,
 내외국인B real,
 내외국인S real);
-----
+```
+
+
