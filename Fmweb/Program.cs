@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
-using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -14,7 +12,6 @@ namespace Fmweb
 {
     internal static class Program
     {
-
         private static readonly Regex _tickerRegex = new Regex("^[A-Za-z0-9]{6}$");
         private static readonly SQLiteConnection3 _conn = new SQLiteConnection3();
 
@@ -25,7 +22,7 @@ namespace Fmweb
 
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
             WebApplication app = builder.Build();
-
+            
             app.MapGet("/modified-candles", (string ticker) =>
         {
             JObject jo = new JObject();

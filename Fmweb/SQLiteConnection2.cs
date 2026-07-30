@@ -1,14 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace Fmweb
 {
-    public class SQLiteConnection2 : IDisposable
+    internal class SQLiteConnection2 : IDisposable
     {
         private readonly SQLiteConnection _conn;
         private readonly SQLiteCommand _cmd;
@@ -52,7 +49,7 @@ namespace Fmweb
         /// </summary>
         public SQLiteDataReader ExecuteReader()
         {
-            
+
             SQLiteDataReader ret = _cmd.ExecuteReader() ?? throw new Exception();
             return ret;
         }
@@ -160,3 +157,4 @@ namespace Fmweb
 
     }
 }
+
