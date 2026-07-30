@@ -43,7 +43,7 @@ namespace Fmweb
                 return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
             }
 
-            List<ModifiedCandle> modifiedCandles = _conn.GetModifiedCandles(ticker);
+            var modifiedCandles = _conn.GetModifiedCandles(ticker);
             jo["errno"] = 0;
             jo["result"] = JArray.FromObject(modifiedCandles.Select(x => (object[])x));
 

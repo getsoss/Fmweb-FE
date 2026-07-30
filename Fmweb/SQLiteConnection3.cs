@@ -8,8 +8,117 @@ using System.Timers;
 
 namespace Fmweb
 {
-    public class SQLiteConnection3
+    internal class SQLiteConnection3
     {
+        public class UnmodifiedCandle
+        {
+            public int Date;
+            public long Close;
+            public long Volume;
+            public long VolumeMoney;
+            public long Open;
+            public long High;
+            public long Low;
+            public long ModifyType;
+            public double ModifyRatio;
+
+            public UnmodifiedCandle(int date, long close, long volume, long volumeMoney, long open, long high, long low, long modifyType, double modifyRatio)
+            {
+                Date = date;
+                Close = close;
+                Volume = volume;
+                VolumeMoney = volumeMoney;
+                Open = open;
+                High = high;
+                Low = low;
+                ModifyType = modifyType;
+                ModifyRatio = modifyRatio;
+            }
+
+            public static ModifiedCandle operator *(UnmodifiedCandle a, ModifyFactor b)
+            {
+                return new ModifiedCandle(
+                    a.Date,
+                    a.Close * b.Factor,
+                    a.Volume / b.Factor,
+                    a.VolumeMoney,
+                    a.Open * b.Factor,
+                    a.High * b.Factor,
+                    a.Low * b.Factor);
+
+            }
+
+        }
+
+        public class BojongRow
+        {
+            public int Date;
+            public string Jmcode;
+            public int Rank;
+            public long NHaveAcc;
+            public long AvgPrice;
+            public double ProfitRate;
+
+            public static explicit operator object[](BojongRow x)
+            {
+                return new object[5] { x.Date, x.Rank, x.NHaveAcc, x.AvgPrice, x.ProfitRate };
+            }
+        }
+
+        public class Jongmok
+        {
+            public string Jmcode;
+            public string Jmname;
+            public byte ReportMonth;
+            public long FaceValue;
+            public long Capital;
+            public long ListedStock;
+            public long OutstandingStock;
+            public double OutstandingRatio;
+            public int ListDate;
+        }
+
+        public class ModifiedCandle
+        {
+            public int Date;
+            public double Close;
+            public double Volume;
+            public long VolumeMoney;
+            public double Open;
+            public double High;
+            public double Low;
+
+            public ModifiedCandle(int date, double close, double volume, long volumeMoney, double open, double high, double low)
+            {
+                Date = date;
+                Close = close;
+                Volume = volume;
+                VolumeMoney = volumeMoney;
+                Open = open;
+                High = high;
+                Low = low;
+            }
+
+            public static explicit operator object[](ModifiedCandle x)
+            {
+                return new object[7] { x.Date, x.Close, x.Volume, x.VolumeMoney, x.Open, x.High, x.Low };
+            }
+
+        }
+
+        public class ModifyFactor
+        {
+            public int Date;
+            public double Factor;
+
+            public ModifyFactor(int date, double factor)
+            {
+                Date = date;
+                Factor = factor;
+            }
+        }
+
+
         private const int DAY_MAX = 600;
 
         private readonly SQLiteConnection2 _conn;
