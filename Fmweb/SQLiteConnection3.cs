@@ -2,26 +2,32 @@
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.IO;
 using System.Linq;
 using System.Timers;
 
 namespace Fmweb
 {
-    public class FmRepository
+    public class SQLiteConnection3
     {
         private const int DAY_MAX = 600;
 
         private readonly SQLiteConnection2 _conn;
-        private readonly object _dbReadLock = new object();
+        private readonly object _readLock = new object();
 
-        public FmRepository()
+        public SQLiteConnection3()
         {
+            if (!File.Exists("fmclient.db"))
+            {
+                throw new FileNotFoundException("File 'fmclient.db' not found.");
+            }
+
             _conn = new SQLiteConnection2("fmclient.db");
         }
 
         public List<UnmodifiedCandle> GetUnmodifiedCandles(string ticker)
         {
-            lock (_dbReadLock)
+            lock (_readLock)
             {
                 List<UnmodifiedCandle> ret = new List<UnmodifiedCandle>();
 
@@ -50,7 +56,7 @@ namespace Fmweb
 
         public List<ModifyFactor> GetModifyFactors(string ticker)
         {
-            lock (_dbReadLock)
+            lock (_readLock)
             {
                 List<ModifyFactor> list = new List<ModifyFactor>();
 
@@ -73,7 +79,7 @@ namespace Fmweb
 
         public List<ModifiedCandle> GetModifiedCandles(string ticker)
         {
-            lock (_dbReadLock)
+            lock (_readLock)
             {
                 List<UnmodifiedCandle> ucs = GetUnmodifiedCandles(ticker);
                 List<ModifyFactor> mfs = GetModifyFactors(ticker);
@@ -93,7 +99,7 @@ namespace Fmweb
         private List<Jongmok> _allJongmoks;
         public List<Jongmok> ReadAllJongmoks()
         {
-            lock (_dbReadLock)
+            lock (_readLock)
             {
                 if (_allJongmoks is null)
                 {
@@ -139,7 +145,7 @@ namespace Fmweb
 
         public List<BojongRow> ReadAllBojongRows(string ticker)
         {
-            lock (_dbReadLock)
+            lock (_readLock)
             {
                 List<string> allBojongTables = new List<string>();
 
