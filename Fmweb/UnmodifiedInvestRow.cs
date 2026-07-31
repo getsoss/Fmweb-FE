@@ -1,4 +1,6 @@
-﻿namespace Fmweb
+﻿using System;
+
+namespace Fmweb
 {
     internal partial class UnmodifiedInvestRow
     {
@@ -10,6 +12,10 @@
         {
             return new object[14] { Date, 개인투자자, 외국인투자자, 기관계, 금융투자, 보험, 투신, 기타금융, 은행, 연기금등, 사모펀드, 국가, 기타법인, 내외국인 };
         }
+
+        public long Volume =>
+Math.Abs(개인투자자) + Math.Abs(외국인투자자)
++ Math.Abs(기관계) + Math.Abs(기타법인) + Math.Abs(내외국인);
 
         public static ModifiedInvestRow operator *(UnmodifiedInvestRow a, ModifyFactor b)
         {

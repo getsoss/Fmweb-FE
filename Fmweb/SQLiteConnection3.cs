@@ -80,7 +80,7 @@ namespace Fmweb
         }
 
 
-        
+
 
 
         private List<Jongmok> _allJongmoks;
@@ -278,6 +278,36 @@ namespace Fmweb
             }
         }
 
+
+        public List<PowerRow> GetPowerRows(string ticker)
+        {
+            var unmodifiedInvestRowsBuy = GetUnmodifiedInvestRows(ticker, BuySell.Buy);
+            var unmodifiedInvestRowsSell = GetUnmodifiedInvestRows(ticker, BuySell.Buy);
+            List<PowerRow> ret = new List<PowerRow>();
+            for (int i = 0; i < unmodifiedInvestRowsBuy.Count; i++)
+            {
+                var row = new PowerRow();
+                row.Date = unmodifiedInvestRowsBuy[i].Date;
+                row.개인투자자 = Math.Abs(unmodifiedInvestRowsBuy[i].개인투자자) + Math.Abs(unmodifiedInvestRowsSell[i].개인투자자);
+                row.외국인투자자 = Math.Abs(unmodifiedInvestRowsBuy[i].외국인투자자) + Math.Abs(unmodifiedInvestRowsSell[i].외국인투자자);
+                row.기관계 = Math.Abs(unmodifiedInvestRowsBuy[i].기관계) + Math.Abs(unmodifiedInvestRowsSell[i].기관계);
+                row.금융투자 = Math.Abs(unmodifiedInvestRowsBuy[i].금융투자) + Math.Abs(unmodifiedInvestRowsSell[i].금융투자);
+                row.보험 = Math.Abs(unmodifiedInvestRowsBuy[i].보험) + Math.Abs(unmodifiedInvestRowsSell[i].보험);
+                row.투신 = Math.Abs(unmodifiedInvestRowsBuy[i].투신) + Math.Abs(unmodifiedInvestRowsSell[i].투신);
+                row.기타금융 = Math.Abs(unmodifiedInvestRowsBuy[i].기타금융) + Math.Abs(unmodifiedInvestRowsSell[i].기타금융);
+                row.은행 = Math.Abs(unmodifiedInvestRowsBuy[i].은행) + Math.Abs(unmodifiedInvestRowsSell[i].은행);
+                row.연기금등 = Math.Abs(unmodifiedInvestRowsBuy[i].연기금등) + Math.Abs(unmodifiedInvestRowsSell[i].연기금등);
+                row.사모펀드 = Math.Abs(unmodifiedInvestRowsBuy[i].사모펀드) + Math.Abs(unmodifiedInvestRowsSell[i].사모펀드);
+                row.국가 = Math.Abs(unmodifiedInvestRowsBuy[i].국가) + Math.Abs(unmodifiedInvestRowsSell[i].국가);
+                row.기타법인 = Math.Abs(unmodifiedInvestRowsBuy[i].기타법인) + Math.Abs(unmodifiedInvestRowsSell[i].기타법인);
+                row.내외국인 = Math.Abs(unmodifiedInvestRowsBuy[i].내외국인) + Math.Abs(unmodifiedInvestRowsSell[i].내외국인);
+                row.Divide(Math.Max(1, unmodifiedInvestRowsBuy[i].Volume * 2));
+                ret.Add(row);
+            }
+            return ret;
+        }
+
+
         public List<ModifiedCandle> GetModifiedCandles(string ticker)
         {
             lock (_readLock)
@@ -315,7 +345,7 @@ namespace Fmweb
         private Dictionary<string, Jongmok> _jongmokDict;
         public Dictionary<string, Jongmok> GetJongmokDict()
         {
-            if(!(_jongmokDict is null))
+            if (!(_jongmokDict is null))
             {
                 return _jongmokDict;
             }
@@ -338,9 +368,12 @@ namespace Fmweb
             // But we set divisor to ( jongmok.outstandingStock * 10 ) to get "have" value in **PERCENTAGE** unit.
             long divisor = jongmok.OutstandingStock * 10;
 
+            // Prevent division by zero.
+            divisor = Math.Max(divisor, 1);
+
             List<ModifiedHaveRow> ret = new List<ModifiedHaveRow>();
 
-            for(int i = 0; i < modifiedInvestRowsBuy.Count; i++)
+            for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
             {
                 var row = new ModifiedHaveRow();
                 row.Date = modifiedInvestRowsBuy[i].Date;
@@ -360,12 +393,12 @@ namespace Fmweb
                 ret.Add(row);
             }
 
-            for(int i=modifiedInvestRowsBuy.Count - 2; i >= 0; i--)
+            for (int i = modifiedInvestRowsBuy.Count - 2; i >= 0; i--)
             {
                 ret[i] = (ret[i] + ret[i + 1]);
             }
 
-            for(int i=0;i<modifiedInvestRowsBuy.Count;i++)
+            for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
             {
                 ret[i] = ret[i] / divisor;
             }
