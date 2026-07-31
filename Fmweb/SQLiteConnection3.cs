@@ -79,23 +79,7 @@ namespace Fmweb
         }
 
 
-        public List<ModifiedCandle> GetModifiedCandles(string ticker)
-        {
-            lock (_readLock)
-            {
-                List<UnmodifiedCandle> ucs = GetUnmodifiedCandles(ticker);
-                List<ModifyFactor> mfs = GetModifyFactors(ticker);
-                List<ModifiedCandle> ret = new List<ModifiedCandle>();
-
-                for (int i = 0; i < mfs.Count; i++)
-                {
-                    ModifiedCandle modifiedCandle = ucs[i] * mfs[i];
-                    ret.Add(modifiedCandle);
-                }
-
-                return ret;
-            }
-        }
+        
 
 
         private List<Jongmok> _allJongmoks;
@@ -255,37 +239,72 @@ namespace Fmweb
 
 
 
-        public List<UnmodifiedInvestRow> GetUnmodifiedInvestRows(string ticker, UnmodifiedInvestRow.BuySell buySell)
+        public List<UnmodifiedInvestRow> GetUnmodifiedInvestRows(string ticker, BuySell buySell)
         {
-            string bs = (buySell == UnmodifiedInvestRow.BuySell.Buy) ? "buy" : "sel";
-            string tableName = $"opt10059_{bs}_{ticker}";
-            var ret = new List<UnmodifiedInvestRow>();
-            _conn.CommandText = $"SELECT 일자,개인투자자,외국인투자자,기관계,금융투자,보험,투신,기타금융,은행,연기금등,사모펀드,국가,기타법인,내외국인 FROM {tableName} ORDER BY 일자 DESC LIMIT {DAY_MAX}";
-            using (SQLiteDataReader rdr = _conn.ExecuteReader())
+            lock (_readLock)
             {
-                while (rdr.Read())
+                string bs = (buySell == BuySell.Buy) ? "buy" : "sel";
+                string tableName = $"opt10059_{bs}_{ticker}";
+                var ret = new List<UnmodifiedInvestRow>();
+                _conn.CommandText = $"SELECT 일자,개인투자자,외국인투자자,기관계,금융투자,보험,투신,기타금융,은행,연기금등,사모펀드,국가,기타법인,내외국인 FROM {tableName} ORDER BY 일자 DESC LIMIT {DAY_MAX} ;";
+                using (SQLiteDataReader rdr = _conn.ExecuteReader())
                 {
-                    var row = new UnmodifiedInvestRow();
-                    row.Date = rdr.GetInt32(0);
-                    row.개인투자자 = rdr.GetInt64(1);
-                    row.외국인투자자 = rdr.GetInt64(2);
-                    row.기관계 = rdr.GetInt64(3);
-                    row.금융투자 = rdr.GetInt64(4);
-                    row.보험 = rdr.GetInt64(5);
-                    row.투신 = rdr.GetInt64(6);
-                    row.기타금융 = rdr.GetInt64(7);
-                    row.은행 = rdr.GetInt64(8);
-                    row.연기금등 = rdr.GetInt64(9);
-                    row.사모펀드 = rdr.GetInt64(10);
-                    row.국가 = rdr.GetInt64(11);
-                    row.기타법인 = rdr.GetInt64(12);
-                    row.내외국인 = rdr.GetInt64(13);
-                    ret.Add(row);
+                    while (rdr.Read())
+                    {
+                        var row = new UnmodifiedInvestRow();
+                        row.Date = rdr.GetInt32(0);
+                        row.개인투자자 = rdr.GetInt64(1);
+                        row.외국인투자자 = rdr.GetInt64(2);
+                        row.기관계 = rdr.GetInt64(3);
+                        row.금융투자 = rdr.GetInt64(4);
+                        row.보험 = rdr.GetInt64(5);
+                        row.투신 = rdr.GetInt64(6);
+                        row.기타금융 = rdr.GetInt64(7);
+                        row.은행 = rdr.GetInt64(8);
+                        row.연기금등 = rdr.GetInt64(9);
+                        row.사모펀드 = rdr.GetInt64(10);
+                        row.국가 = rdr.GetInt64(11);
+                        row.기타법인 = rdr.GetInt64(12);
+                        row.내외국인 = rdr.GetInt64(13);
+                        ret.Add(row);
+                    }
+                    rdr.Close();
                 }
-                rdr.Close();
-            }
 
-            return ret;
+                return ret;
+            }
+        }
+
+        public List<ModifiedCandle> GetModifiedCandles(string ticker)
+        {
+            lock (_readLock)
+            {
+                List<UnmodifiedCandle> org = GetUnmodifiedCandles(ticker);
+                List<ModifyFactor> modifyFactors = GetModifyFactors(ticker);
+                List<ModifiedCandle> ret = new List<ModifiedCandle>();
+                for (int i = 0; i < modifyFactors.Count; i++)
+                {
+                    ModifiedCandle modifiedCandle = org[i] * modifyFactors[i];
+                    ret.Add(modifiedCandle);
+                }
+                return ret;
+            }
+        }
+
+        public List<ModifiedInvestRow> GetModifiedInvestRows(string ticker, BuySell buySell)
+        {
+            lock (_readLock)
+            {
+                var org = GetUnmodifiedInvestRows(ticker, buySell);
+                List<ModifyFactor> modifyFactors = GetModifyFactors(ticker);
+                var ret = new List<ModifiedInvestRow>();
+                for (int i = 0; i < modifyFactors.Count; i++)
+                {
+                    ModifiedInvestRow modifiedCandle = org[i] * modifyFactors[i];
+                    ret.Add(modifiedCandle);
+                }
+                return ret;
+            }
         }
 
     }

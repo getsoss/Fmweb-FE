@@ -36,7 +36,6 @@ namespace Fmweb
                 a.Open * b.Factor,
                 a.High * b.Factor,
                 a.Low * b.Factor);
-
         }
 
     }
