@@ -1,4 +1,5 @@
 using Microsoft.VisualBasic;
+using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -83,34 +84,36 @@ namespace Fmweb
 
 
         private List<Jongmok> _allJongmoks;
-        public List<Jongmok> ReadAllJongmoks()
+        public List<Jongmok> GetAllJongmoks()
         {
+            if (!(_allJongmoks is null))
+            {
+                return _allJongmoks;
+            }
+
             lock (_readLock)
             {
-                if (_allJongmoks is null)
+                List<Jongmok> tmp = new List<Jongmok>();
+                _conn.CommandText = "SELECT 종목코드,종목명,결산월,액면가,자본금,상장주식,유통주식,유통비율,상장일 FROM opt10001";
+                using (SQLiteDataReader rdr = _conn.ExecuteReader())
                 {
-                    List<Jongmok> tmp = new List<Jongmok>();
-                    _conn.CommandText = "SELECT 종목코드,종목명,결산월,액면가,자본금,상장주식,유통주식,유통비율,상장일 FROM opt10001";
-                    using (SQLiteDataReader rdr = _conn.ExecuteReader())
+                    while (rdr.Read())
                     {
-                        while (rdr.Read())
-                        {
-                            Jongmok row = new Jongmok();
-                            row.Jmcode = rdr.GetString(0);
-                            row.Jmname = rdr.GetString(1);
-                            row.ReportMonth = rdr.GetByte(2);
-                            row.FaceValue = rdr.GetInt64(3);
-                            row.Capital = rdr.GetInt64(4);
-                            row.ListedStock = rdr.GetInt64(5);
-                            row.OutstandingStock = rdr.GetInt64(6);
-                            row.OutstandingRatio = rdr.GetDouble(7);
-                            row.ListDate = rdr.GetInt32(8);
-                            tmp.Add(row);
-                        }
-                        rdr.Close();
+                        Jongmok row = new Jongmok();
+                        row.Jmcode = rdr.GetString(0);
+                        row.Jmname = rdr.GetString(1);
+                        row.ReportMonth = rdr.GetByte(2);
+                        row.FaceValue = rdr.GetInt64(3);
+                        row.Capital = rdr.GetInt64(4);
+                        row.ListedStock = rdr.GetInt64(5);
+                        row.OutstandingStock = rdr.GetInt64(6);
+                        row.OutstandingRatio = rdr.GetDouble(7);
+                        row.ListDate = rdr.GetInt32(8);
+                        tmp.Add(row);
                     }
-                    _allJongmoks = tmp;
+                    rdr.Close();
                 }
+                _allJongmoks = tmp;
 
                 return _allJongmoks;
             }
@@ -122,7 +125,7 @@ namespace Fmweb
         {
             if (_allTickers is null)
             {
-                _allTickers = ReadAllJongmoks().Select(x => x.Jmcode).ToHashSet();
+                _allTickers = GetAllJongmoks().Select(x => x.Jmcode).ToHashSet();
             }
 
             return _allTickers;
@@ -305,6 +308,69 @@ namespace Fmweb
                 }
                 return ret;
             }
+        }
+
+
+
+        private Dictionary<string, Jongmok> _jongmokDict;
+        public Dictionary<string, Jongmok> GetJongmokDict()
+        {
+            if(!(_jongmokDict is null))
+            {
+                return _jongmokDict;
+            }
+
+            _jongmokDict = GetAllJongmoks().ToDictionary(x => x.Jmcode);
+            return _jongmokDict;
+        }
+
+
+        /// <summary>
+        /// in percentage
+        /// </summary>
+        public List<ModifiedHaveRow> GetModifiedHaveRows(string ticker)
+        {
+            var modifiedInvestRowsBuy = GetModifiedInvestRows(ticker, BuySell.Buy);
+            var modifiedInvestRowsSell = GetModifiedInvestRows(ticker, BuySell.Sell);
+            var jongmok = GetJongmokDict()[ticker];
+
+            // ( jongmok.outstandingStock * 1000 ) is exact actual quantity.
+            // But we set divisor to ( jongmok.outstandingStock * 10 ) to get "have" value in **PERCENTAGE** unit.
+            long divisor = jongmok.OutstandingStock * 10;
+
+            List<ModifiedHaveRow> ret = new List<ModifiedHaveRow>();
+
+            for(int i = 0; i < modifiedInvestRowsBuy.Count; i++)
+            {
+                var row = new ModifiedHaveRow();
+                row.Date = modifiedInvestRowsBuy[i].Date;
+                row.개인투자자 = (Math.Abs(modifiedInvestRowsBuy[i].개인투자자) - Math.Abs(modifiedInvestRowsSell[i].개인투자자));
+                row.외국인투자자 = (Math.Abs(modifiedInvestRowsBuy[i].외국인투자자) - Math.Abs(modifiedInvestRowsSell[i].외국인투자자));
+                row.기관계 = (Math.Abs(modifiedInvestRowsBuy[i].기관계) - Math.Abs(modifiedInvestRowsSell[i].기관계));
+                row.금융투자 = (Math.Abs(modifiedInvestRowsBuy[i].금융투자) - Math.Abs(modifiedInvestRowsSell[i].금융투자));
+                row.보험 = (Math.Abs(modifiedInvestRowsBuy[i].보험) - Math.Abs(modifiedInvestRowsSell[i].보험));
+                row.투신 = (Math.Abs(modifiedInvestRowsBuy[i].투신) - Math.Abs(modifiedInvestRowsSell[i].투신));
+                row.기타금융 = (Math.Abs(modifiedInvestRowsBuy[i].기타금융) - Math.Abs(modifiedInvestRowsSell[i].기타금융));
+                row.은행 = (Math.Abs(modifiedInvestRowsBuy[i].은행) - Math.Abs(modifiedInvestRowsSell[i].은행));
+                row.연기금등 = (Math.Abs(modifiedInvestRowsBuy[i].연기금등) - Math.Abs(modifiedInvestRowsSell[i].연기금등));
+                row.사모펀드 = (Math.Abs(modifiedInvestRowsBuy[i].사모펀드) - Math.Abs(modifiedInvestRowsSell[i].사모펀드));
+                row.국가 = (Math.Abs(modifiedInvestRowsBuy[i].국가) - Math.Abs(modifiedInvestRowsSell[i].국가));
+                row.기타법인 = (Math.Abs(modifiedInvestRowsBuy[i].기타법인) - Math.Abs(modifiedInvestRowsSell[i].기타법인));
+                row.내외국인 = (Math.Abs(modifiedInvestRowsBuy[i].내외국인) - Math.Abs(modifiedInvestRowsSell[i].내외국인));
+                ret.Add(row);
+            }
+
+            for(int i=modifiedInvestRowsBuy.Count - 2; i >= 0; i--)
+            {
+                ret[i] = (ret[i] + ret[i + 1]);
+            }
+
+            for(int i=0;i<modifiedInvestRowsBuy.Count;i++)
+            {
+                ret[i] = ret[i] / divisor;
+            }
+
+            return ret;
         }
 
     }
