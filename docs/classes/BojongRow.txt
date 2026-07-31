@@ -1,9 +1,0 @@
-int Date는 yyyyMMdd 형식이다.
-
-member field name: sqlite column name 쌍들은 다음과 같다:
-Jmcode: 종목코드
-Rank: 보유순위
-NHaveAcc: 보유계좌수
-AvgPrice: 보유평균매수가
-ProfitRate: 보유계좌수익률
-

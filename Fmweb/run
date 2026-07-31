@@ -1,6 +1,5 @@
 #!/bin/bash
-date >> log.txt
 echo "nohupping..."
-nohup ./bin/Debug/net8.0/Fmweb --urls http://localhost:25572 2>&1 >> log.txt &
+nohup ./bin/Debug/net8.0/Fmweb --urls http://localhost:25572 &
 echo "nohup done"
 

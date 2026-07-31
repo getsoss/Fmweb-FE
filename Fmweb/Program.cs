@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
@@ -14,8 +15,6 @@ namespace Fmweb
     {
         private static void Main(string[] args)
         {
-            Console.WriteLine("-----BEGIN MAIN-----");
-            Console.WriteLine("current directory: " + Directory.GetCurrentDirectory());
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
             WebApplication app = builder.Build();
             var handlers = new Handlers();
@@ -24,7 +23,6 @@ namespace Fmweb
             app.MapGet("/bojong", handlers.bojong);
             app.MapGet("/modified-average-trade-price", handlers.modified_average_trade_price);
             app.Run();
-            Console.WriteLine("-----END MAIN-----");
         }
     }
 }
