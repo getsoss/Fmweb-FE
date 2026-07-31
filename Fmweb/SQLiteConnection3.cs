@@ -1,7 +1,9 @@
+using Microsoft.VisualBasic;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
 using System.Linq;
+using System.Reflection.Emit;
 
 namespace Fmweb
 {
@@ -250,6 +252,43 @@ namespace Fmweb
             }
         }
 
+
+
+
+        public List<UnmodifiedInvestRow> GetUnmodifiedInvestRows(string ticker, UnmodifiedInvestRow.BuySell buySell)
+        {
+            string bs = (buySell == UnmodifiedInvestRow.BuySell.Buy) ? "buy" : "sel";
+            string tableName = $"opt10059_{bs}_{ticker}";
+            var ret = new List<UnmodifiedInvestRow>();
+            _conn.CommandText = $"SELECT 일자,개인투자자,외국인투자자,기관계,금융투자,보험,투신,기타금융,은행,연기금등,사모펀드,국가,기타법인,내외국인 FROM {tableName} ORDER BY 일자 DESC LIMIT {DAY_MAX}";
+            using (SQLiteDataReader rdr = _conn.ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    var row = new UnmodifiedInvestRow();
+                    row.Date = rdr.GetInt32(0);
+                    row.개인투자자 = rdr.GetInt64(1);
+                    row.외국인투자자 = rdr.GetInt64(2);
+                    row.기관계 = rdr.GetInt64(3);
+                    row.금융투자 = rdr.GetInt64(4);
+                    row.보험 = rdr.GetInt64(5);
+                    row.투신 = rdr.GetInt64(6);
+                    row.기타금융 = rdr.GetInt64(7);
+                    row.은행 = rdr.GetInt64(8);
+                    row.연기금등 = rdr.GetInt64(9);
+                    row.사모펀드 = rdr.GetInt64(10);
+                    row.국가 = rdr.GetInt64(11);
+                    row.기타법인 = rdr.GetInt64(12);
+                    row.내외국인 = rdr.GetInt64(13);
+                    ret.Add(row);
+                }
+                rdr.Close();
+            }
+
+            return ret;
+        }
+
     }
+
 }
 
