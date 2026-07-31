@@ -11,8 +11,10 @@ using System.Text.RegularExpressions;
 
 namespace Fmweb
 {
+
     internal static class Program
     {
+
         private static void Main(string[] args)
         {
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -22,8 +24,11 @@ namespace Fmweb
             app.MapGet("/ticker-exists", handlers.ticker_exists);
             app.MapGet("/bojong", handlers.bojong);
             app.MapGet("/modified-average-trade-price", handlers.modified_average_trade_price);
+            app.MapGet("/modified-have", handlers.modified_have);
             app.Run();
         }
+
     }
+
 }
 
