@@ -163,6 +163,11 @@ namespace Fmweb
             return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
         }
 
+        //public IResult rs(string ticker)
+        //{
+            
+        //}
+
     }
 
 }

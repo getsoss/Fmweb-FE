@@ -59,28 +59,68 @@ namespace Fmweb
 
         internal List<MarketCandle> GetMarketCandles(Market market)
         {
-            var ret = new List<MarketCandle>();
-            string upcode = (market == Market.Kospi) ? "001" : "101";
-            _conn.CommandText = $"SELECT 일자,현재가,거래량,거래대금,시가,고가,저가 FROM opt20006_{upcode} ORDER BY 일자 DESC LIMIT {DAY_MAX} ; ";
-            using (SQLiteDataReader rdr = _conn.ExecuteReader())
+            lock (_readLock)
             {
-                while (rdr.Read())
+                var ret = new List<MarketCandle>();
+                string upcode = (market == Market.Kospi) ? "001" : "101";
+                _conn.CommandText = $"SELECT 일자,현재가,거래량,거래대금,시가,고가,저가 FROM opt20006_{upcode} ORDER BY 일자 DESC LIMIT {DAY_MAX} ; ";
+                using (SQLiteDataReader rdr = _conn.ExecuteReader())
                 {
-                    var row = new MarketCandle()
+                    while (rdr.Read())
                     {
-                        Date = rdr.GetInt32(0),
-                        Close = rdr.GetInt64(1),
-                        Volume = rdr.GetInt64(2),
-                        VolumeMoney = rdr.GetInt64(3),
-                        Open = rdr.GetInt64(4),
-                        High = rdr.GetInt64(5),
-                        Low = rdr.GetInt64(6)
-                    };
-                    ret.Add(row);
+                        var row = new MarketCandle()
+                        {
+                            Date = rdr.GetInt32(0),
+                            Close = rdr.GetInt64(1),
+                            Volume = rdr.GetInt64(2),
+                            VolumeMoney = rdr.GetInt64(3),
+                            Open = rdr.GetInt64(4),
+                            High = rdr.GetInt64(5),
+                            Low = rdr.GetInt64(6)
+                        };
+                        ret.Add(row);
+                    }
+                    rdr.Close();
                 }
-                rdr.Close();
+                return ret;
             }
-            return ret;
+        }
+
+
+        private Dictionary<string, Market> _marketDict;
+        public Dictionary<string, Market> GetMarketDict()
+        {
+            if (!(_marketDict is null))
+            {
+                return _marketDict;
+            }
+
+            lock (_readLock)
+            {
+                var ret = new Dictionary<string, Market>();
+                _conn.CommandText = $"SELECT 종목코드,시장 FROM kospidaq ; ";
+                using (SQLiteDataReader rdr = _conn.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        string ticker = rdr.GetString(0);
+                        long market = rdr.GetInt64(1);
+                        Market market2;
+                        if (market == 0)
+                        {
+                            market2 = Market.Kospi;
+                        }
+                        else
+                        {
+                            market2 = Market.Kosdaq;
+                        }
+                        ret[ticker] = market2;
+                    }
+                    rdr.Close();
+                }
+                _marketDict = ret;
+            }
+            return _marketDict;
         }
 
 
@@ -104,6 +144,7 @@ namespace Fmweb
 
                 return list;
             }
+
         }
 
 
@@ -111,6 +152,10 @@ namespace Fmweb
 
 
         private List<Jongmok> _allJongmoks;
+
+        /// <summary>
+        /// thread safe
+        /// </summary>
         public List<Jongmok> GetAllJongmoks()
         {
             if (!(_allJongmoks is null))
@@ -420,6 +465,10 @@ namespace Fmweb
 
 
         private Dictionary<string, Jongmok> _jongmokDict;
+
+        /// <summary>
+        /// thread safe
+        /// </summary>
         public Dictionary<string, Jongmok> GetJongmokDict()
         {
             if (!(_jongmokDict is null))
