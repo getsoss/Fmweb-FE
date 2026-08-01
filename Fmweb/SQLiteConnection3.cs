@@ -311,6 +311,49 @@ namespace Fmweb
             return ret;
         }
 
+        public List<DirectionRow> GetDirectionRows(string ticker)
+        {
+            var unmodifiedInvestRowsBuy = GetUnmodifiedInvestRows(ticker, BuySell.Buy);
+            var unmodifiedInvestRowsSell = GetUnmodifiedInvestRows(ticker, BuySell.Sell);
+            var ret = new List<DirectionRow>();
+
+
+
+            for (int i = 0; i < unmodifiedInvestRowsBuy.Count; i++)
+            {
+                var row = new DirectionRow();
+                row.Date = unmodifiedInvestRowsBuy[i].Date;
+
+                double f(Func<UnmodifiedInvestRow, long> func)
+                {
+                    long denominator = Math.Abs(func(unmodifiedInvestRowsBuy[i])) + Math.Abs(func(unmodifiedInvestRowsSell[i]));
+
+                    // Prevent division by zero.
+                    denominator = Math.Max(denominator, 1);
+
+                    long numerator = Math.Abs(func(unmodifiedInvestRowsBuy[i])) - Math.Abs(func(unmodifiedInvestRowsSell[i]));
+                    return numerator / (double)denominator;
+                }
+
+                row.개인투자자 = f(x => x.개인투자자);
+                row.외국인투자자 = f(x => x.외국인투자자);
+                row.기관계 = f(x => x.기관계);
+                row.금융투자 = f(x => x.금융투자);
+                row.보험 = f(x => x.보험);
+                row.투신 = f(x => x.투신);
+                row.기타금융 = f(x => x.기타금융);
+                row.은행 = f(x => x.은행);
+                row.연기금등 = f(x => x.연기금등);
+                row.사모펀드 = f(x => x.사모펀드);
+                row.국가 = f(x => x.국가);
+                row.기타법인 = f(x => x.기타법인);
+                row.내외국인 = f(x => x.내외국인);
+                ret.Add(row);
+            }
+
+            return ret;
+        }
+
 
         public List<ModifiedCandle> GetModifiedCandles(string ticker)
         {
