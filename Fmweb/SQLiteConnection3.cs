@@ -57,6 +57,33 @@ namespace Fmweb
             }
         }
 
+        internal List<MarketCandle> GetMarketCandles(Market market)
+        {
+            var ret = new List<MarketCandle>();
+            string upcode = (market == Market.Kospi) ? "001" : "101";
+            _conn.CommandText = $"SELECT 일자,현재가,거래량,거래대금,시가,고가,저가 FROM opt20006_{upcode} ORDER BY 일자 DESC LIMIT {DAY_MAX} ; ";
+            using (SQLiteDataReader rdr = _conn.ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    var row = new MarketCandle()
+                    {
+                        Date = rdr.GetInt32(0),
+                        Close = rdr.GetInt64(1),
+                        Volume = rdr.GetInt64(2),
+                        VolumeMoney = rdr.GetInt64(3),
+                        Open = rdr.GetInt64(4),
+                        High = rdr.GetInt64(5),
+                        Low = rdr.GetInt64(6)
+                    };
+                    ret.Add(row);
+                }
+                rdr.Close();
+            }
+            return ret;
+        }
+
+
         public List<ModifyFactor> GetModifyFactors(string ticker)
         {
             lock (_readLock)
