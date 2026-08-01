@@ -134,12 +134,12 @@ namespace Fmweb
         /// <summary>
         /// In percentage. Thread-safe.
         /// </summary>
-        public List<double> GetRs(string ticker)
+        public List<RsRow> GetRs(string ticker)
         {
             var market = GetMarketDict()[ticker];
             var marketCandles = GetMarketCandles(market);
             var modifiedCandles = GetModifiedCandles(ticker);
-            List<double> ret = new List<double>();
+            var ret = new List<RsRow>();
             int n = Math.Min(Math.Min(DAY_MAX, marketCandles.Count), modifiedCandles.Count);
 
             // Prevent division by zero.
@@ -150,7 +150,10 @@ namespace Fmweb
             {
                 double jongmokStrength = (Math.Abs(modifiedCandles[i].Close) / jongmokDenominator);
                 double marketStrength = (Math.Abs(marketCandles[i].Close) / marketDenominator);
-                ret.Add(jongmokStrength / Math.Max(0.0001, marketStrength) * 100); // Make it percentage.
+                var row = new RsRow();
+                row.Rs = jongmokStrength / Math.Max(0.0001, marketStrength) * 100; // Make it percentage.
+                row.Date = modifiedCandles[i].Date;
+                ret.Add(row); 
             }
 
             return ret;

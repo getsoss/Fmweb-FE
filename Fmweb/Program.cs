@@ -27,7 +27,7 @@ namespace Fmweb
             app.MapGet("/modified-have", handlers.modified_have);
             app.MapGet("/power", handlers.power);
             app.MapGet("/direction", handlers.direction);
-
+            app.MapGet("/rs", handlers.rs);
             app.Run();
         }
 
