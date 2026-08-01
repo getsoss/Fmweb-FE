@@ -25,6 +25,7 @@ namespace Fmweb
             app.MapGet("/bojong", handlers.bojong);
             app.MapGet("/modified-average-trade-price", handlers.modified_average_trade_price);
             app.MapGet("/modified-have", handlers.modified_have);
+            app.MapGet("/power", handlers.power);
             app.Run();
         }
 

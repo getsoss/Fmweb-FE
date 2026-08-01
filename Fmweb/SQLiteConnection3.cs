@@ -279,6 +279,9 @@ namespace Fmweb
         }
 
 
+        /// <summary>
+        /// In percentage.
+        /// </summary>
         public List<PowerRow> GetPowerRows(string ticker)
         {
             var unmodifiedInvestRowsBuy = GetUnmodifiedInvestRows(ticker, BuySell.Buy);
@@ -302,6 +305,7 @@ namespace Fmweb
                 row.기타법인 = Math.Abs(unmodifiedInvestRowsBuy[i].기타법인) + Math.Abs(unmodifiedInvestRowsSell[i].기타법인);
                 row.내외국인 = Math.Abs(unmodifiedInvestRowsBuy[i].내외국인) + Math.Abs(unmodifiedInvestRowsSell[i].내외국인);
                 row.Divide(Math.Max(1, unmodifiedInvestRowsBuy[i].Volume * 2));
+                row.Multiply(100);
                 ret.Add(row);
             }
             return ret;

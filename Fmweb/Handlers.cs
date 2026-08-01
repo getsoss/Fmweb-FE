@@ -119,6 +119,29 @@ namespace Fmweb
             return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
         }
 
+
+        public IResult power(string ticker)
+        {
+            var jo = new JObject();
+
+            if (!_tickerRegex.IsMatch(ticker))
+            {
+                jo["errno"] = 1;
+
+            }
+            else if (!_conn.GetAllTickers().Contains(ticker))
+            {
+                jo["errno"] = 1;
+            }
+            else
+            {
+                jo["errno"] = 0;
+                jo["result"] = JArray.FromObject(_conn.GetPowerRows(ticker).Select(x => x.ToObjects()));
+            }
+
+            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+        }
+
     }
 
 }
