@@ -69,7 +69,9 @@ namespace Fmweb
             return ret;
         }
 
-
+        /// <summary>
+        /// NOTE: <paramref name="parameterName"/> must be one of $a1, $a2, $a3, ..., $a9.
+        /// </summary>
         /// <param name="parameterName">One of $a1, $a2, $a3, ..., $a9.</param>
         public SQLiteParameter AddParamWithValue(string parameterName, object value)
         {

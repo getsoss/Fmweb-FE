@@ -57,6 +57,9 @@ namespace Fmweb
             }
         }
 
+        /// <summary>
+        /// thread safe
+        /// </summary>
         internal List<MarketCandle> GetMarketCandles(Market market)
         {
             lock (_readLock)
@@ -88,6 +91,10 @@ namespace Fmweb
 
 
         private Dictionary<string, Market> _marketDict;
+
+        /// <summary>
+        /// thread safe
+        /// </summary>
         public Dictionary<string, Market> GetMarketDict()
         {
             if (!(_marketDict is null))
@@ -122,6 +129,33 @@ namespace Fmweb
             }
             return _marketDict;
         }
+
+
+        /// <summary>
+        /// In percentage. Thread-safe.
+        /// </summary>
+        public List<double> GetRs(string ticker)
+        {
+            var market = GetMarketDict()[ticker];
+            var marketCandles = GetMarketCandles(market);
+            var modifiedCandles = GetModifiedCandles(ticker);
+            List<double> ret = new List<double>();
+            int n = Math.Min(Math.Min(DAY_MAX, marketCandles.Count), modifiedCandles.Count);
+
+            // Prevent division by zero.
+            double jongmokDenominator = Math.Max(1, Math.Abs(modifiedCandles[n - 1].Close));
+            double marketDenominator = Math.Max(1, Math.Abs(marketCandles[n - 1].Close));
+
+            for (int i = 0; i < n; i++)
+            {
+                double jongmokStrength = (Math.Abs(modifiedCandles[i].Close) / jongmokDenominator);
+                double marketStrength = (Math.Abs(marketCandles[i].Close) / marketDenominator);
+                ret.Add(jongmokStrength / Math.Max(0.0001, marketStrength) * 100); // Make it percentage.
+            }
+
+            return ret;
+        }
+
 
 
         public List<ModifyFactor> GetModifyFactors(string ticker)
@@ -204,12 +238,21 @@ namespace Fmweb
         }
 
 
-        public List<BojongRow> ReadAllBojongRows(string ticker)
+        private List<string> _allBojongTables;
+
+        /// <summary>
+        /// thread safe
+        /// </summary>
+        private List<string> GetAllBojongTables()
         {
+            if(!(_allBojongTables is null))
+            {
+                return _allBojongTables;
+            }
+
+            List<string> allBojongTables = new List<string>();
             lock (_readLock)
             {
-                List<string> allBojongTables = new List<string>();
-
                 _conn.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name like 'bojong_%';";
                 using (var rdr = _conn.ExecuteReader())
                 {
@@ -220,8 +263,22 @@ namespace Fmweb
                     }
                     rdr.Close();
                 }
+            }
+            _allBojongTables = allBojongTables;
+            return _allBojongTables;
+        }
 
-                List<BojongRow> tmp = new List<BojongRow>();
+
+        /// <summary>
+        /// thread safe
+        /// </summary>
+        public List<BojongRow> GetAllBojongRows(string ticker)
+        {
+            lock (_readLock)
+            {
+                List<string> allBojongTables = GetAllBojongTables();
+
+                List<BojongRow> ret = new List<BojongRow>();
 
                 foreach (var bojongTable in allBojongTables)
                 {
@@ -238,29 +295,26 @@ namespace Fmweb
                             row.NHaveAcc = rdr.GetInt64(2);
                             row.AvgPrice = rdr.GetInt64(3);
                             row.ProfitRate = rdr.GetDouble(4);
-                            row.Date = int.Parse(bojongTable.Substring(bojongTable.Length - 8));
-                            tmp.Add(row);
+                            row.Date = int.Parse(bojongTable.Substring(bojongTable.Length - 8)); // yyyyMMdd
+                            ret.Add(row);
                         }
                         rdr.Close();
                     }
                 }
 
-                tmp.Sort((a, b) =>
+                // Sort by date descending order.
+                ret.Sort((a, b) =>
                 {
                     return b.Date.CompareTo(a.Date);
                 });
 
-
-
-                if (tmp.Count > DAY_MAX)
+                if (ret.Count > DAY_MAX)
                 {
-                    tmp.RemoveRange(DAY_MAX, tmp.Count - DAY_MAX);
+                    ret.RemoveRange(DAY_MAX, ret.Count - DAY_MAX);
                 }
 
-                return tmp;
-
+                return ret;
             }
-
         }
 
 
@@ -430,6 +484,9 @@ namespace Fmweb
         }
 
 
+        /// <summary>
+        /// thread safe
+        /// </summary>
         public List<ModifiedCandle> GetModifiedCandles(string ticker)
         {
             lock (_readLock)

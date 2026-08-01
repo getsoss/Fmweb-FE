@@ -67,7 +67,7 @@ namespace Fmweb
                 return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
             }
 
-            var bojongRows = _conn.ReadAllBojongRows(ticker);
+            var bojongRows = _conn.GetAllBojongRows(ticker);
             jo["errno"] = 0;
             jo["result"] = JArray.FromObject(bojongRows.Select(x => (object[])x));
             return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
