@@ -305,12 +305,15 @@ namespace Fmweb
                 row.기타법인 = Math.Abs(unmodifiedInvestRowsBuy[i].기타법인) + Math.Abs(unmodifiedInvestRowsSell[i].기타법인);
                 row.내외국인 = Math.Abs(unmodifiedInvestRowsBuy[i].내외국인) + Math.Abs(unmodifiedInvestRowsSell[i].내외국인);
                 row.Divide(Math.Max(1, unmodifiedInvestRowsBuy[i].Volume * 2));
-                row.Multiply(100);
+                row.Multiply(100); // Make it percentage.
                 ret.Add(row);
             }
             return ret;
         }
 
+        /// <summary>
+        /// In percentage.
+        /// </summary>
         public List<DirectionRow> GetDirectionRows(string ticker)
         {
             var unmodifiedInvestRowsBuy = GetUnmodifiedInvestRows(ticker, BuySell.Buy);
@@ -332,7 +335,7 @@ namespace Fmweb
                     denominator = Math.Max(denominator, 1);
 
                     long numerator = Math.Abs(func(unmodifiedInvestRowsBuy[i])) - Math.Abs(func(unmodifiedInvestRowsSell[i]));
-                    return numerator / (double)denominator;
+                    return (numerator / (double)denominator) * 100; // make it percentage
                 }
 
                 row.개인투자자 = f(x => x.개인투자자);
