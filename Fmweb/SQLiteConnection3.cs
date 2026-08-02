@@ -551,11 +551,11 @@ namespace Fmweb
             var jongmok = GetJongmokDict()[ticker];
 
             // ( jongmok.outstandingStock * 1000 ) is exact actual quantity.
-            // But we set divisor to ( jongmok.outstandingStock * 10 ) to get "have" value in **PERCENTAGE** unit.
-            long divisor = jongmok.OutstandingStock * 10;
+            // But we set denominator to ( jongmok.outstandingStock * 10 ) to get "have" value in **PERCENTAGE** unit.
+            long denominator = jongmok.OutstandingStock * 10;
 
             // Prevent division by zero.
-            divisor = Math.Max(divisor, 1);
+            denominator = Math.Max(denominator, 1);
 
             List<ModifiedHaveRow> ret = new List<ModifiedHaveRow>();
 
@@ -563,30 +563,38 @@ namespace Fmweb
             {
                 var row = new ModifiedHaveRow();
                 row.Date = modifiedInvestRowsBuy[i].Date;
-                row.개인투자자 = (Math.Abs(modifiedInvestRowsBuy[i].개인투자자) - Math.Abs(modifiedInvestRowsSell[i].개인투자자));
-                row.외국인투자자 = (Math.Abs(modifiedInvestRowsBuy[i].외국인투자자) - Math.Abs(modifiedInvestRowsSell[i].외국인투자자));
-                row.기관계 = (Math.Abs(modifiedInvestRowsBuy[i].기관계) - Math.Abs(modifiedInvestRowsSell[i].기관계));
-                row.금융투자 = (Math.Abs(modifiedInvestRowsBuy[i].금융투자) - Math.Abs(modifiedInvestRowsSell[i].금융투자));
-                row.보험 = (Math.Abs(modifiedInvestRowsBuy[i].보험) - Math.Abs(modifiedInvestRowsSell[i].보험));
-                row.투신 = (Math.Abs(modifiedInvestRowsBuy[i].투신) - Math.Abs(modifiedInvestRowsSell[i].투신));
-                row.기타금융 = (Math.Abs(modifiedInvestRowsBuy[i].기타금융) - Math.Abs(modifiedInvestRowsSell[i].기타금융));
-                row.은행 = (Math.Abs(modifiedInvestRowsBuy[i].은행) - Math.Abs(modifiedInvestRowsSell[i].은행));
-                row.연기금등 = (Math.Abs(modifiedInvestRowsBuy[i].연기금등) - Math.Abs(modifiedInvestRowsSell[i].연기금등));
-                row.사모펀드 = (Math.Abs(modifiedInvestRowsBuy[i].사모펀드) - Math.Abs(modifiedInvestRowsSell[i].사모펀드));
-                row.국가 = (Math.Abs(modifiedInvestRowsBuy[i].국가) - Math.Abs(modifiedInvestRowsSell[i].국가));
-                row.기타법인 = (Math.Abs(modifiedInvestRowsBuy[i].기타법인) - Math.Abs(modifiedInvestRowsSell[i].기타법인));
-                row.내외국인 = (Math.Abs(modifiedInvestRowsBuy[i].내외국인) - Math.Abs(modifiedInvestRowsSell[i].내외국인));
+
+                double f(Func<ModifiedInvestRow, double> func)
+                {
+                    return Math.Abs(func(modifiedInvestRowsBuy[i])) - Math.Abs(func(modifiedInvestRowsSell[i]));
+                }
+
+                row.개인투자자 = f(x=>x.개인투자자);
+                row.외국인투자자 = f(x=>x.외국인투자자);
+                row.기관계 = f(x=>x.기관계);
+                row.금융투자 = f(x=>x.금융투자);
+                row.보험 = f(x=>x.보험);
+                row.투신 = f(x=>x.투신);
+                row.기타금융 = f(x=>x.기타금융);
+                row.은행 = f(x=>x.은행);
+                row.연기금등 = f(x=>x.연기금등);
+                row.사모펀드 = f(x=>x.사모펀드);
+                row.국가 = f(x=>x.국가);
+                row.기타법인 = f(x=>x.기타법인);
+                row.내외국인 = f(x=>x.내외국인);
                 ret.Add(row);
             }
 
+            // Make prefix sum.
             for (int i = modifiedInvestRowsBuy.Count - 2; i >= 0; i--)
             {
-                ret[i] = (ret[i] + ret[i + 1]);
+                ret[i].Add(ret[i + 1]);
             }
 
+            // 각 일자의 각 세력의 주식보유량을 유통주식수로 나눠준다.
             for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
             {
-                ret[i] = ret[i] / divisor;
+                ret[i].Div(denominator);
             }
 
             return ret;
