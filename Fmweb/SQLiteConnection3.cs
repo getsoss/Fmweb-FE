@@ -1,7 +1,10 @@
 using Microsoft.VisualBasic;
+using Microsoft.VisualBasic.FileIO;
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Data.SqlTypes;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection.Emit;
@@ -160,7 +163,9 @@ namespace Fmweb
         }
 
 
-
+        /// <summary>
+        /// thread safe
+        /// </summary>
         public List<ModifyFactor> GetModifyFactors(string ticker)
         {
             lock (_readLock)
@@ -230,6 +235,10 @@ namespace Fmweb
 
 
         private HashSet<string> _allTickers;
+
+        /// <summary>
+        /// Thread-safe. Has cache.
+        /// </summary>
         public HashSet<string> GetAllTickers()
         {
             if (_allTickers is null)
@@ -506,6 +515,9 @@ namespace Fmweb
             }
         }
 
+        /// <summary>
+        /// thread safe
+        /// </summary>
         public List<ModifiedInvestRow> GetModifiedInvestRows(string ticker, BuySell buySell)
         {
             lock (_readLock)
@@ -542,7 +554,7 @@ namespace Fmweb
 
 
         /// <summary>
-        /// in percentage
+        /// In percentage. Thread-safe.
         /// </summary>
         public List<ModifiedHaveRow> GetModifiedHaveRows(string ticker)
         {
@@ -599,6 +611,98 @@ namespace Fmweb
 
             return ret;
         }
+
+
+        /// <returns>true if <paramref name="actualPrice"/> meets the condition; otherwise, false. </returns>
+        private static bool Compare(long searchPrice, SearchFilter searchFilter, double actualPrice)
+        {
+            if((searchFilter & SearchFilter.OnlyEqualTo) == SearchFilter.OnlyEqualTo)
+            {
+                if(searchPrice == actualPrice)
+                {
+                    return true;
+                }
+            }
+
+            if ((searchFilter & SearchFilter.OnlyGreaterThan) == SearchFilter.OnlyGreaterThan)
+            {
+                if (searchPrice < actualPrice)
+                {
+                    return true;
+                }
+            }
+
+            if ((searchFilter & SearchFilter.OnlyLessThan) == SearchFilter.OnlyLessThan)
+            {
+                if (searchPrice > actualPrice)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary> thread safe </summary>
+        /// <param name="date">8 digits. yyyyMMdd format.</param>
+        /// <returns> -1 if date does not exist. </returns>
+        public double GetModifiedClosePrice(int date, string ticker)
+        {
+            double ret = -1;
+            lock (_readLock)
+            {
+                _conn.CommandText = $"SELECT 현재가 FROM opt10081_{ticker} WHERE 일자 = {date} ;";
+                using (SQLiteDataReader rdr = _conn.ExecuteReader())
+                {
+                    if (rdr.StepCount == 0)
+                    {
+                        return -1;
+                    }
+                    while (rdr.Read())
+                    {
+                        ret = Math.Abs(rdr.GetInt64(0));
+                    }
+                    rdr.Close();
+                }
+                _conn.CommandText = $"SELECT 수정인수 FROM mpt10081_{ticker} WHERE 일자 = {date} ;";
+                using (SQLiteDataReader rdr = _conn.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        double modifyFactor = Math.Abs(rdr.GetDouble(0));
+                        ret *= modifyFactor;
+                    }
+                    rdr.Close();
+                }
+            }
+            return ret;
+        }
+
+
+        ///<summary> thread safe </summary>
+        /// <param name="date">8 digits. yyyyMMdd format.</param>
+        public List<TickerAndPrice> SearchByDateAndPrice(int date, long price, SearchFilter searchFilter)
+        {
+            var ret = new List<TickerAndPrice>();
+            var allTickers = GetAllTickers();
+            foreach(var ticker in allTickers)
+            {
+                double actualPrice = GetModifiedClosePrice(date, ticker);
+                if(actualPrice == -1)
+                {
+                    continue;
+                }
+                if(Compare(price, searchFilter, actualPrice))
+                {
+                    var row = new TickerAndPrice();
+                    row.Ticker = ticker;
+                    row.Price = actualPrice;
+                    ret.Add(row);
+                }
+            }
+            return ret;
+        }
+
 
     }
 

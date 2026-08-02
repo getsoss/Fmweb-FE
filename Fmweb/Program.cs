@@ -28,6 +28,7 @@ namespace Fmweb
             app.MapGet("/power", handlers.power);
             app.MapGet("/direction", handlers.direction);
             app.MapGet("/rs", handlers.rs);
+            app.MapGet("search-by-date-and-price", handlers.search_by_date_and_price);
             app.Run();
         }
 
