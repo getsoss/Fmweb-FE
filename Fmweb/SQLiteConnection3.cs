@@ -156,7 +156,7 @@ namespace Fmweb
                 var row = new RsRow();
                 row.Rs = jongmokStrength / Math.Max(0.0001, marketStrength) * 100; // Make it percentage.
                 row.Date = modifiedCandles[i].Date;
-                ret.Add(row); 
+                ret.Add(row);
             }
 
             return ret;
@@ -257,7 +257,7 @@ namespace Fmweb
         /// </summary>
         private List<string> GetAllBojongTables()
         {
-            if(!(_allBojongTables is null))
+            if (!(_allBojongTables is null))
             {
                 return _allBojongTables;
             }
@@ -581,19 +581,19 @@ namespace Fmweb
                     return Math.Abs(func(modifiedInvestRowsBuy[i])) - Math.Abs(func(modifiedInvestRowsSell[i]));
                 }
 
-                row.개인투자자 = f(x=>x.개인투자자);
-                row.외국인투자자 = f(x=>x.외국인투자자);
-                row.기관계 = f(x=>x.기관계);
-                row.금융투자 = f(x=>x.금융투자);
-                row.보험 = f(x=>x.보험);
-                row.투신 = f(x=>x.투신);
-                row.기타금융 = f(x=>x.기타금융);
-                row.은행 = f(x=>x.은행);
-                row.연기금등 = f(x=>x.연기금등);
-                row.사모펀드 = f(x=>x.사모펀드);
-                row.국가 = f(x=>x.국가);
-                row.기타법인 = f(x=>x.기타법인);
-                row.내외국인 = f(x=>x.내외국인);
+                row.개인투자자 = f(x => x.개인투자자);
+                row.외국인투자자 = f(x => x.외국인투자자);
+                row.기관계 = f(x => x.기관계);
+                row.금융투자 = f(x => x.금융투자);
+                row.보험 = f(x => x.보험);
+                row.투신 = f(x => x.투신);
+                row.기타금융 = f(x => x.기타금융);
+                row.은행 = f(x => x.은행);
+                row.연기금등 = f(x => x.연기금등);
+                row.사모펀드 = f(x => x.사모펀드);
+                row.국가 = f(x => x.국가);
+                row.기타법인 = f(x => x.기타법인);
+                row.내외국인 = f(x => x.내외국인);
                 ret.Add(row);
             }
 
@@ -616,9 +616,9 @@ namespace Fmweb
         /// <returns>true if <paramref name="actualPrice"/> meets the condition; otherwise, false. </returns>
         private static bool Compare(long searchPrice, SearchFilter searchFilter, double actualPrice)
         {
-            if((searchFilter & SearchFilter.OnlyEqualTo) == SearchFilter.OnlyEqualTo)
+            if ((searchFilter & SearchFilter.OnlyEqualTo) == SearchFilter.OnlyEqualTo)
             {
-                if(searchPrice == actualPrice)
+                if (searchPrice == actualPrice)
                 {
                     return true;
                 }
@@ -679,20 +679,22 @@ namespace Fmweb
         }
 
 
-        ///<summary> thread safe </summary>
+        ///<summary> Thread-safe. </summary>
         /// <param name="date">8 digits. yyyyMMdd format.</param>
+        /// <returns>(price, ticker) ascending order.</returns>
         public List<TickerAndPrice> SearchByDateAndPrice(int date, long price, SearchFilter searchFilter)
         {
             var ret = new List<TickerAndPrice>();
             var allTickers = GetAllTickers();
-            foreach(var ticker in allTickers)
+
+            foreach (var ticker in allTickers)
             {
                 double actualPrice = GetModifiedClosePrice(date, ticker);
-                if(actualPrice == -1)
+                if (actualPrice == -1)
                 {
                     continue;
                 }
-                if(Compare(price, searchFilter, actualPrice))
+                if (Compare(price, searchFilter, actualPrice))
                 {
                     var row = new TickerAndPrice();
                     row.Ticker = ticker;
@@ -700,6 +702,17 @@ namespace Fmweb
                     ret.Add(row);
                 }
             }
+
+            ret.Sort((a, b) =>
+            {
+                int compareResult = a.Price.CompareTo(b.Price);
+                if (compareResult == 0)
+                {
+                    return a.Ticker.CompareTo(b.Ticker);
+                }
+                return compareResult;
+            });
+
             return ret;
         }
 
