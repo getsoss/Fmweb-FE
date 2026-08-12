@@ -1,4 +1,5 @@
-﻿using Fmweb.SQLite;
+﻿using Fmweb.Data;
+using Fmweb.SQLite;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
 using System.Linq;
@@ -68,7 +69,7 @@ namespace Fmweb
                 return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
             }
 
-            var bojongRows = _conn.GetAllBojongRows(ticker);
+            var bojongRows = _conn.GetAllBojongRowsByTicker(ticker);
             jo["errno"] = 0;
             jo["result"] = JArray.FromObject(bojongRows.Select(x => (object[])x));
             return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");

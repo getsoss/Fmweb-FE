@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Fmweb
+namespace Fmweb.Data
 {
     internal partial class UnmodifiedInvestRow
     {

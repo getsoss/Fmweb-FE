@@ -1,3 +1,4 @@
+using Fmweb.Data;
 using Microsoft.VisualBasic;
 using Microsoft.VisualBasic.FileIO;
 using System;
@@ -141,7 +142,7 @@ namespace Fmweb.SQLite
 
 
 
-        
+
 
 
         /// <summary>
@@ -237,7 +238,7 @@ namespace Fmweb.SQLite
         private List<string> _allBojongTables;
 
         /// <summary>
-        /// thread safe
+        /// Thread-safe. Cached. Table name format is "bojong_{yyyyMMdd}".
         /// </summary>
         private List<string> GetAllBojongTables()
         {
@@ -268,7 +269,7 @@ namespace Fmweb.SQLite
         /// <summary>
         /// Thread-safe.
         /// </summary>
-        public List<BojongRow> GetAllBojongRows(string ticker)
+        public List<BojongRow> GetAllBojongRowsByTicker(string ticker)
         {
             lock (_readLock)
             {
@@ -314,6 +315,43 @@ namespace Fmweb.SQLite
                 return ret;
             }
         }
+
+
+
+
+        /// <summary>
+        /// Thread-safe.
+        /// </summary>
+        /// <param name="date">8 digits. yyyyMMdd format.</param>
+        public List<BojongRow> GetAllBojongRowsByDate(int date)
+        {
+            lock (_readLock)
+            {
+                List<BojongRow> ret = new List<BojongRow>();
+
+                _conn.CommandText = $"SELECT 종목코드,보유순위,보유계좌수,보유평균매수가,보유계좌수익률 FROM bojong_{date} ; ";
+
+                using (SQLiteDataReader rdr = _conn.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        BojongRow row = new BojongRow();
+                        row.Jmcode = rdr.GetString(0);
+                        row.Rank = rdr.GetInt32(1);
+                        row.NHaveAcc = rdr.GetInt64(2);
+                        row.AvgPrice = rdr.GetInt64(3);
+                        row.ProfitRate = rdr.GetDouble(4);
+                        row.Date = date; // yyyyMMdd
+                        ret.Add(row);
+                    }
+                    rdr.Close();
+                }
+
+                return ret;
+            }
+        }
+
+
 
 
         /// <summary>

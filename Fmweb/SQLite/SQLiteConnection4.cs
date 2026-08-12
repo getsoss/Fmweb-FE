@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Fmweb.Data;
+using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 
@@ -270,6 +271,32 @@ namespace Fmweb.SQLite
                 }
                 return compareResult;
             });
+            
+            return ret;
+        }
+
+
+        ///<summary> Thread-safe. </summary>
+        /// <param name="date">8 digits. yyyyMMdd format.</param>
+        /// <returns>(profit rate, ticker) ascending order.</returns>
+        public List<TickerAndScore> SearchByBojongProfitRate(int date)
+        {
+            List<BojongRow> bojongRows = _conn.GetAllBojongRowsByDate(date);
+            List<TickerAndScore> ret = new List<TickerAndScore>();
+            foreach(var b in bojongRows)
+            {
+                ret.Add(new TickerAndScore(b.Jmcode, b.ProfitRate));
+            }
+
+            ret.Sort((a, b) =>
+            {
+                int compareResult = a.Score.CompareTo(b.Score);
+                if (compareResult == 0)
+                {
+                    return a.Ticker.CompareTo(b.Ticker);
+                }
+                return compareResult;
+            });
 
             return ret;
         }
@@ -282,10 +309,10 @@ namespace Fmweb.SQLite
         }
 
 
-        /// <inheritdoc cref="SQLiteConnection3.GetAllBojongRows(string)"/>
-        public List<BojongRow> GetAllBojongRows(string ticker)
+        /// <inheritdoc cref="SQLiteConnection3.GetAllBojongRowsByTicker(string)"/>
+        public List<BojongRow> GetAllBojongRowsByTicker(string ticker)
         {
-            return _conn.GetAllBojongRows(ticker);
+            return _conn.GetAllBojongRowsByTicker(ticker);
         }
 
         /// <inheritdoc cref="SQLiteConnection3.GetModifiedAverageTradePrices(string)"/>

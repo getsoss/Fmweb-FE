@@ -1,4 +1,4 @@
-namespace Fmweb
+namespace Fmweb.Data
 {
     public class Jongmok
     {
