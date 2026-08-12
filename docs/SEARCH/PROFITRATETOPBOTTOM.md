@@ -5,8 +5,9 @@
 
 - 세력 무관
 - 날짜 유관
+- 상위: 점수 내림차순; 하위: 점수 오름차순
 
-SearchUserControl.xaml의 최상단에 있는 버튼이다.
+Windows 세력모니터 프로그램의 SearchUserControl.xaml의 최상단에 있는 버튼이다.
 
 SearchUserControl.xaml.cs에 버튼의 동작이 정의되어 있다.
 
@@ -26,4 +27,3 @@ SearchUserControl.xaml.cs에 버튼의 동작이 정의되어 있다.
 
 별도의 노출 기준은 없다. 따라서 모든 종목이 다 검색 결과에 노출된다.
 
-상위는 점수 내림차순으로 정렬하여 보여주고, 하위는 그 반대로 보여준다.

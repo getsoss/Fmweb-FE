@@ -4,8 +4,9 @@
 
 - 세력 유관
 - 날짜 유관
+- 점수 내림차순
 
-SearchUserControl.xaml의 위에서 두 번째에 있는 버튼이다.
+Windows 세력모니터 프로그램의 SearchUserControl.xaml의 위에서 두 번째에 있는 버튼이다.
 
 SearchUserControl.xaml.cs에 버튼의 동작이 정의되어 있다.
 
@@ -36,5 +37,4 @@ for i in (모든 선택한 세력들):
 ```
 
 
-검색 결과는 점수의 내림차순으로 정렬한다.
 
