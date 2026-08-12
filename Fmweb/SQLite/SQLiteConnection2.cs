@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Text.RegularExpressions;
 
-namespace Fmweb
+namespace Fmweb.SQLite
 {
     internal class SQLiteConnection2 : IDisposable
     {
@@ -69,22 +69,9 @@ namespace Fmweb
             return ret;
         }
 
-        /// <summary>
-        /// NOTE: <paramref name="parameterName"/> must be one of $a1, $a2, $a3, ..., $a9.
-        /// </summary>
-        /// <param name="parameterName">One of $a1, $a2, $a3, ..., $a9.</param>
+
         public SQLiteParameter AddParamWithValue(string parameterName, object value)
         {
-            if (string.IsNullOrWhiteSpace(parameterName))
-            {
-                throw new ArgumentException($"'{nameof(parameterName)}' cannot be null or whitespace.", nameof(parameterName));
-            }
-
-            if (!Regex.IsMatch(parameterName, "^\\$a[1-9]$"))
-            {
-                throw new Exception();
-            }
-
             return _cmd.Parameters.AddWithValue(parameterName, value);
         }
 

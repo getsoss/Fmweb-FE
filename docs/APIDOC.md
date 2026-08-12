@@ -1,8 +1,8 @@
 # 세력모니터 웹버전 백엔드 API 문서
 
-마지막 수정: 2026-08-01
+마지막 수정: 2026-08-12 (수)
 
-API 버전: 4
+API 버전: 5
 
 모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 합니다.
 

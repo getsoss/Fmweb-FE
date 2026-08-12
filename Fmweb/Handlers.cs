@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Fmweb.SQLite;
+using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -8,7 +9,7 @@ namespace Fmweb
     internal class Handlers
     {
         private readonly Regex _tickerRegex = new Regex("^[A-Za-z0-9]{6}$");
-        private readonly SQLiteConnection3 _conn = new SQLiteConnection3();
+        private readonly SQLiteConnection4 _conn = new SQLiteConnection4();
 
         public IResult modified_candles(string ticker)
         {
