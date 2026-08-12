@@ -194,7 +194,27 @@ namespace Fmweb
             return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
         }
 
+
+        public IResult search_by_bojong_profit_rate(int date)
+        {
+            var jo = new JObject();
+
+            if (!_conn.BojongExists(date))
+            {
+                jo["errno"] = 1;
+            }
+            else
+            {
+                jo["errno"] = 0;
+                jo["result"] = JArray.FromObject(_conn.SearchByBojongProfitRate(date).Select(x => x.ToObjects()));
+            }
+
+            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+        }
+
+
     }
+
 
 }
 

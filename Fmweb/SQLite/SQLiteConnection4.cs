@@ -234,9 +234,6 @@ namespace Fmweb.SQLite
             return false;
         }
 
-        
-
-
 
         ///<summary> Thread-safe. </summary>
         /// <param name="date">8 digits. yyyyMMdd format.</param>
@@ -283,9 +280,16 @@ namespace Fmweb.SQLite
         {
             List<BojongRow> bojongRows = _conn.GetAllBojongRowsByDate(date);
             List<TickerAndScore> ret = new List<TickerAndScore>();
-            foreach(var b in bojongRows)
+            var allTickers = GetAllTickers();
+
+            foreach (var b in bojongRows)
             {
-                ret.Add(new TickerAndScore(b.Jmcode, b.ProfitRate));
+                // bojongRows에는 allTickers에 없는 ticker가 포함되어 있을 수 있다. 따라서
+                // 필터링이 필요하다.
+                if (allTickers.Contains(b.Jmcode))
+                {
+                    ret.Add(new TickerAndScore(b.Jmcode, b.ProfitRate));
+                }
             }
 
             ret.Sort((a, b) =>
@@ -302,12 +306,18 @@ namespace Fmweb.SQLite
         }
 
 
+        /// <param name="date">8 digits. yyyyMMdd format.</param>
+        public bool BojongExists(int date)
+        {
+            return GetAllBojongTables().Contains("bojong_" + date);
+        }
+
+
         /// <inheritdoc cref="SQLiteConnection3.GetAllTickers"/>
         public HashSet<string> GetAllTickers()
         {
             return _conn.GetAllTickers();
         }
-
 
         /// <inheritdoc cref="SQLiteConnection3.GetAllBojongRowsByTicker(string)"/>
         public List<BojongRow> GetAllBojongRowsByTicker(string ticker)
@@ -320,6 +330,13 @@ namespace Fmweb.SQLite
         {
             return _conn.GetModifiedAverageTradePrices(ticker);
         }
+
+        /// <inheritdoc cref="SQLiteConnection3.GetAllBojongTables"/>
+        public HashSet<string> GetAllBojongTables()
+        {
+            return _conn.GetAllBojongTables();
+        }
+
 
     }
 }

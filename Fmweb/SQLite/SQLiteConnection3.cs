@@ -235,19 +235,19 @@ namespace Fmweb.SQLite
 
 
 
-        private List<string> _allBojongTables;
+        private HashSet<string> _allBojongTables;
 
         /// <summary>
         /// Thread-safe. Cached. Table name format is "bojong_{yyyyMMdd}".
         /// </summary>
-        private List<string> GetAllBojongTables()
+        public HashSet<string> GetAllBojongTables()
         {
             if (!(_allBojongTables is null))
             {
                 return _allBojongTables;
             }
 
-            List<string> allBojongTables = new List<string>();
+            HashSet<string> allBojongTables = new HashSet<string>();
             lock (_readLock)
             {
                 _conn.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name like 'bojong_%';";
@@ -273,7 +273,7 @@ namespace Fmweb.SQLite
         {
             lock (_readLock)
             {
-                List<string> allBojongTables = GetAllBojongTables();
+                HashSet<string> allBojongTables = GetAllBojongTables();
 
                 List<BojongRow> ret = new List<BojongRow>();
 
