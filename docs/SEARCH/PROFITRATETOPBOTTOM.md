@@ -3,6 +3,9 @@
 
 20260812 Wed 최초 작성.
 
+- 세력 무관
+- 날짜 유관
+
 SearchUserControl.xaml의 최상단에 있는 버튼이다.
 
 SearchUserControl.xaml.cs에 버튼의 동작이 정의되어 있다.

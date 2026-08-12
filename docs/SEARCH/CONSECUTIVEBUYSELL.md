@@ -2,6 +2,9 @@
 
 20260812 마지막 수정.
 
+- 세력 유관
+- 날짜 유관
+
 SearchUserControl.xaml의 위에서 두 번째에 있는 버튼이다.
 
 SearchUserControl.xaml.cs에 버튼의 동작이 정의되어 있다.
