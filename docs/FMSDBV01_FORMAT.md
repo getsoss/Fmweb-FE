@@ -6,6 +6,7 @@
 - [Windows용 세력모니터 프로그램의 DB format](DBFORMAT)을 개선하여 FMSDBV01 포맷을 정의한다. 
 - FMSDBV01는 세력모니터 서버 DB의 버전 1 포맷(Force Monitor Server DataBase Version 01)이라는 의미이다.
 - DB를 파일 형태로 저장할 시 가능하면 FMSDBV01.db 와 같은 이름을 사용한다.
+- 가능하면 table과 column 등에 한글이 포함되지 않도록 한다. 종목명과 같은 값에는 한글이 들어갈 수 있다.
 
 
 ## TABLE complete_tables
@@ -146,56 +147,43 @@ CREATE TABLE top ( dat, jmcode, rank, buy, sell, net, nacc, qty, avg, pr, PRIMAR
 | pr     | double | 수익률    |
 
 
-### 테이블 이름: opt10001
+## TABLE opt10001
 
-종목코드 TEXT PRIMARY KEY
+- 주식 기본 정보를 저장하는 테이블이다.
+- 키움증권 Open API+에서 opt10001를 호출하여 얻을 수 있다.
 
-종목명 TEXT
 
-결산월 int
+```sqlite
+CREATE TABLE opt10001 ( cod, nam, mon, fac, cap, lis, ous, otr, lda, PRIMARY KEY ( cod ) ) ;
+```
 
-액면가 int
+| column | type   | desc. |
+| ------ | ------ | ----- |
+| cod    | string | 종목코드  |
+| nam    | string | 종목명   |
+| mon    | int64  | 결산월   |
+| fac    | int64  | 액면가   |
+| cap    | int64  | 자본금   |
+| lis    | int64  | 상장주식  |
+| ous    | int64  | 유통주식  |
+| otr    | double | 유통비율  |
+| lda    | int64  | 상장일   |
 
-자본금 int
 
-상장주식 int
+## TABLE market
 
-유통주식 int
+종목이 속한 시장을 나타낸다.
 
-유통비율 real
 
-상장일 int
+```sqlite
+CREATE TABLE market( c PRIMARY KEY , m ) ;
+```
 
-### 테이블 이름: kospidaq
+| column | type   | desc.                    |
+| ------ | ------ | ------------------------ |
+| c      | string | 종목코드                     |
+| m      | int32  | 시장(0: KOSPI, 10: KOSDAQ) |
 
-시장은 0일 경우 KOSPI, 10일 경우 KOSDAQ이다.
-
-CREATE TABLE IF NOT EXISTS kospidaq(
-
-종목코드 TEXT PRIMARY KEY,
-
-시장 int
-
-);
-
-### 테이블 이름: others
-
-CREATE TABLE IF NOT EXISTS others(
-
-skey TEXT PRIMARY KEY,
-
-svalue TEXT
-
-);
-
-skey=uploadtime, svalue={long DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}
-
-## 세력모니터 Windows C# 클라이언트 측에서 추가로 만들 수 있는 tables
-
-### 테이블 이름: datelength
-
-- opt10081 tables를 이용하여 만든다.
-- CREATE TABLE IF NOT EXISTS datelength(종목코드 TEXT PRIMARY KEY, ndate int);
 
 ### 테이블 이름: mpt10081_{jmcode}
 

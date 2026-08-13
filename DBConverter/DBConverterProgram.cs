@@ -55,6 +55,71 @@ namespace DBConverter
             }
         }
 
+        private static void DoOpt10001(SQLiteConnection2 origin, SQLiteConnection2 target)
+        {
+            target.CommandText = "DROP TABLE IF EXISTS opt10001 ; ";
+            target.ExecuteNonQuery();
+            target.CommandText = "CREATE TABLE opt10001 ( cod, nam, mon, fac, cap, lis, ous, otr, lda, PRIMARY KEY ( cod ) ) ;";
+            target.ExecuteNonQuery();
+            target.ExecuteAtomicTransaction(() =>
+            {
+                origin.CommandText = $"SELECT 종목코드, 종목명, 결산월, 액면가, 자본금, 상장주식, 유통주식, 유통비율, 상장일 FROM opt10001 ; ";
+                using (var rdr = origin.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        string cod = rdr.GetString(0);
+                        string nam = rdr.GetString(1);
+                        long mon = rdr.GetInt64(2);
+                        long fac = rdr.GetInt64(3);
+                        long cap = rdr.GetInt64(4);
+                        long lis = rdr.GetInt64(5);
+                        long ous = rdr.GetInt64(6);
+                        double otr = rdr.GetDouble(7);
+                        long lda = rdr.GetInt64(8);
+                        target.CommandText = $"INSERT INTO opt10001 ( cod, nam, mon, fac, cap, lis, ous, otr, lda ) VALUES ( '{cod}', '{nam}', {mon}, {fac}, {cap}, {lis}, {ous}, {otr}, {lda} ) ; ";
+                        target.ExecuteNonQuery();
+                    }
+                    rdr.Close();
+                }
+            });
+
+            if (!IGNORE_COMPLETE_TABLES)
+            {
+                target.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'opt10001' ) ; ";
+                target.ExecuteNonQuery();
+            }
+        }
+
+        private static void DoMarket(SQLiteConnection2 origin, SQLiteConnection2 target)
+        {
+            target.CommandText = "DROP TABLE IF EXISTS market ; ";
+            target.ExecuteNonQuery();
+            target.CommandText = "CREATE TABLE market( c PRIMARY KEY , m ) ;";
+            target.ExecuteNonQuery();
+            target.ExecuteAtomicTransaction(() =>
+            {
+                origin.CommandText = $"SELECT 종목코드, 시장 FROM kospidaq ; ";
+                using (var rdr = origin.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        string c = rdr.GetString(0);
+                        int m = rdr.GetInt32(1);
+                        target.CommandText = $"INSERT INTO market ( c,m ) VALUES ( '{c}', {m} ) ; ";
+                        target.ExecuteNonQuery();
+                    }
+                    rdr.Close();
+                }
+            });
+
+            if (!IGNORE_COMPLETE_TABLES)
+            {
+                target.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'market' ) ; ";
+                target.ExecuteNonQuery();
+            }
+        }
+
         private static void DoOpt10081(SQLiteConnection2 origin, SQLiteConnection2 target)
         {
             target.CommandText = "DROP TABLE IF EXISTS opt10081 ; ";
@@ -86,7 +151,7 @@ namespace DBConverter
 
                     if (SMALL_RUN)
                     {
-                        if(_1d20() > 1)
+                        if (_1d20() > 1)
                         {
                             continue;
                         }
@@ -117,7 +182,7 @@ namespace DBConverter
                             target.ExecuteNonQuery();
                         }
                     }
-                    
+
                 }
             });
 
@@ -196,6 +261,78 @@ namespace DBConverter
         }
 
 
+        private static void DoTop(SQLiteConnection2 origin, SQLiteConnection2 target)
+        {
+            target.CommandText = "DROP TABLE IF EXISTS top ; ";
+            target.ExecuteNonQuery();
+            target.CommandText = "CREATE TABLE top ( dat, jmcode, rank, buy, sell, net, nacc, qty, avg, pr, PRIMARY KEY (dat, jmcode) ) ;";
+            target.ExecuteNonQuery();
+            origin.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name like 'top_%';";
+            var topTables = new HashSet<string>();
+            using (var rdr = origin.ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    string s = rdr.GetString(0);
+                    topTables.Add(s);
+                }
+                rdr.Close();
+            }
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            target.ExecuteAtomicTransaction(() =>
+            {
+                int i = 0;
+
+                foreach (var topTable in topTables)
+                {
+                    i++;
+
+                    if (SMALL_RUN)
+                    {
+                        if (_1d20() > 1)
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
+                    {
+                        Console.WriteLine($"top: {i}/{topTables.Count}");
+                        stopwatch.Restart();
+                    }
+
+                    origin.CommandText = $"SELECT 종목코드, 상위순위, 상위매수수량, 상위매도수량, 상위순매매수량, 상위계좌수, 상위수량, 상위평균매입가, 상위수익률 FROM {topTable} ;";
+                    using (var rdr = origin.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            int dat = int.Parse(topTable.Substring(4));
+                            string jmcode = rdr.GetString(0);
+                            long rank = rdr.GetInt64(1);
+                            long buy = rdr.GetInt64(2);
+                            long sell = rdr.GetInt64(3);
+                            long net = rdr.GetInt64(4);
+                            long nacc = rdr.GetInt64(5);
+                            long qty = rdr.GetInt64(6);
+                            long avg = rdr.GetInt64(7);
+                            double pr = rdr.GetDouble(8);
+
+                            target.CommandText = $"INSERT INTO top( dat, jmcode, rank, buy, sell, net, nacc, qty, avg, pr ) VALUES ( {dat}, '{jmcode}', {rank}, {buy}, {sell}, {net}, {nacc}, {qty}, {avg}, {pr} ) ; ";
+                            target.ExecuteNonQuery();
+                        }
+                    }
+
+                }
+            });
+
+            if (!IGNORE_COMPLETE_TABLES)
+            {
+                target.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'top' ) ; ";
+                target.ExecuteNonQuery();
+            }
+        }
+
+
         private static void DoOpt10059(SQLiteConnection2 origin, SQLiteConnection2 target)
         {
             target.CommandText = "DROP TABLE IF EXISTS opt10059 ; ";
@@ -266,7 +403,7 @@ namespace DBConverter
                             target.ExecuteNonQuery();
                         }
                     }
-                    
+
                 }
             });
 
@@ -319,6 +456,21 @@ namespace DBConverter
             if (!completeTables.Contains("bojong"))
             {
                 DoBojong(origin, target);
+            }
+
+            if (!completeTables.Contains("top"))
+            {
+                DoTop(origin, target);
+            }
+
+            if (!completeTables.Contains("opt10001"))
+            {
+                DoOpt10001(origin, target);
+            }
+
+            if (!completeTables.Contains("market"))
+            {
+                DoMarket(origin, target);
             }
         }
 
