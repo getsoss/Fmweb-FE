@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
 using System.Linq;
 using System.Text.RegularExpressions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Fmweb
 {
@@ -11,6 +12,12 @@ namespace Fmweb
     {
         private readonly Regex _tickerRegex = new Regex("^[A-Za-z0-9]{6}$");
         private readonly SQLiteConnection4 _conn = new SQLiteConnection4();
+
+
+        private static IResult ToResult(JObject jo)
+        {
+            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+        }
 
         public IResult modified_candles(string ticker)
         {
@@ -20,20 +27,19 @@ namespace Fmweb
             if (!isMatch)
             {
                 jo["errno"] = 1;
-                return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
             }
-
-            if (!_conn.GetAllTickers().Contains(ticker))
+            else if (!_conn.GetAllTickers().Contains(ticker))
             {
                 jo["errno"] = 1;
-                return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            }
+            else
+            {
+                var modifiedCandles = _conn.GetModifiedCandles(ticker);
+                jo["errno"] = 0;
+                jo["result"] = JArray.FromObject(modifiedCandles.Select(x => (object[])x));
             }
 
-            var modifiedCandles = _conn.GetModifiedCandles(ticker);
-            jo["errno"] = 0;
-            jo["result"] = JArray.FromObject(modifiedCandles.Select(x => (object[])x));
-
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
         public IResult ticker_exists(string ticker)
@@ -49,7 +55,7 @@ namespace Fmweb
                 jo["result"] = false;
             }
 
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
         public IResult bojong(string ticker)
@@ -60,19 +66,20 @@ namespace Fmweb
             if (!isMatch)
             {
                 jo["errno"] = 1;
-                return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
             }
 
-            if (!_conn.GetAllTickers().Contains(ticker))
+            else if (!_conn.GetAllTickers().Contains(ticker))
             {
                 jo["errno"] = 1;
-                return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            }
+            else
+            {
+                var bojongRows = _conn.GetAllBojongRowsByTicker(ticker);
+                jo["errno"] = 0;
+                jo["result"] = JArray.FromObject(bojongRows.Select(x => (object[])x));
             }
 
-            var bojongRows = _conn.GetAllBojongRowsByTicker(ticker);
-            jo["errno"] = 0;
-            jo["result"] = JArray.FromObject(bojongRows.Select(x => (object[])x));
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
 
@@ -95,7 +102,7 @@ namespace Fmweb
                 jo["result"] = JArray.FromObject(_conn.GetModifiedAverageTradePrices(ticker).Select(x=>x.ToObjects()));
             }
 
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
 
@@ -118,7 +125,7 @@ namespace Fmweb
                 jo["result"] = JArray.FromObject(_conn.GetModifiedHaveRows(ticker).Select(x => x.ToObjects()));
             }
 
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
 
@@ -141,7 +148,7 @@ namespace Fmweb
                 jo["result"] = JArray.FromObject(_conn.GetPowerRows(ticker).Select(x => x.ToObjects()));
             }
 
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
         public IResult direction(string ticker)
@@ -162,7 +169,7 @@ namespace Fmweb
                 jo["result"] = JArray.FromObject(_conn.GetDirectionRows(ticker).Select(x => x.ToObjects()));
             }
 
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
 
@@ -182,7 +189,7 @@ namespace Fmweb
                 jo["errno"] = 0;
                 jo["result"] = JArray.FromObject(_conn.GetRs(ticker).Select(x=>x.ToObjects()));
             }
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
 
@@ -191,7 +198,7 @@ namespace Fmweb
             var jo = new JObject();
             jo["errno"] = 0;
             jo["result"] = JArray.FromObject(_conn.SearchByDateAndPrice(date, price, filter).Select(x => x.ToObjects()));
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
 
@@ -209,12 +216,29 @@ namespace Fmweb
                 jo["result"] = JArray.FromObject(_conn.SearchByBojongProfitRate(date).Select(x => x.ToObjects()));
             }
 
-            return Results.Content(jo.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+            return ToResult(jo);
         }
 
 
-    }
+        public IResult search_by_have(int datebegin, int dateend, Investor investors)
+        {
+            var jo = new JObject();
 
+            try
+            {
+                jo["errno"] = 0;
+                jo["result"] = JArray.FromObject(_conn.SearchByHave(datebegin, dateend, investors).Select(x => x.ToObjects()));
+            }
+            catch (DateNotFoundException ex)
+            {
+                jo["errno"] = 1;
+                jo["errmsg"] = ex.Date + " not found";
+            }
+
+            return ToResult(jo);
+        }
+
+    }
 
 }
 

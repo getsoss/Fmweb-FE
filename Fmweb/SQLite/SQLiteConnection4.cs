@@ -294,6 +294,20 @@ namespace Fmweb.SQLite
         }
 
 
+        private static void SortTickerAndScore(List<TickerAndScore> l)
+        {
+            l.Sort((a, b) =>
+            {
+                int compareResult = a.Score.CompareTo(b.Score);
+                if (compareResult == 0)
+                {
+                    return a.Ticker.CompareTo(b.Ticker);
+                }
+                return compareResult;
+            });
+        }
+
+
         ///<summary> Thread-safe. </summary>
         /// <param name="date">8 digits. yyyyMMdd format.</param>
         /// <returns>(profit rate, ticker) ascending order.</returns>
@@ -313,15 +327,7 @@ namespace Fmweb.SQLite
                 }
             }
 
-            ret.Sort((a, b) =>
-            {
-                int compareResult = a.Score.CompareTo(b.Score);
-                if (compareResult == 0)
-                {
-                    return a.Ticker.CompareTo(b.Ticker);
-                }
-                return compareResult;
-            });
+            SortTickerAndScore(ret);
 
             return ret;
         }
@@ -406,7 +412,7 @@ namespace Fmweb.SQLite
                 return hi;
             }
 
-            throw new DateNotFoundException();
+            throw new DateNotFoundException(date);
         }
 
 
@@ -432,6 +438,8 @@ namespace Fmweb.SQLite
                 double sumBegin = modifiedHaveRows[dateBeginIdx].Sum(investors);
                 ret.Add(new TickerAndScore(ticker, sumEnd - sumBegin));
             }
+
+            SortTickerAndScore(ret);
 
             return ret;
         }

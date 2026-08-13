@@ -42,6 +42,7 @@ namespace Fmweb
             app.MapGet("/rs", handlers.rs);
             app.MapGet("/search-by-date-and-price", handlers.search_by_date_and_price);
             app.MapGet("/search-by-bojong-profit-rate", handlers.search_by_bojong_profit_rate);
+            app.MapGet("/search-by-have", handlers.search_by_have);
             app.Run();
         }
 

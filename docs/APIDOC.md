@@ -2,7 +2,7 @@
 
 마지막 수정: 2026-08-13 (목)
 
-API 버전: 6
+API 버전: v07
 
 모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 합니다.
 
