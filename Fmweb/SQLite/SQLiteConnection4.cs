@@ -1,4 +1,5 @@
 ﻿using Fmweb.Data;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
@@ -326,8 +327,11 @@ namespace Fmweb.SQLite
         }
 
 
-        int[] _allDates;
+        private int[] _allDates;
 
+        /// <summary>
+        /// Cached. Date-descending. Length is always <see cref="SQLiteConnection3.DAY_MAX"/>.
+        /// </summary>
         private int[] GetAllDates()
         {
             if(!(_allDates is null))
@@ -345,6 +349,8 @@ namespace Fmweb.SQLite
                         _allDates = tmp;
                         break;
                     }
+
+                    Log2.WarnOnce($"Ticker {s} has no full days.", LogType.GetAllDatesSmallFail);
                 }
                 catch { }
             }
@@ -356,6 +362,14 @@ namespace Fmweb.SQLite
 
             return _allDates;
         }
+
+
+        /// <param name="date">8 digits. yyyyMMdd format.</param>
+        //private int GetDateDescendingIndex(int date)
+        //{
+        //    var allDates = GetAllDates();
+            
+        //}
 
 
         // /// <param name="dateBegin">8 digits. yyyyMMdd format.</param>

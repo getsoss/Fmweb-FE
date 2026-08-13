@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
+using Serilog;
 using System;
 using System.IO;
 using System.Linq;
@@ -17,7 +18,18 @@ namespace Fmweb
 
         private static void Main(string[] args)
         {
+            Log.Logger = new LoggerConfiguration().WriteTo.File("log.txt",
+                fileSizeLimitBytes: 0x100000, // 1MB
+                buffered: true,
+                flushToDiskInterval: TimeSpan.FromSeconds(10),
+                rollingInterval: RollingInterval.Infinite,
+                rollOnFileSizeLimit: true,
+                retainedFileCountLimit: 4
+                ).CreateLogger();
+
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+            builder.Services.AddSerilog();
+
             WebApplication app = builder.Build();
             var handlers = new Handlers();
             app.MapGet("/modified-candles", handlers.modified_candles);
