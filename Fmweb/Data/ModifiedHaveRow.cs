@@ -2,14 +2,13 @@
 {
     internal class ModifiedHaveRow
     {
-        internal int Date;
-        internal double 개인투자자, 외국인투자자, 기관계, 금융투자, 보험, 투신, 기타금융, 은행, 연기금등, 사모펀드, 국가, 기타법인, 내외국인;
+        public int Date;
+        public double 개인투자자, 외국인투자자, 기관계, 금융투자, 보험, 투신, 기타금융, 은행, 연기금등, 사모펀드, 국가, 기타법인, 내외국인;
 
-        internal object[] ToObjects()
+        public object[] ToObjects()
         {
             return new object[14] { Date, 개인투자자, 외국인투자자, 기관계, 금융투자, 보험, 투신, 기타금융, 은행, 연기금등, 사모펀드, 국가, 기타법인, 내외국인 };
         }
-
 
         public void Add(ModifiedHaveRow a)
         {
@@ -44,6 +43,25 @@
             국가 /= b;
             기타법인 /= b;
             내외국인 /= b;
+        }
+
+        public double Sum(Investor investors)
+        {
+            double ret = 0;
+            if ((investors & Investor.개인투자자) != 0){ret += 개인투자자;}
+            if ((investors & Investor.외국인투자자) != 0) { ret += 외국인투자자; }
+            if ((investors & Investor.기관계) != 0) { ret += 기관계; }
+            if ((investors & Investor.금융투자) != 0) { ret += 금융투자; }
+            if ((investors & Investor.보험) != 0) { ret += 보험; }
+            if ((investors & Investor.투신) != 0) { ret += 투신; }
+            if ((investors & Investor.기타금융) != 0) { ret += 기타금융; }
+            if ((investors & Investor.은행) != 0) { ret += 은행; }
+            if ((investors & Investor.연기금등) != 0) { ret += 연기금등; }
+            if ((investors & Investor.사모펀드) != 0) { ret += 사모펀드; }
+            if ((investors & Investor.국가) != 0) { ret += 국가; }
+            if ((investors & Investor.기타법인) != 0) { ret += 기타법인; }
+            if ((investors & Investor.내외국인) != 0) { ret += 내외국인; }
+            return ret;
         }
 
     }

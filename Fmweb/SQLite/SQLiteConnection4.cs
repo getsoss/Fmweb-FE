@@ -228,7 +228,7 @@ namespace Fmweb.SQLite
         /// <returns>true if <paramref name="actualPrice"/> meets the condition; otherwise, false. </returns>
         private static bool Compare(long searchPrice, SearchFilter searchFilter, double actualPrice)
         {
-            if ((searchFilter & SearchFilter.OnlyEqualTo) == SearchFilter.OnlyEqualTo)
+            if ((searchFilter & SearchFilter.OnlyEqualTo) != 0)
             {
                 if (searchPrice == actualPrice)
                 {
@@ -236,7 +236,7 @@ namespace Fmweb.SQLite
                 }
             }
 
-            if ((searchFilter & SearchFilter.OnlyGreaterThan) == SearchFilter.OnlyGreaterThan)
+            if ((searchFilter & SearchFilter.OnlyGreaterThan) != 0)
             {
                 if (searchPrice < actualPrice)
                 {
@@ -244,7 +244,7 @@ namespace Fmweb.SQLite
                 }
             }
 
-            if ((searchFilter & SearchFilter.OnlyLessThan) == SearchFilter.OnlyLessThan)
+            if ((searchFilter & SearchFilter.OnlyLessThan) != 0)
             {
                 if (searchPrice > actualPrice)
                 {
@@ -366,8 +366,9 @@ namespace Fmweb.SQLite
         }
 
 
-        /// <returns> Date-descending ordered index. If no index found, returns -1. </returns>
+        /// <returns> Date-descending ordered index.</returns>
         /// <param name="date">8 digits. yyyyMMdd format.</param>
+        /// <exception cref="DateNotFoundException"></exception>
         private int IndexOfDate(int date)
         {
             var allDates = GetAllDates();
@@ -405,22 +406,35 @@ namespace Fmweb.SQLite
                 return hi;
             }
 
-            return -1;
+            throw new DateNotFoundException();
         }
 
 
-        ///// <param name="dateBegin">8 digits. yyyyMMdd format.</param>
-        ///// <param name="dateEnd">8 digits. yyyyMMdd format.</param>
-        //public List<TickerAndScore> SearchByHave(int dateBegin, int dateEnd, Investor investors)
-        //{
-        //    var allTickers = GetAllTickers();
+        /// <param name="dateBegin">8 digits. yyyyMMdd format.</param>
+        /// <param name="dateEnd">8 digits. yyyyMMdd format.</param>
+        public List<TickerAndScore> SearchByHave(int dateBegin, int dateEnd, Investor investors)
+        {
+            int dateBeginIdx = IndexOfDate(dateBegin);
+            int dateEndIdx = IndexOfDate(dateEnd);
+            HashSet<string> allTickers = GetAllTickers();
+            List<TickerAndScore> ret = new List<TickerAndScore>();
 
-        //    foreach (var ticker in allTickers)
-        //    {
-        //        var modifiedHaveRows = GetModifiedHaveRows(ticker);
-                
-        //    }
-        //}
+            foreach (var ticker in allTickers)
+            {
+                List<ModifiedHaveRow> modifiedHaveRows = GetModifiedHaveRows(ticker);
+
+                if(dateBeginIdx >= modifiedHaveRows.Count || dateEndIdx >= modifiedHaveRows.Count)
+                {
+                    continue;
+                }
+
+                double sumEnd = modifiedHaveRows[dateEndIdx].Sum(investors);
+                double sumBegin = modifiedHaveRows[dateBeginIdx].Sum(investors);
+                ret.Add(new TickerAndScore(ticker, sumEnd - sumBegin));
+            }
+
+            return ret;
+        }
 
 
         /// <param name="date">8 digits. yyyyMMdd format.</param>
