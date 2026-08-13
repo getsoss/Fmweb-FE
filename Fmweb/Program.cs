@@ -18,32 +18,41 @@ namespace Fmweb
 
         private static void Main(string[] args)
         {
-            Log.Logger = new LoggerConfiguration().WriteTo.File("log.txt",
-                fileSizeLimitBytes: 0x100000, // 1MB
-                buffered: true,
-                flushToDiskInterval: TimeSpan.FromSeconds(10),
-                rollingInterval: RollingInterval.Infinite,
-                rollOnFileSizeLimit: true,
-                retainedFileCountLimit: 4
-                ).CreateLogger();
+            try
+            {
+                Log.Logger = new LoggerConfiguration().WriteTo.File("log.txt",
+                    fileSizeLimitBytes: 0x100000, // 1MB
+                    buffered: true,
+                    flushToDiskInterval: TimeSpan.FromSeconds(10),
+                    rollingInterval: RollingInterval.Infinite,
+                    rollOnFileSizeLimit: true,
+                    retainedFileCountLimit: 4
+                    ).WriteTo.Console().CreateLogger();
 
-            WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-            builder.Services.AddSerilog();
+                WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+                builder.Services.AddSerilog();
 
-            WebApplication app = builder.Build();
-            var handlers = new Handlers();
-            app.MapGet("/modified-candles", handlers.modified_candles);
-            app.MapGet("/ticker-exists", handlers.ticker_exists);
-            app.MapGet("/bojong", handlers.bojong);
-            app.MapGet("/modified-average-trade-price", handlers.modified_average_trade_price);
-            app.MapGet("/modified-have", handlers.modified_have);
-            app.MapGet("/power", handlers.power);
-            app.MapGet("/direction", handlers.direction);
-            app.MapGet("/rs", handlers.rs);
-            app.MapGet("/search-by-date-and-price", handlers.search_by_date_and_price);
-            app.MapGet("/search-by-bojong-profit-rate", handlers.search_by_bojong_profit_rate);
-            app.MapGet("/search-by-have", handlers.search_by_have);
-            app.Run();
+                WebApplication app = builder.Build();
+                var handlers = new Handlers();
+                app.MapGet("/modified-candles", handlers.modified_candles);
+                app.MapGet("/ticker-exists", handlers.ticker_exists);
+                app.MapGet("/bojong", handlers.bojong);
+                app.MapGet("/modified-average-trade-price", handlers.modified_average_trade_price);
+                app.MapGet("/modified-have", handlers.modified_have);
+                app.MapGet("/power", handlers.power);
+                app.MapGet("/direction", handlers.direction);
+                app.MapGet("/rs", handlers.rs);
+                app.MapGet("/search-by-date-and-price", handlers.search_by_date_and_price);
+                app.MapGet("/search-by-bojong-profit-rate", handlers.search_by_bojong_profit_rate);
+                app.MapGet("/search-by-have", handlers.search_by_have);
+                app.Run();
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+
+            Log.CloseAndFlush();
         }
 
     }
