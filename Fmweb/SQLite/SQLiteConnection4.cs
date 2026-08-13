@@ -339,6 +339,8 @@ namespace Fmweb.SQLite
                 return _allDates;
             }
 
+            // 005930 하나만으로 구해도 되지만 만에 하나라도 삼성전자가 상장폐지될 경우를 대비하여
+            // 5개 종목을 넣어놨습니다.
             foreach(var s in new string[5] {"005930", "000020", "000660", "194480", "263750" })
             {
                 try
@@ -364,21 +366,56 @@ namespace Fmweb.SQLite
         }
 
 
+        /// <returns> Date-descending ordered index. If no index found, returns -1. </returns>
         /// <param name="date">8 digits. yyyyMMdd format.</param>
-        //private int GetDateDescendingIndex(int date)
-        //{
-        //    var allDates = GetAllDates();
-            
-        //}
+        private int IndexOfDate(int date)
+        {
+            var allDates = GetAllDates();
+
+            // Linear time complexity implemenation:
+            // return Array.IndexOf(allDates, date);
+
+            int lo = 0;
+            int hi = allDates.Length - 1;
+
+            while(lo + 1 < hi)
+            {
+                int mid = (lo + hi) / 2;
+                if(allDates[mid] == date)
+                {
+                    return mid;
+                }
+                else if (allDates[mid] > date)
+                {
+                    lo = mid + 1;
+                }
+                else
+                {
+                    hi = mid - 1;
+                }
+            }
+
+            if (allDates[lo] == date)
+            {
+                return lo;
+            }
+
+            if (allDates[hi] == date)
+            {
+                return hi;
+            }
+
+            return -1;
+        }
 
 
-        // /// <param name="dateBegin">8 digits. yyyyMMdd format.</param>
-        // /// <param name="dateEnd">8 digits. yyyyMMdd format.</param>
+        ///// <param name="dateBegin">8 digits. yyyyMMdd format.</param>
+        ///// <param name="dateEnd">8 digits. yyyyMMdd format.</param>
         //public List<TickerAndScore> SearchByHave(int dateBegin, int dateEnd, Investor investors)
         //{
         //    var allTickers = GetAllTickers();
 
-        //    foreach(var ticker in allTickers)
+        //    foreach (var ticker in allTickers)
         //    {
         //        var modifiedHaveRows = GetModifiedHaveRows(ticker);
                 
