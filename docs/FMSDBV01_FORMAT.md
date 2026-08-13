@@ -95,43 +95,56 @@ CREATE TABLE opt10059 ( dat, jmcode, buysell, ind, fore, org, fin, ins, inv, ofi
 | ne      | int64  | 내외국인                       |
 
 
-### 테이블 이름: bojong_{yyyyMMdd}
+## TABLE bojong
 
-각 table 당 대략 3000개의 row가 있다.
 
-종목코드 TEXT PRIMARY KEY
+키움증권의 HTS(Home Trading System)인 Windows 프로그램 "영웅문4"를 실전투자 환경에서 접속하면 "\[1331\] 키움 보유종목통계 (종합)" 이라는 창을 띄울 수 있다. 그 창을 우클릭한 후 "Excel로 저장..." 버튼을 누르면 CSV 파일이 저장된다. 이를 이용하여 테이블을 만들 수 있다.
 
-보유순위 int
 
-보유계좌수 int
+```sqlite
+CREATE TABLE bojong ( d, j, r, n, a, p, PRIMARY KEY (d, j) ) ;
+```
 
-보유평균매수가 int
+| column | type   | desc.   |
+| ------ | ------ | ------- |
+| d      | int32  | 일자      |
+| j      | string | 종목코드    |
+| r      | int64  | 보유순위    |
+| n      | int64  | 보유계좌수   |
+| a      | int64  | 보유평균매수가 |
+| p      | double | 보유계좌수익률 |
 
-보유계좌수익률 real
 
-### 테이블 이름: top_{yyyyMMdd}
+## TABLE top
 
-각 table 당 정확히 200개의 row가 있다.
+- 한 날짜당 정확히 200개의 row가 있다.
+- 세력모니터 프로그램에서의 "고수관심도"는 데이터베이스 상의 "상위계좌수"를 의미한다.
+- 키움증권 영웅문4의 "\[4196\] 수익률상위고객 매매 상세 현황 (통합)"에서 Excel로 저장 버튼을 눌러
 
-세력모니터 프로그램에서의 "고수관심도"는 데이터베이스 상의 "상위계좌수"를 의미한다.
+```
+매매 상세,,,현재가,,,,,매매내역,,,보유현황,,,
+순위,종목코드,종목명,현재가,전일대비,,등락률,거래량,매수수량,매도수량,순매매수량,계좌수,수량,평균 매입가,수익률
+```
 
-종목코드 TEXT PRIMARY KEY
+와 같은 CSV 헤더를 얻을 수 있다.
 
-상위순위 int
+```sqlite
+CREATE TABLE top ( dat, jmcode, rank, buy, sell, net, nacc, qty, avg, pr, PRIMARY KEY (dat, jmcode) ) ;
+```
 
-상위매수수량 int
+| column | type   | desc.  |
+| ------ | ------ | ------ |
+| dat    | int32  | 일자     |
+| jmcode | string | 종목코드   |
+| rank   | int64  | 순위     |
+| buy    | int64  | 매수수량   |
+| sell   | int64  | 매도수량   |
+| net    | int64  | 순매매수량  |
+| nacc   | int64  | 계좌수    |
+| qty    | int64  | 수량     |
+| avg    | int64  | 평균 매입가 |
+| pr     | double | 수익률    |
 
-상위매도수량 int
-
-상위순매매수량 int
-
-상위계좌수 int
-
-상위수량 int
-
-상위평균매입가 int
-
-상위수익률 real
 
 ### 테이블 이름: opt10001
 

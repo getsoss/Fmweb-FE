@@ -7,7 +7,7 @@ namespace DBConverter
     {
         private const bool SMALL_RUN = true; // Default is false.
         private const int PROGRESS_REPORT_INTERVAL_MS = 500; // Default is 500.
-        private const bool IGNORE_COMPLETE_TABLES = true; // Default is false.
+        private const bool IGNORE_COMPLETE_TABLES = false; // Default is false.
 
 
         private static readonly Random _dice = new Random();
@@ -124,6 +124,73 @@ namespace DBConverter
             if (!IGNORE_COMPLETE_TABLES)
             {
                 target.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'opt10081' ) ; ";
+                target.ExecuteNonQuery();
+            }
+        }
+
+
+        private static void DoBojong(SQLiteConnection2 origin, SQLiteConnection2 target)
+        {
+            target.CommandText = "DROP TABLE IF EXISTS bojong ; ";
+            target.ExecuteNonQuery();
+            target.CommandText = "CREATE TABLE bojong ( d, j, r, n, a, p, PRIMARY KEY (d, j) ) ;";
+            target.ExecuteNonQuery();
+            origin.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name like 'bojong_%';";
+            var bojongTables = new HashSet<string>();
+            using (var rdr = origin.ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    string s = rdr.GetString(0);
+                    bojongTables.Add(s);
+                }
+                rdr.Close();
+            }
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            target.ExecuteAtomicTransaction(() =>
+            {
+                int i = 0;
+
+                foreach (var bojongTable in bojongTables)
+                {
+                    i++;
+
+                    if (SMALL_RUN)
+                    {
+                        if (_1d20() > 1)
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
+                    {
+                        Console.WriteLine($"bojong: {i}/{bojongTables.Count}");
+                        stopwatch.Restart();
+                    }
+
+                    origin.CommandText = $"SELECT 종목코드, 보유순위, 보유계좌수, 보유평균매수가, 보유계좌수익률 FROM {bojongTable} ;";
+                    using (var rdr = origin.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            int d = int.Parse(bojongTable.Substring(7));
+                            string j = rdr.GetString(0);
+                            long r = rdr.GetInt64(1);
+                            long n = rdr.GetInt64(2);
+                            long a = rdr.GetInt64(3);
+                            double p = rdr.GetDouble(4);
+                            target.CommandText = $"INSERT INTO bojong( d, j, r, n, a, p ) VALUES ( {d}, '{j}', {r}, {n}, {a}, {p} ) ; ";
+                            target.ExecuteNonQuery();
+                        }
+                    }
+
+                }
+            });
+
+            if (!IGNORE_COMPLETE_TABLES)
+            {
+                target.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'bojong' ) ; ";
                 target.ExecuteNonQuery();
             }
         }
@@ -247,6 +314,11 @@ namespace DBConverter
             if (!completeTables.Contains("opt10059"))
             {
                 DoOpt10059(origin, target);
+            }
+
+            if (!completeTables.Contains("bojong"))
+            {
+                DoBojong(origin, target);
             }
         }
 
