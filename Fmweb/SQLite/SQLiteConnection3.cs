@@ -34,7 +34,7 @@ namespace Fmweb.SQLite
 
 
         /// <summary>
-        /// Thread-safe.
+        /// Thread-safe. Date-descending.
         /// </summary>
         public List<UnmodifiedCandle> GetUnmodifiedCandles(string ticker)
         {
@@ -146,7 +146,7 @@ namespace Fmweb.SQLite
 
 
         /// <summary>
-        /// thread safe
+        /// Thread-safe. Date-descending.
         /// </summary>
         public List<ModifyFactor> GetModifyFactors(string ticker)
         {
@@ -408,7 +408,7 @@ namespace Fmweb.SQLite
 
 
         /// <summary>
-        /// Thread-safe.
+        /// Thread-safe. Date-descending.
         /// </summary>
         public List<UnmodifiedInvestRow> GetUnmodifiedInvestRows(string ticker, BuySell buySell)
         {
@@ -447,31 +447,14 @@ namespace Fmweb.SQLite
         }
 
 
-        /// <summary>
-        /// thread safe
-        /// </summary>
-        public List<ModifiedInvestRow> GetModifiedInvestRows(string ticker, BuySell buySell)
-        {
-            lock (_readLock)
-            {
-                var org = GetUnmodifiedInvestRows(ticker, buySell);
-                List<ModifyFactor> modifyFactors = GetModifyFactors(ticker);
-                var ret = new List<ModifiedInvestRow>();
-                for (int i = 0; i < modifyFactors.Count; i++)
-                {
-                    ModifiedInvestRow modifiedCandle = org[i] * modifyFactors[i];
-                    ret.Add(modifiedCandle);
-                }
-                return ret;
-            }
-        }
+        
 
 
 
         private Dictionary<string, Jongmok> _jongmokDict;
 
         /// <summary>
-        /// thread safe
+        /// Thread-safe. Cached.
         /// </summary>
         public Dictionary<string, Jongmok> GetJongmokDict()
         {

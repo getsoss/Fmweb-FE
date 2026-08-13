@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Linq;
 
 namespace Fmweb.SQLite
 {
@@ -44,10 +45,10 @@ namespace Fmweb.SQLite
         }
 
 
-        
+
 
         /// <summary>
-        /// Thread-safe.
+        /// Thread-safe. Date-descending.
         /// </summary>
         public List<ModifiedCandle> GetModifiedCandles(string ticker)
         {
@@ -64,12 +65,29 @@ namespace Fmweb.SQLite
 
 
         /// <summary>
-        /// In percentage. Thread-safe.
+        /// Thread-safe. Date-descending.
+        /// </summary>
+        public List<ModifiedInvestRow> GetModifiedInvestRows(string ticker, BuySell buySell)
+        {
+            var org = _conn.GetUnmodifiedInvestRows(ticker, buySell);
+            List<ModifyFactor> modifyFactors = _conn.GetModifyFactors(ticker);
+            var ret = new List<ModifiedInvestRow>();
+            for (int i = 0; i < modifyFactors.Count; i++)
+            {
+                ModifiedInvestRow modifiedCandle = org[i] * modifyFactors[i];
+                ret.Add(modifiedCandle);
+            }
+            return ret;
+        }
+
+
+        /// <summary>
+        /// In percentage. Thread-safe. Date-descending.
         /// </summary>
         public List<ModifiedHaveRow> GetModifiedHaveRows(string ticker)
         {
-            var modifiedInvestRowsBuy = _conn.GetModifiedInvestRows(ticker, BuySell.Buy);
-            var modifiedInvestRowsSell = _conn.GetModifiedInvestRows(ticker, BuySell.Sell);
+            var modifiedInvestRowsBuy = GetModifiedInvestRows(ticker, BuySell.Buy);
+            var modifiedInvestRowsSell = GetModifiedInvestRows(ticker, BuySell.Sell);
             var jongmok = _conn.GetJongmokDict()[ticker];
 
             // ( jongmok.outstandingStock * 1000 ) is exact actual quantity.
@@ -122,6 +140,8 @@ namespace Fmweb.SQLite
             return ret;
         }
 
+
+        
 
 
         /// <summary>
@@ -304,6 +324,52 @@ namespace Fmweb.SQLite
 
             return ret;
         }
+
+
+        int[] _allDates;
+
+        private int[] GetAllDates()
+        {
+            if(!(_allDates is null))
+            {
+                return _allDates;
+            }
+
+            foreach(var s in new string[5] {"005930", "000020", "000660", "194480", "263750" })
+            {
+                try
+                {
+                    int[] tmp = _conn.GetUnmodifiedCandles(s).Select(x => x.Date).ToArray();
+                    if (tmp.Length == SQLiteConnection3.DAY_MAX)
+                    {
+                        _allDates = tmp;
+                        break;
+                    }
+                }
+                catch { }
+            }
+
+            if(_allDates is null)
+            {
+                throw new Exception("error: GetAllDates() failed. DB is corrupted or this source code is wrong.");
+            }
+
+            return _allDates;
+        }
+
+
+        // /// <param name="dateBegin">8 digits. yyyyMMdd format.</param>
+        // /// <param name="dateEnd">8 digits. yyyyMMdd format.</param>
+        //public List<TickerAndScore> SearchByHave(int dateBegin, int dateEnd, Investor investors)
+        //{
+        //    var allTickers = GetAllTickers();
+
+        //    foreach(var ticker in allTickers)
+        //    {
+        //        var modifiedHaveRows = GetModifiedHaveRows(ticker);
+                
+        //    }
+        //}
 
 
         /// <param name="date">8 digits. yyyyMMdd format.</param>
