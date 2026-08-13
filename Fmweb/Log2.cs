@@ -36,5 +36,11 @@ namespace Fmweb
         {
             Log.Error(s);
         }
+
+        public static void Info(string s)
+        {
+            Log.Information(s);
+        }
+
     }
 }

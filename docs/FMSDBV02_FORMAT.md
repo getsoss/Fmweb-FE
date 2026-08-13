@@ -16,13 +16,74 @@
 
 
 
-### 테이블 이름: mpt10081_{jmcode}
+```sqlite
+CREATE TABLE modifyfactor( c, d, m, PRIMARY KEY(c,d) ) ;
+```
 
-- CREATE TABLE IF NOT EXISTS mpt10081_{jmcode}(
+| column | type   | desc.         |
+| ------ | ------ | ------------- |
+| c      | string | 종목코드          |
+| d      | int32  | 일자            |
+| m      | double | Modify Factor |
 
-일자 int PRIMARY KEY,
+TABLE modifyfactor를 만드는 C# 소스 코드는 다음과 같다:
 
-수정인수 real);
+```csharp
+private void CreateTableModifyfactor()
+{
+    _conn.CommandText = "DROP TABLE IF EXISTS modifyfactor ; ";
+    _conn.ExecuteNonQuery();
+    _conn.CommandText = "CREATE TABLE modifyfactor( c, d, m, PRIMARY KEY(c,d) ) ;";
+    _conn.ExecuteNonQuery();
+    _conn.CommandText = "SELECT DISTINCT j FROM opt10081 ; ";
+    List<string> tickers = new List<string>();
+    using (var rdr = _conn.ExecuteReader())
+    {
+        while (rdr.Read())
+        {
+            tickers.Add(rdr.GetString(0));
+        }
+        rdr.Close();
+    }
+    StringBuilder sb = new StringBuilder();
+    _conn.ExecuteAtomicTransaction(() =>
+    {
+        foreach (var c in tickers)
+        {
+            List<KeyValuePair<int, double>> lis = new List<KeyValuePair<int, double>>();
+            double modifyFactor = 1;
+            _conn.CommandText = $"SELECT d,r FROM opt10081 WHERE j = $ticker ORDER BY d DESC ; ";
+            _conn.AddParamWithValue("$ticker", c);
+            using (SQLiteDataReader rdr = _conn.ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    int d = rdr.GetInt32(0);
+                    double r = rdr.GetDouble(1);
+                    lis.Add(new KeyValuePair<int, double>(d, modifyFactor));
+                    modifyFactor *= (1 + (r / 100));
+                }
+                rdr.Close();
+            }
+            sb.Clear();
+            sb.Append("INSERT INTO modifyfactor(c,d,m) VALUES ");
+            for (int i = 0; i < lis.Count; i++)
+            {
+                sb.AppendFormat(" ('{0}',{1},{2}) ", c, lis[i].Key, lis[i].Value);
+                if (i + 1 < lis.Count)
+                {
+                    sb.Append(" , ");
+                }
+            }
+            _conn.CommandText = sb.ToString();
+            _conn.ExecuteNonQuery();
+        }
+    });
+    _conn.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'modifyfactor' ) ; ";
+    _conn.ExecuteNonQuery();
+}
+```
+
 
 ### 테이블 이름: mvgtradeprice_{jmcode}
 

@@ -31,6 +31,12 @@ namespace Fmweb.SQLite
             target = new SQLiteConnection2(fileTarget);
         }
 
+        public void Dispose()
+        {
+            origin.Dispose();
+            target.Dispose();
+        }
+
         private int _1d20()
         {
             return _dice.Next(1, 21);
@@ -436,6 +442,8 @@ namespace Fmweb.SQLite
 
         public void Convert()
         {
+            Log2.Info("Converting legacy to FMSDBV01...");
+
             target.CommandText = "CREATE TABLE IF NOT EXISTS complete_tables ( n PRIMARY KEY ) ; ";
             target.ExecuteNonQuery();
 
@@ -455,7 +463,7 @@ namespace Fmweb.SQLite
                 completeTables.Clear();
             }
 
-            Console.WriteLine($"complete tables: {string.Join(", ", completeTables)}");
+            Log2.Info($"complete tables: {string.Join(", ", completeTables)}");
 
             if (!completeTables.Contains("opt10081"))
             {
@@ -491,12 +499,6 @@ namespace Fmweb.SQLite
             {
                 DoMarket();
             }
-        }
-
-        public void Dispose()
-        {
-            origin.Dispose();
-            target.Dispose();
         }
 
     }

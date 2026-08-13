@@ -45,7 +45,10 @@ namespace Fmweb
 
                     if (command == "FMSDBV01_to_FMSDBV02")
                     {
-                        throw new NotImplementedException();
+                        using(var converter = new FMSDBV01ToFMSDBV02Converter(args[1], args[2]))
+                        {
+                            converter.Convert();
+                        }
                         return;
                     }
                 }
