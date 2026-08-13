@@ -1,23 +1,42 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 
-namespace DBConverter
+namespace Fmweb.SQLite
 {
-    internal static class DBConverterProgram
+    internal class LegacyToFMSDBV01Converter : IDisposable
     {
         private const bool SMALL_RUN = true; // Default is false.
         private const int PROGRESS_REPORT_INTERVAL_MS = 500; // Default is 500.
         private const bool IGNORE_COMPLETE_TABLES = false; // Default is false.
+        private readonly Random _dice = new Random();
+        private readonly SQLiteConnection2 origin;
+        private readonly SQLiteConnection2 target;
 
+        public LegacyToFMSDBV01Converter(string fileOrigin, string fileTarget)
+        {
+            if (!File.Exists(fileOrigin))
+            {
+                throw new FileNotFoundException();
+            }
 
-        private static readonly Random _dice = new Random();
+            if(fileOrigin == fileTarget)
+            {
+                throw new ArgumentException("File origin cannot be equal to file target.");
+            }
 
-        private static int _1d20()
+            origin = new SQLiteConnection2(fileOrigin);
+            target = new SQLiteConnection2(fileTarget);
+        }
+
+        private int _1d20()
         {
             return _dice.Next(1, 21);
         }
 
-        private static void DoOpt20006(SQLiteConnection2 origin, SQLiteConnection2 target)
+        private void DoOpt20006()
         {
             target.CommandText = "DROP TABLE IF EXISTS opt20006 ; ";
             target.ExecuteNonQuery();
@@ -55,7 +74,7 @@ namespace DBConverter
             }
         }
 
-        private static void DoOpt10001(SQLiteConnection2 origin, SQLiteConnection2 target)
+        private void DoOpt10001()
         {
             target.CommandText = "DROP TABLE IF EXISTS opt10001 ; ";
             target.ExecuteNonQuery();
@@ -91,7 +110,7 @@ namespace DBConverter
             }
         }
 
-        private static void DoMarket(SQLiteConnection2 origin, SQLiteConnection2 target)
+        private void DoMarket()
         {
             target.CommandText = "DROP TABLE IF EXISTS market ; ";
             target.ExecuteNonQuery();
@@ -120,7 +139,7 @@ namespace DBConverter
             }
         }
 
-        private static void DoOpt10081(SQLiteConnection2 origin, SQLiteConnection2 target)
+        private void DoOpt10081()
         {
             target.CommandText = "DROP TABLE IF EXISTS opt10081 ; ";
             target.ExecuteNonQuery();
@@ -194,7 +213,7 @@ namespace DBConverter
         }
 
 
-        private static void DoBojong(SQLiteConnection2 origin, SQLiteConnection2 target)
+        private void DoBojong()
         {
             target.CommandText = "DROP TABLE IF EXISTS bojong ; ";
             target.ExecuteNonQuery();
@@ -261,7 +280,7 @@ namespace DBConverter
         }
 
 
-        private static void DoTop(SQLiteConnection2 origin, SQLiteConnection2 target)
+        private void DoTop()
         {
             target.CommandText = "DROP TABLE IF EXISTS top ; ";
             target.ExecuteNonQuery();
@@ -333,7 +352,7 @@ namespace DBConverter
         }
 
 
-        private static void DoOpt10059(SQLiteConnection2 origin, SQLiteConnection2 target)
+        private void DoOpt10059()
         {
             target.CommandText = "DROP TABLE IF EXISTS opt10059 ; ";
             target.ExecuteNonQuery();
@@ -415,7 +434,7 @@ namespace DBConverter
         }
 
 
-        private static void ConvertDB(SQLiteConnection2 origin, SQLiteConnection2 target)
+        public void Convert()
         {
             target.CommandText = "CREATE TABLE IF NOT EXISTS complete_tables ( n PRIMARY KEY ) ; ";
             target.ExecuteNonQuery();
@@ -440,80 +459,44 @@ namespace DBConverter
 
             if (!completeTables.Contains("opt10081"))
             {
-                DoOpt10081(origin, target);
+                DoOpt10081();
             }
 
             if (!completeTables.Contains("opt20006"))
             {
-                DoOpt20006(origin, target);
+                DoOpt20006();
             }
 
             if (!completeTables.Contains("opt10059"))
             {
-                DoOpt10059(origin, target);
+                DoOpt10059();
             }
 
             if (!completeTables.Contains("bojong"))
             {
-                DoBojong(origin, target);
+                DoBojong();
             }
 
             if (!completeTables.Contains("top"))
             {
-                DoTop(origin, target);
+                DoTop();
             }
 
             if (!completeTables.Contains("opt10001"))
             {
-                DoOpt10001(origin, target);
+                DoOpt10001();
             }
 
             if (!completeTables.Contains("market"))
             {
-                DoMarket(origin, target);
+                DoMarket();
             }
         }
 
-        private static void Main(string[] args)
+        public void Dispose()
         {
-            try
-            {
-                Console.WriteLine("Build time: " + File.GetLastWriteTime(Assembly.GetExecutingAssembly().Location));
-
-                if (args.Length != 2)
-                {
-                    Console.WriteLine("usage: ./DBConverter <origin file> <target file>");
-                    return;
-                }
-
-                string originFile = args[0];
-
-                if (!File.Exists(originFile))
-                {
-                    Console.WriteLine(originFile + " : origin file not found.");
-                    return;
-                }
-
-                string targetFile = args[1];
-
-                using (SQLiteConnection2 connOrigin = new SQLiteConnection2(originFile))
-                {
-
-                    using (SQLiteConnection2 connTarget = new SQLiteConnection2(targetFile))
-                    {
-                        ConvertDB(connOrigin, connTarget);
-                    }
-                }
-
-
-
-
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-            }
-
+            origin.Dispose();
+            target.Dispose();
         }
 
     }

@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using System;
 using System.Collections.Generic;
 
 namespace Fmweb
@@ -31,5 +32,9 @@ namespace Fmweb
             catch { }
         }
 
+        public static void Error(string s)
+        {
+            Log.Error(s);
+        }
     }
 }
