@@ -184,7 +184,7 @@ namespace Fmweb.SQLite
 
                     if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
                     {
-                        Console.WriteLine($"opt10081: {i}/{opt10081Tables.Count}");
+                        Log2.Info($"opt10081: {i}/{opt10081Tables.Count}");
                         stopwatch.Restart();
                     }
 
@@ -255,7 +255,7 @@ namespace Fmweb.SQLite
 
                     if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
                     {
-                        Console.WriteLine($"bojong: {i}/{bojongTables.Count}");
+                        Log2.Info($"bojong: {i}/{bojongTables.Count}");
                         stopwatch.Restart();
                     }
 
@@ -322,7 +322,7 @@ namespace Fmweb.SQLite
 
                     if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
                     {
-                        Console.WriteLine($"top: {i}/{topTables.Count}");
+                        Log2.Info($"top: {i}/{topTables.Count}");
                         stopwatch.Restart();
                     }
 
@@ -398,7 +398,7 @@ namespace Fmweb.SQLite
 
                     if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
                     {
-                        Console.WriteLine($"opt10059: {i}/{opt10059Tables.Count}");
+                        Log2.Info($"opt10059: {i}/{opt10059Tables.Count}");
                         stopwatch.Restart();
                     }
 

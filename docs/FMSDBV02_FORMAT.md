@@ -26,101 +26,91 @@ CREATE TABLE modifyfactor( c, d, m, PRIMARY KEY(c,d) ) ;
 | d      | int32  | 일자            |
 | m      | double | Modify Factor |
 
-TABLE modifyfactor를 만드는 C# 소스 코드는 다음과 같다:
+Modify Factor를 계산하는 의사 코드는 다음과 같다:
 
-```csharp
-private void CreateTableModifyfactor()
-{
-    _conn.CommandText = "DROP TABLE IF EXISTS modifyfactor ; ";
-    _conn.ExecuteNonQuery();
-    _conn.CommandText = "CREATE TABLE modifyfactor( c, d, m, PRIMARY KEY(c,d) ) ;";
-    _conn.ExecuteNonQuery();
-    _conn.CommandText = "SELECT DISTINCT j FROM opt10081 ; ";
-    List<string> tickers = new List<string>();
-    using (var rdr = _conn.ExecuteReader())
-    {
-        while (rdr.Read())
-        {
-            tickers.Add(rdr.GetString(0));
-        }
-        rdr.Close();
-    }
-    StringBuilder sb = new StringBuilder();
-    _conn.ExecuteAtomicTransaction(() =>
-    {
-        foreach (var c in tickers)
-        {
-            List<KeyValuePair<int, double>> lis = new List<KeyValuePair<int, double>>();
-            double modifyFactor = 1;
-            _conn.CommandText = $"SELECT d,r FROM opt10081 WHERE j = $ticker ORDER BY d DESC ; ";
-            _conn.AddParamWithValue("$ticker", c);
-            using (SQLiteDataReader rdr = _conn.ExecuteReader())
-            {
-                while (rdr.Read())
-                {
-                    int d = rdr.GetInt32(0);
-                    double r = rdr.GetDouble(1);
-                    lis.Add(new KeyValuePair<int, double>(d, modifyFactor));
-                    modifyFactor *= (1 + (r / 100));
-                }
-                rdr.Close();
-            }
-            sb.Clear();
-            sb.Append("INSERT INTO modifyfactor(c,d,m) VALUES ");
-            for (int i = 0; i < lis.Count; i++)
-            {
-                sb.AppendFormat(" ('{0}',{1},{2}) ", c, lis[i].Key, lis[i].Value);
-                if (i + 1 < lis.Count)
-                {
-                    sb.Append(" , ");
-                }
-            }
-            _conn.CommandText = sb.ToString();
-            _conn.ExecuteNonQuery();
-        }
-    });
-    _conn.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'modifyfactor' ) ; ";
-    _conn.ExecuteNonQuery();
-}
+```python
+for 종목코드 in opt10081의_모든_종목코드들:
+	lis=[]
+	modify_factor = 1
+	execute("SELECT d,r FROM opt10081 WHERE j = 종목코드 ORDER BY d DESC ;")
+	for row in rows:
+		lis.append((row.d, modify_factor))
+		modify_factor = modify_factor * (1 + (row.r / 100))
+
 ```
 
 
-### 테이블 이름: mvgtradeprice_{jmcode}
+## TABLE avgtrdprc
 
-- 🧡 mpt10081 table이 먼저 만들어진 상태여야만 이 table을 만들 수 있다.
-- DB의 opt10081, opt10059 table에 mpt10081의 수정주가를 적용하고 가공한다.
-- opt10081_{jmcode}, opt10059_{buy&sel}\_{jmcode}, mpt10081_{jmcode}를 가공하여 만든다.
-- 날짜 내림차순으로 수정비율 [0, 0, 0, -30, 0, -40, 0]이라면 수정인수는 [1, 1, 1, 1, 0.7, 0.7, 0.42]이다.
+- 세력모니터의 지표인 "평균거래단가"를 저장하는 테이블이다.
+- 수정주가가 **적용되지 않았다**.
+- TABLE **modifyfactor**, **opt10059**, **opt10081**를 이용하여 만든다.
+- "평균거래단가"는 각 종목에 대해, 각 일자에 대해, 각 세력에 대해, 매수와 매도에 대해 int64 스칼라 값으로 정의된다.
+- "평균거래단가"를 계산하는 의사 코드는 다음과 같다:
 
-```sql
-CREATE TABLE IF NOT EXISTS mvgtradeprice_{jmcode}(
-일자 int PRIMARY KEY,
-개인투자자B real,
-개인투자자S real,
-외국인투자자B real,
-외국인투자자S real,
-기관계B real,
-기관계S real,
-금융투자B real,
-금융투자S real,
-보험B real,
-보험S real,
-투신B real,
-투신S real,
-기타금융B real,
-기타금융S real,
-은행B real,
-은행S real,
-연기금등B real,
-연기금등S real,
-사모펀드B real,
-사모펀드S real,
-국가B real,
-국가S real,
-기타법인B real,
-기타법인S real,
-내외국인B real,
-내외국인S real);
+
+
+```python
+# 모든 배열은 날짜 내림차순(최근 날짜가 가장 앞에 오는 순서)이다.
+# 모든 배열은 zero-based index를 따른다.
+# N: 일봉 개수. 1 이상의 양의 정수이다. 주로 600이다.
+# S[i]: i번째 일자의 매도량.
+# B[i]: i번째 일자의 매수량.
+# C[i]: i번째 일자의 종가.
+# 어떤 수를 0으로 나눌 시 그 나눗셈 계산 결과는 0으로 간주한다.
+
+
+def adjust(A:배열):
+    for i in range(1,N):
+        if A[i]==0:
+            A[i]=A[i-1]
+
+
+평균매수단가 = []
+평균매도단가 = []
+buy_money = 0
+buy_volume = 0
+sell_money = 0
+sell_volume = 0
+
+for i in range(N-1, -1, -1): # [N-1, N-2, N-3, ..., 2, 1, 0]
+    net_buy = abs(B[i]) - abs(S[i])
+    money = abs(C[i]) * netbuy
+    if net_buy > 0:
+        buy_volume += net_buy
+        buy_money += money
+    else:
+        sell_volume += net_buy
+        sell_money += money
+    평균매수단가.append(buy_money / buy_volume)
+    평균매도단가.append(sell_money / sell_volume)
+
+adjust(평균매수단가)
+adjust(평균매도단가)
 ```
 
+
+
+```sqlite
+CREATE TABLE avgtrdprc ( jmcode, dat, buysell, ind, fore, org, fin, ins, inv, ofin, bank, yun, priv, nation, oco, ne, PRIMARY KEY (jmcode, dat, buysell) ) ;
+```
+
+| column  | type   | desc.                      |
+| ------- | ------ | -------------------------- |
+| jmcode  | string | 종목코드                       |
+| dat     | int32  | 일자                         |
+| buysell | int32  | 매수/매도 구분. 0이면 매수, 1이면 매도다. |
+| ind     | int64  | 개인투자자                      |
+| fore    | int64  | 외국인투자자                     |
+| org     | int64  | 기관                         |
+| fin     | int64  | 금융투자                       |
+| ins     | int64  | 보험                         |
+| inv     | int64  | 투신                         |
+| ofin    | int64  | 기타금융                       |
+| bank    | int64  | 은행                         |
+| yun     | int64  | 연기금등                       |
+| priv    | int64  | 사모펀드                       |
+| nation  | int64  | 국가                         |
+| oco     | int64  | 기타법인                       |
+| ne      | int64  | 내외국인                       |
 
