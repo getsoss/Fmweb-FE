@@ -7,9 +7,9 @@ namespace DBConverter
 
         private static void PrintUsage()
         {
-            Console.WriteLine("usage:");
-            Console.WriteLine("./DBConverter legacy_to_FMSDBV01 <src> <target> [--njm=<njm>]");
-            Console.WriteLine("./DBConverter FMSDBV01_to_FMSDBV02 <src> <target>");
+            Log2.Info("usage:");
+            Log2.Info("./DBConverter e <legacy> <FMSDBV01> [--njm=<njm>]");
+            Log2.Info("./DBConverter f <FMSDBV01> <FMSDBV02>");
         }
 
         private static void Main(string[] args)
@@ -30,7 +30,7 @@ namespace DBConverter
                     return;
                 }
 
-                if (command == "legacy_to_FMSDBV01")
+                if (command == "e")
                 {
                     int njm = -1;
 
@@ -42,7 +42,7 @@ namespace DBConverter
                         }
                     }
 
-                    Console.WriteLine($"njm={njm}");
+                    Log2.Info($"njm={njm}");
 
                     using (var converter = new LegacyToFMSDBV01Converter(args[1], args[2], njm))
                     {
@@ -51,7 +51,7 @@ namespace DBConverter
                     return;
                 }
 
-                if (command == "FMSDBV01_to_FMSDBV02")
+                if (command == "f")
                 {
                     using (var converter = new FMSDBV01ToFMSDBV02Converter(args[1], args[2]))
                     {
@@ -65,7 +65,7 @@ namespace DBConverter
             }
             catch(Exception ex)
             {
-                Console.WriteLine(ex);
+                Log2.Info(ex.ToString());
             }
         }
     }

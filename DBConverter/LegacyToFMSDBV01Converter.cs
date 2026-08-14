@@ -39,24 +39,28 @@ namespace DBConverter
 
         public void Convert()
         {
-            WriteLine("Converting legacy to FMSDBV01...");
+            Log2.Info("Converting legacy to FMSDBV01...");
             target.CommandText = "CREATE TABLE IF NOT EXISTS complete_tables(n PRIMARY KEY)";
             target.ExecuteNonQuery();
             target.CommandText = "SELECT n FROM complete_tables";
             HashSet<string> completeTables = target.ReadStringSet();
-            WriteLine($"complete tables: {string.Join(", ", completeTables)}");
+            Log2.Info($"complete tables: {string.Join(", ", completeTables)}");
+            Log2.Info("begin market");
             if (!completeTables.Contains("market"))
             {
                 CreateTableMarket();
                 target.CommandText = "INSERT INTO complete_tables(n)VALUES('market')";
                 target.ExecuteNonQuery();
             }
+            Log2.Info("end market");
+            Log2.Info("begin bojong");
             if (!completeTables.Contains("bojong"))
             {
                 CreateTableBojong();
                 target.CommandText = "INSERT INTO complete_tables(n)VALUES('bojong')";
                 target.ExecuteNonQuery();
             }
+            Log2.Info("end bojong");
             if (!completeTables.Contains("top"))
             {
                 CreateTableTop();
@@ -116,7 +120,7 @@ namespace DBConverter
                 string bojongTable = bojongTables[i];
                 if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
                 {
-                    WriteLine($"bojong: {i}/{bojongTables.Count}");
+                    Log2.Info($"bojong: {i}/{bojongTables.Count}");
                     stopwatch.Restart();
                 }
                 origin.CommandText = $"SELECT 종목코드,보유순위,보유계좌수,보유평균매수가,보유계좌수익률 FROM {bojongTable}";
@@ -139,12 +143,15 @@ namespace DBConverter
                         long a = rdr.GetInt64(3);
                         double p = rdr.GetDouble(4);
                         sb.AppendFormat("({0},'{1}',{2},{3},{4},{5})", d, j, r, n, a, p);
-
                     }
                 }
             }
+            Log2.Info("begin sb.ToString()");
             target.CommandText = sb.ToString();
-            target.ExecuteNonQuery();
+            Log2.Info("end sb.ToString()");
+            Log2.Info("begin INSERT");
+            int nRow = target.ExecuteNonQuery();
+            Log2.Info($"{nRow} rows inserted");
         }
 
 
@@ -168,7 +175,7 @@ namespace DBConverter
                 string topTable = topTables[i];
                 if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
                 {
-                    WriteLine($"top: {i}/{topTables.Count}");
+                    Log2.Info($"top: {i}/{topTables.Count}");
                     stopwatch.Restart();
                 }
                 origin.CommandText = $"SELECT 종목코드,상위순위,상위매수수량,상위매도수량,상위순매매수량,상위계좌수,상위수량,상위평균매입가,상위수익률 FROM {topTable}";
@@ -232,7 +239,7 @@ namespace DBConverter
                 string opt10059Table = opt10059Tables[i];
                 if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
                 {
-                    WriteLine($"opt10059: {i}/{opt10059Tables.Count}");
+                    Log2.Info($"opt10059: {i}/{opt10059Tables.Count}");
                     stopwatch.Restart();
                 }
                 origin.CommandText = $"SELECT 일자,개인투자자,외국인투자자,기관계,금융투자,보험,투신,기타금융,은행,연기금등,사모펀드,국가,기타법인,내외국인 FROM {opt10059Table}";
@@ -298,7 +305,7 @@ namespace DBConverter
                 string opt10081Table = opt10081Tables[i];
                 if (stopwatch.ElapsedMilliseconds > PROGRESS_REPORT_INTERVAL_MS)
                 {
-                    WriteLine($"opt10081: {i}/{opt10081Tables.Count}");
+                    Log2.Info($"opt10081: {i}/{opt10081Tables.Count}");
                     stopwatch.Restart();
                 }
                 origin.CommandText = $"SELECT 일자,현재가,거래량,거래대금,시가,고가,저가,수정주가구분,수정비율 FROM {opt10081Table}";
@@ -445,18 +452,10 @@ namespace DBConverter
         }
 
 
-
-
         public void Dispose()
         {
             origin.Dispose();
             target.Dispose();
-        }
-
-
-        private void WriteLine(string s)
-        {
-            Console.WriteLine(s);
         }
 
 
