@@ -7,7 +7,6 @@
 - FMSDBV01는 세력모니터 서버 DB의 버전 1 포맷(Force Monitor Server DataBase Version 01)이라는 의미이다.
 - DBConverter를 이용하여 Windows용 세력모니터 프로그램 DB를 FMSDBV01로 변환할 수 있다.
 
-
 ## TABLE complete_tables
 
 
@@ -29,18 +28,18 @@ CREATE TABLE IF NOT EXISTS complete_tables ( n PRIMARY KEY ) ;
 CREATE TABLE opt10081 ( d, j, c, v, u, o, h, l, m, r, PRIMARY KEY (d, j) ) ;
 ```
 
-| column | type   | desc.  |
-| ------ | ------ | ------ |
-| d      | int32  | 일자     |
-| j      | string | 종목코드   |
-| c      | int64  | 종가     |
-| v      | int64  | 거래량    |
-| u      | int64  | 거래대금   |
-| o      | int64  | 시가     |
-| h      | int64  | 고가     |
-| l      | int64  | 저가     |
-| m      | int64  | 수정주가구분 |
-| r      | double | 수정비율   |
+| column | type   | desc.                                                                           |
+| ------ | ------ | ------------------------------------------------------------------------------- |
+| d      | int32  | 일자                                                                              |
+| j      | string | 종목코드                                                                            |
+| c      | int64  | 종가                                                                              |
+| v      | int64  | 거래량                                                                             |
+| u      | int64  | 거래대금                                                                            |
+| o      | int64  | 시가                                                                              |
+| h      | int64  | 고가                                                                              |
+| l      | int64  | 저가                                                                              |
+| m      | int32  | 수정주가구분(0:수정안함, 1:유상증자, 2:무상증자, 4:배당락, 8:액면분할, 16:액면병합, 32:기업합병, 64:감자, 256:권리락) |
+| r      | double | 수정비율                                                                            |
 
 
 ## TABLE opt20006
@@ -183,3 +182,16 @@ CREATE TABLE market( c PRIMARY KEY , m ) ;
 | c      | string | 종목코드                     |
 | m      | int32  | 시장(0: KOSPI, 10: KOSDAQ) |
 
+
+# TABLE meta (optional)
+
+- 이 테이블을 만들지 말지, 여기에 어떤 정보를 저장할지 자유롭게 선택할 수 있다.
+
+```sqlite
+CREATE TABLE meta(k PRIMARY KEY, v);
+```
+
+| column | type   | desc. |
+| ------ | ------ | ----- |
+| k      | string | Key   |
+| v      | string | Value |

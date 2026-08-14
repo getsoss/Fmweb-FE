@@ -45,6 +45,19 @@ namespace DBConverter
         }
 
 
+        public int ReadSingleInt32()
+        {
+            using (var rdr = ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    return rdr.GetInt32(0);
+                }
+            }
+            throw new Exception("ReadSingleInt32: Result is empty.");
+        }
+
+
         public List<string> ReadStringList()
         {
             var ret = new List<string>();
