@@ -1,9 +1,4 @@
-﻿// First write: 2026-06-22
-// Author: nsb
-// Struct "System.ValueTuple" is not supported in versions .NET Framework 4.7 and below.
-// To support versions .NET Framework 4.7 and below, use ValueTuple2.
-
-namespace Fmweb.Data
+﻿namespace DBConverter
 {
     public struct ValueTuple2<T1, T2>
     {

@@ -357,8 +357,6 @@ namespace Fmweb.SQLite
                         _allDates = tmp;
                         break;
                     }
-
-                    Log2.WarnOnce($"Ticker {s} has no full days.", LogType.GetAllDatesSmallFail);
                 }
                 catch { }
             }

@@ -30,29 +30,6 @@ namespace Fmweb
                     retainedFileCountLimit: 4
                     ).WriteTo.Console().CreateLogger();
 
-                if (args.Length > 0)
-                {
-                    string command = args[0];
-
-                    if (command == "legacy_to_FMSDBV01")
-                    {
-                        using (var converter = new LegacyToFMSDBV01Converter(args[1], args[2]))
-                        {
-                            converter.Convert();
-                        }
-                        return;
-                    }
-
-                    if (command == "FMSDBV01_to_FMSDBV02")
-                    {
-                        using(var converter = new FMSDBV01ToFMSDBV02Converter(args[1], args[2]))
-                        {
-                            converter.Convert();
-                        }
-                        return;
-                    }
-                }
-
                 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
                 builder.Services.AddSerilog();
 

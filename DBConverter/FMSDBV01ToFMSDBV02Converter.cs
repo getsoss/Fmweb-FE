@@ -1,17 +1,16 @@
-﻿using Fmweb.Data;
-using Microsoft.AspNetCore.Components;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection.Emit;
 using System.Text;
 
-namespace Fmweb.SQLite
+namespace DBConverter
 {
 
-    internal class FMSDBV01ToFMSDBV02Converter : IDisposable
+    public class FMSDBV01ToFMSDBV02Converter : IDisposable
     {
         private const int PROGRESS_REPORT_INTERVAL_MS = 500; // Default is 500.
         private readonly SQLiteConnection2 _conn;
@@ -192,16 +191,16 @@ namespace Fmweb.SQLite
                 return;
             }
 
-            int n = opt10059Buy.Count;
+            int nDate = opt10059Buy.Count;
 
-            long[,] avgbuyprc = new long[n, N_INVESTOR];
-            long[,] avgsellprc = new long[n, N_INVESTOR];
+            long[,] avgbuyprc = new long[nDate, N_INVESTOR];
+            long[,] avgsellprc = new long[nDate, N_INVESTOR];
             long[] buy_money = new long[N_INVESTOR];
             long[] buy_volume = new long[N_INVESTOR];
             long[] sell_money = new long[N_INVESTOR];
             long[] sell_volume = new long[N_INVESTOR];
 
-            for (int i = n - 1; i >= 0; i--)
+            for (int i = nDate - 1; i >= 0; i--)
             {
                 for(int investorIdx = 0; investorIdx < N_INVESTOR; investorIdx++)
                 {
@@ -223,7 +222,7 @@ namespace Fmweb.SQLite
             }
 
             // adjust
-            for(int i = 1; i < n; i++)
+            for(int i = 1; i < nDate; i++)
             {
                 for (int investorIdx = 0; investorIdx < N_INVESTOR; investorIdx++)
                 {
@@ -243,7 +242,7 @@ namespace Fmweb.SQLite
 
             // INSERT avgbuyprc
             sb.Append("INSERT INTO avgtrdprc(jmcode,dat,buysell,ind, fore,org,fin,ins, inv,ofin,bank,yun, priv,nation,oco,ne)VALUES ");
-            for (int i = 0; i < avgbuyprc.Length; i++)
+            for (int i = 0; i < nDate; i++)
             {
                 if(i > 0)
                 {
@@ -262,7 +261,7 @@ namespace Fmweb.SQLite
 
             // INSERT avgsellprc
             sb.Append("INSERT INTO avgtrdprc(jmcode,dat,buysell,ind, fore,org,fin,ins, inv,ofin,bank,yun, priv,nation,oco,ne)VALUES ");
-            for (int i = 0; i < avgsellprc.Length; i++)
+            for (int i = 0; i < nDate; i++)
             {
                 if (i > 0)
                 {
@@ -285,7 +284,7 @@ namespace Fmweb.SQLite
             _conn.ExecuteNonQuery();
             _conn.CommandText = "CREATE TABLE avgtrdprc ( jmcode, dat, buysell, ind, fore, org, fin, ins, inv, ofin, bank, yun, priv, nation, oco, ne, PRIMARY KEY (jmcode, dat, buysell) ) ;";
             _conn.ExecuteNonQuery();
-            _conn.CommandText = "SELECT DISTINCT j FROM opt10059 ; ";
+            _conn.CommandText = "SELECT DISTINCT jmcode FROM opt10059 ; ";
             List<string> tickers = new List<string>();
             using (var rdr = _conn.ExecuteReader())
             {
@@ -295,10 +294,18 @@ namespace Fmweb.SQLite
                 }
                 rdr.Close();
             }
+            Stopwatch stopwatch = Stopwatch.StartNew();
             _conn.ExecuteAtomicTransaction(() =>
             {
-                foreach (var c in tickers)
+
+                for (int i = 0; i < tickers.Count; i++)
                 {
+                    if(stopwatch.ElapsedMilliseconds > 500)
+                    {
+                        Log2.Info($"avgtrdprc: {i}/{tickers.Count}");
+                        stopwatch.Restart();
+                    }
+                    string c = tickers[i];
                     InsertIntoAvgtrdprc(c);
                 }
             });
