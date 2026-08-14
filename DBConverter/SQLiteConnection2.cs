@@ -39,7 +39,30 @@ namespace DBConverter
         {
             CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name like $a";
             AddParamWithValue("$a", like);
+            var ret = ReadStringList();
+            ClearParams();
+            return ret;
+        }
+
+
+        public List<string> ReadStringList()
+        {
             var ret = new List<string>();
+            using (var rdr = ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    string s = rdr.GetString(0);
+                    ret.Add(s);
+                }
+            }
+            return ret;
+        }
+
+
+        public HashSet<string> ReadStringSet()
+        {
+            var ret = new HashSet<string>();
             using (var rdr = ExecuteReader())
             {
                 while (rdr.Read())

@@ -12,7 +12,6 @@ namespace DBConverter
 
     public class FMSDBV01ToFMSDBV02Converter : IDisposable
     {
-        private const int PROGRESS_REPORT_INTERVAL_MS = 500; // Default is 500.
         private readonly SQLiteConnection2 _conn;
 
         public FMSDBV01ToFMSDBV02Converter(string fileOrigin, string fileTarget)
@@ -21,52 +20,37 @@ namespace DBConverter
             {
                 throw new FileNotFoundException();
             }
-
             if (fileOrigin == fileTarget)
             {
                 throw new ArgumentException("File origin cannot be equal to file target.");
             }
-
             if (!File.Exists(fileTarget))
             {
                 File.Copy(fileOrigin, fileTarget);
             }
-
             _conn = new SQLiteConnection2(fileTarget);
         }
 
-        public void Dispose()
-        {
-            _conn.Dispose();
-        }
+        
 
         public void Convert()
         {
-            Log2.Info("Converting FMSDBV01 into FMSDBV02...");
-
-            _conn.CommandText = "SELECT n FROM complete_tables ; ";
-            HashSet<string> completeTables = new HashSet<string>();
-            using (var rdr = _conn.ExecuteReader())
-            {
-                while (rdr.Read())
-                {
-                    completeTables.Add(rdr.GetString(0));
-                }
-                rdr.Close();
-            }
-
-            Log2.Info($"complete tables: {string.Join(", ", completeTables)}");
-
+            WriteLine("Converting FMSDBV01 into FMSDBV02...");
+            _conn.CommandText = "SELECT n FROM complete_tables";
+            HashSet<string> completeTables = _conn.ReadStringSet();
+            WriteLine($"complete tables: {string.Join(", ", completeTables)}");
             if (!completeTables.Contains("modifyfactor"))
             {
                 CreateTableModifyfactor();
+                _conn.CommandText = "INSERT INTO complete_tables(n)VALUES('modifyfactor')";
+                _conn.ExecuteNonQuery();
             }
-
             if (!completeTables.Contains("avgtrdprc"))
             {
                 CreateTableAvgtrdprc();
+                _conn.CommandText = "INSERT INTO complete_tables(n)VALUES('avgtrdprc')";
+                _conn.ExecuteNonQuery();
             }
-
         }
 
 
@@ -300,17 +284,16 @@ namespace DBConverter
 
                 for (int i = 0; i < tickers.Count; i++)
                 {
-                    if(stopwatch.ElapsedMilliseconds > 500)
+                    if(stopwatch.ElapsedMilliseconds > LegacyToFMSDBV01Converter.PROGRESS_REPORT_INTERVAL_MS)
                     {
-                        Log2.Info($"avgtrdprc: {i}/{tickers.Count}");
+                        WriteLine($"avgtrdprc: {i}/{tickers.Count}");
                         stopwatch.Restart();
                     }
                     string c = tickers[i];
                     InsertIntoAvgtrdprc(c);
                 }
             });
-            _conn.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'avgtrdprc' ) ; ";
-            _conn.ExecuteNonQuery();
+            
         }
 
 
@@ -365,9 +348,19 @@ namespace DBConverter
                     _conn.ExecuteNonQuery();
                 }
             });
-            _conn.CommandText = "INSERT INTO complete_tables(n) VALUES ( 'modifyfactor' ) ; ";
-            _conn.ExecuteNonQuery();
+            
         }
+
+        public void Dispose()
+        {
+            _conn.Dispose();
+        }
+
+        private void WriteLine(string s)
+        {
+            Console.WriteLine(s);
+        }
+
     }
 
 }

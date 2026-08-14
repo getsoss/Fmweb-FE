@@ -36,11 +36,13 @@ namespace DBConverter
 
                     if(args.Length > 3)
                     {
-                        if (args[2].StartsWith("--njm="))
+                        if (args[3].StartsWith("--njm="))
                         {
-                            njm = int.Parse(args[2].Substring(6));
+                            njm = int.Parse(args[3].Substring(6));
                         }
                     }
+
+                    Console.WriteLine($"njm={njm}");
 
                     using (var converter = new LegacyToFMSDBV01Converter(args[1], args[2], njm))
                     {
