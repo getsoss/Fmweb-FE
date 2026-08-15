@@ -1,215 +1,119 @@
-# 세력모니터 SQLite 데이터베이스 포맷 문서
+# 세력모니터 SQLite 데이터베이스 형식
 
 
-Windows용 세력모니터 프로그램에서 사용하는 DB format이다.
 
-## 서버의 원본 데이터
+## TABLE opt10081\_{jmcode}
 
-### 테이블 이름: opt10081_{jmcode}
-
-일자 int PRIMARY KEY
-
-현재가 int
-
-거래량 int
-
-거래대금 int
-
-시가 int
-
-고가 int
-
-저가 int
-
-수정주가구분 int
-
-수정비율 real
-
-### 업종 차트 테이블 이름: opt20006_{001|101}
-
-001: KOSPI,  101: KOSDAQ
-
-일자 int PRIMARY KEY
-
-현재가 int
-
-거래량 int
-
-거래대금 int
-
-시가 int
-
-고가 int
-
-저가 int
-
-### 테이블 이름: opt10059_{buy|sel}\_{jmcode}
-
-일자 int PRIMARY KEY
-
-개인투자자 int
-
-외국인투자자 int
-
-기관계 int
-
-금융투자 int
-
-보험 int
-
-투신 int
-
-기타금융 int
-
-은행 int
-
-연기금등 int
-
-사모펀드 int
-
-국가 int
-
-기타법인 int
-
-내외국인 int
-
-### 테이블 이름: bojong_{yyyyMMdd}
-
-각 table 당 대략 3000개의 row가 있다.
-
-종목코드 TEXT PRIMARY KEY
-
-보유순위 int
-
-보유계좌수 int
-
-보유평균매수가 int
-
-보유계좌수익률 real
-
-### 테이블 이름: top_{yyyyMMdd}
-
-각 table 당 정확히 200개의 row가 있다.
-
-세력모니터 프로그램에서의 "고수관심도"는 데이터베이스 상의 "상위계좌수"를 의미한다.
-
-종목코드 TEXT PRIMARY KEY
-
-상위순위 int
-
-상위매수수량 int
-
-상위매도수량 int
-
-상위순매매수량 int
-
-상위계좌수 int
-
-상위수량 int
-
-상위평균매입가 int
-
-상위수익률 real
-
-### 테이블 이름: opt10001
-
-종목코드 TEXT PRIMARY KEY
-
-종목명 TEXT
-
-결산월 int
-
-액면가 int
-
-자본금 int
-
-상장주식 int
-
-유통주식 int
-
-유통비율 real
-
-상장일 int
-
-### 테이블 이름: kospidaq
-
-시장은 0일 경우 KOSPI, 10일 경우 KOSDAQ이다.
-
-CREATE TABLE IF NOT EXISTS kospidaq(
-
-종목코드 TEXT PRIMARY KEY,
-
-시장 int
-
-);
-
-### 테이블 이름: others
-
-CREATE TABLE IF NOT EXISTS others(
-
-skey TEXT PRIMARY KEY,
-
-svalue TEXT
-
-);
-
-skey=uploadtime, svalue={long DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}
-
-## 세력모니터 Windows C# 클라이언트 측에서 추가로 만들 수 있는 tables
-
-### 테이블 이름: datelength
-
-- opt10081 tables를 이용하여 만든다.
-- CREATE TABLE IF NOT EXISTS datelength(종목코드 TEXT PRIMARY KEY, ndate int);
-
-### 테이블 이름: mpt10081_{jmcode}
-
-- forcemonitor.db의 opt10081 table에 수정주가를 적용하고 가공한다.
-- opt10081_{jmcode}를 가공하여 만든다.
-- 날짜 내림차순으로 수정비율 [0, 0, 0, -30, 0, -40, 0]이라면 수정인수는 [1, 1, 1, 1, 0.7, 0.7, 0.42]이다.
-- mpt10081 table을 이용해 주가에 수정인수를 곱하고, 거래량을 수정인수로 나누면 수정주가를 적용할 수 있다.
-- CREATE TABLE IF NOT EXISTS mpt10081_{jmcode}(
-
-일자 int PRIMARY KEY,
-
-수정인수 real);
-
-### 테이블 이름: mvgtradeprice_{jmcode}
-
-- 🧡 mpt10081 table이 먼저 만들어진 상태여야만 이 table을 만들 수 있다.
-- DB의 opt10081, opt10059 table에 mpt10081의 수정주가를 적용하고 가공한다.
-- opt10081_{jmcode}, opt10059_{buy&sel}\_{jmcode}, mpt10081_{jmcode}를 가공하여 만든다.
-- 날짜 내림차순으로 수정비율 [0, 0, 0, -30, 0, -40, 0]이라면 수정인수는 [1, 1, 1, 1, 0.7, 0.7, 0.42]이다.
-
-```sql
-CREATE TABLE IF NOT EXISTS mvgtradeprice_{jmcode}(
-일자 int PRIMARY KEY,
-개인투자자B real,
-개인투자자S real,
-외국인투자자B real,
-외국인투자자S real,
-기관계B real,
-기관계S real,
-금융투자B real,
-금융투자S real,
-보험B real,
-보험S real,
-투신B real,
-투신S real,
-기타금융B real,
-기타금융S real,
-은행B real,
-은행S real,
-연기금등B real,
-연기금등S real,
-사모펀드B real,
-사모펀드S real,
-국가B real,
-국가S real,
-기타법인B real,
-기타법인S real,
-내외국인B real,
-내외국인S real);
+```sqlite
+CREATE TABLE opt10081_005930(일자 INT PRIMARY KEY,현재가 INT,거래량 INT,거래대금 INT,시가 INT,고가 INT,저가 INT,수정주가구분 INT,수정비율 REAL);
 ```
+
+ - Kiwoom Open API+의 opt10081 : 주식일봉차트조회요청 을 호출하여 만든다. 시세는 KRX이며, 수정주가가 적용되지 않았다.
+- "일자"는 항상 8자리 양의 정수이며, yyyyMMdd(4자리 년, 2자리 월, 2자리 일) 형식이다.
+- "수정비율"은 double이며, 퍼센트(%) 단위이다. 0은 수정되지 않았음을 뜻한다.
+- "수정주가구분"은 1:유상증자, 2:무상증자, 4:배당락, 8:액면분할, 16:액면병합, 32:기업합병, 64:감자, 256:권리락, -999999999999999:구분없음 을 뜻한다.
+- 일자를 제외한 모든 INT column은 64비트 정수가 저장될 수 있다.
+
+
+## TABLE opt20006\_{001|101}
+
+```sqlite
+CREATE TABLE opt20006_001(일자 INT PRIMARY KEY,현재가 INT,거래량 INT,거래대금 INT,시가 INT,고가 INT,저가 INT)
+```
+
+- Kiwoom Open API+의 opt20006 : 업종일봉조회요청 을 호출하여 만든다. 001은 KOSPI, 101은 KOSDAQ을 의미한다.
+
+
+## TABLE opt10059\_{buy|sel}\_{jmcode}
+
+
+```sqlite
+CREATE TABLE opt10059_sel_000040(일자 INT PRIMARY KEY,개인투자자 INT,외국인투자자 INT,기관계 INT,금융투자 INT,보험 INT,투신 INT,기타금융 INT,은행 INT,연기금등 INT,사모펀드 INT,국가 INT,기타법인 INT,내외국인 INT);
+```
+
+- Kiwoom Open API+의 opt10059 : 종목별투자자기관별요청 을 호출하여 만든다. 1주 단위 수량으로 저장하며, buy는 매수량, sel은 매도량을 의미한다.
+
+## TABLE bojong\_{yyyyMMdd}
+
+
+```sqlite
+CREATE TABLE bojong_20230703(종목코드 TEXT PRIMARY KEY,보유순위 INT,보유계좌수 INT,보유평균매수가 INT,보유계좌수익률 REAL);
+```
+
+- 각 table당 대략 3000개의 row가 있다.
+- 키움증권의 HTS(Home Trading System)인 Windows 프로그램 "영웅문4"를 실전투자 환경에서 접속하면 "\[1331\] 키움 보유종목통계 (종합)" 이라는 창을 띄울 수 있다. 그 창을 마우스로 우클릭한 후 "Excel로 저장..." 버튼을 누르면 CSV 파일이 저장된다. 그 파일을 이용하여 table을 만들 수 있다.
+
+
+## TABLE top\_{yyyyMMdd}
+
+```sqlite
+CREATE TABLE top_20220704(종목코드 TEXT PRIMARY KEY,상위순위 INT,상위매수수량 INT,상위매도수량 INT,상위순매매수량 INT,상위계좌수 INT,상위수량 INT,상위평균매입가 INT,상위수익률 REAL);
+```
+
+- 각 table당 정확히 200개의 row가 있다.
+- 키움증권 영웅문4의 "\[4196\] 수익률상위고객 매매 상세 현황 (통합)"에서 Excel로 저장 버튼을 눌러 만들 수 있다.
+- 세력모니터에서의 "고수관심도"는 column "상위계좌수"를 의미한다.
+
+## TABLE opt10001
+
+```sqlite
+CREATE TABLE opt10001(종목코드 TEXT PRIMARY KEY,종목명 TEXT,결산월 INT,액면가 INT,자본금 INT,상장주식 INT,유통주식 INT,유통비율 REAL,상장일 INT);
+```
+
+- Kiwoom Open API+의 opt10001 : 주식기본정보요청 을 호출하여 만든다.
+
+## TABLE kospidaq
+
+```sqlite
+CREATE TABLE kospidaq(종목코드 TEXT PRIMARY KEY,시장 INT);
+```
+
+- 시장은 0일 경우 KOSPI, 10일 경우 KOSDAQ이다.
+
+## TABLE others
+
+```sqlite
+CREATE TABLE others(skey TEXT PRIMARY KEY,svalue TEXT);
+```
+
+| skey       | svalue                                                 |
+| ---------- | ------------------------------------------------------ |
+| uploadtime | {int64 DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()} |
+
+
+여기까지는 필수 원천 데이터를 담는 TABLE을 정의했다. 이 아래부터는 위에서 만든 TABLE들에 있는 정보만을 이용하여 추가로 만들 수 있는 TABLE들이다.
+---
+
+## TABLE datelength
+
+```sqlite
+CREATE TABLE datelength(종목코드 TEXT PRIMARY KEY,ndate INT);
+```
+
+- TABLE opt10081 을 이용하여 만든다.
+- Windows 세력모니터 프로그램에서는 이 TABLE이 필수다.
+
+## TABLE mpt10081_{jmcode}
+
+
+```sqlite
+CREATE TABLE mpt10081_000020(일자 INT PRIMARY KEY,수정인수 REAL);
+```
+
+- TABLE opt10081 을 이용하여 만든다.
+- 날짜 내림차순(가장 최근 날짜가 가장 앞에 오는 순서)으로 수정비율 \[0, 0, 0, -30, 0, -40, 0\]이라면 수정인수는 \[1, 1, 1, 1, 0.7, 0.7, 0.42\]이다.
+- TABLE mpt10081 을 이용해 주가에 수정인수를 곱하고, 거래량을 수정인수로 나누면 수정주가를 적용할 수 있다.
+- Windows 세력모니터 프로그램에서는 이 TABLE이 필수다.
+
+
+## TABLE mvgtradeprice_{jmcode}
+
+```sqlite
+CREATE TABLE mvgtradeprice_000050(일자 INT PRIMARY KEY,개인투자자B REAL,개인투자자S REAL,외국인투자자B REAL,외국인투자자S REAL,기관계B REAL,기관계S REAL,금융투자B REAL,금융투자S REAL,보험B REAL,보험S REAL,투신B REAL,투신S REAL,기타금융B REAL,기타금융S REAL,은행B REAL,은행S REAL,연기금등B REAL,연기금등S REAL,사모펀드B REAL,사모펀드S REAL,국가B REAL,국가S REAL,기타법인B REAL,기타법인S REAL,내외국인B REAL,내외국인S REAL);
+```
+- TABLE opt10081, opt10059, mpt10081을 이용하여 만든다.
+- B는 "평균매수단가", S는 "평균매도단가"를 의미한다.
+- 수정주가가 적용되었다.
+- Windows 세력모니터 프로그램에서는 이 TABLE이 필수다.
 
 
