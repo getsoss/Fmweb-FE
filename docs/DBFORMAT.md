@@ -82,7 +82,7 @@ CREATE TABLE others(skey TEXT PRIMARY KEY,svalue TEXT);
 | uploadtime | {int64 DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()} |
 
 
-여기까지는 필수 원천 데이터를 담는 TABLE을 정의했다. 이 아래부터는 위에서 만든 TABLE들에 있는 정보만을 이용하여 추가로 만들 수 있는 TABLE들이다.
+여기까지는 필수 원천 데이터를 담는 TABLE을 정의했다. 이 아래부터는 위에서 만든 TABLE들에 있는 정보만을 이용하여 추가로 만들 수 있는 TABLE들이다. SSH 서버에서 DB를 받아오고 Windows 세력모니터 클라이언트 측에서 DB를 가공하여 아래 테이블들을 만드는 것이 일반적이다.
 ---
 
 ## TABLE datelength
@@ -116,17 +116,3 @@ CREATE TABLE mvgtradeprice_000050(일자 INT PRIMARY KEY,개인투자자B REAL,�
 - 수정주가를 적용한다.
 - B는 "평균매수단가", S는 "평균매도단가"를 의미한다.
 - Windows 세력모니터 프로그램에서는 이 TABLE이 필수다.
-
-## TABLE have
-
-```sqlite
-CREATE TABLE have(ticker TEXT,dat INT,individual REAL,foreigner REAL,organization REAL,financeinvest REAL,insurance REAL,investtrust REAL,otherfinance REAL,bank REAL,pension REAL,privatefund REAL,nation REAL,othercorporation REAL,inout REAL,PRIMARY KEY(ticker,dat));
-```
-
-- TABLE opt10001, opt10059, mpt10081 을 이용하여 만든다. TABLE opt10001은 유통주식수를 구하기 위해, opt10059는 각 날짜의 매수량과 매도량을 구하기 위해, mpt10081은 수정주가를 적용하기 위해 이용한다.
-- 수정주가를 적용한다.
-- ticker는 종목코드를, dat은 날짜를 나타낸다. 나머지 column은 "보유비중증감" 지표 값을 나타내며, 그 값은 퍼센트(%) 단위로 저장한다.
-- "보유비중증감" 지표는 세력이 그 날 가지고 있는 보유 주식 수를 유통 주식 수로 나눈 비율이다. 맨 처음의 보유 주식 수는 0으로 간주한다. 그 이후의 보유 주식 수는 순매수의 누적합을 구한 것과 같다. 순매수는 매수량에서 매도량을 뺀 것이다.
-- 이론상, 각 날짜에서 모든 세력의 "보유비중증감" 지표 값을 합하면 0이 나와야 한다. 그러나 수정주가에 의한 계산 오차 때문에 정확히 0이 나오지 않을 때도 있다.
-- 이론상, "보유비중증감" 지표 값은 -100보다 작거나 100보다 클 수 없다. 그러나 유통 주식 수가 수정주가이벤트에 의해 변하고 TABLE opt10001에 반영되지 않는다면, 혹은 수정주가에 의한 계산 오차가 발생한다면 -100보다 작거나 100보다 큰 값이 나올 수 있다.
-

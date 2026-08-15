@@ -32,8 +32,6 @@ namespace Fmweb.SQLite
             }
 
             _conn = new SQLiteConnection2("fmclient.db");
-            _conn.CommandText = "CREATE TABLE IF NOT EXISTS have(ticker TEXT,dat INT,individual REAL,foreigner REAL,organization REAL,financeinvest REAL,insurance REAL,investtrust REAL,otherfinance REAL,bank REAL,pension REAL,privatefund REAL,nation REAL,othercorporation REAL,inout REAL,PRIMARY KEY(ticker,dat))";
-            _conn.ExecuteNonQuery();
         }
 
 

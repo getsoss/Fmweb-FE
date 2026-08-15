@@ -1,7 +1,7 @@
 # 세력모니터 웹버전 백엔드 API 문서
 
 - 마지막 수정: 2026-08-15 (토)
-- API 버전: v08
+- API 버전: v09
 - 모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 합니다.
 
 ## 1. 주식 일봉 차트 조회
