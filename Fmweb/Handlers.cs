@@ -229,10 +229,9 @@ namespace Fmweb
                 jo["errno"] = 0;
                 jo["result"] = JArray.FromObject(_conn.SearchByHave(datebegin, dateend, investors).Select(x => x.ToObjects()));
             }
-            catch (DateNotFoundException ex)
+            catch (DateNotFoundException)
             {
                 jo["errno"] = 1;
-                jo["errmsg"] = ex.Date + " not found";
             }
 
             return ToResult(jo);

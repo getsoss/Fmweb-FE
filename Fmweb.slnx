@@ -2,6 +2,5 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
-  <Project Path="DBConverter/DBConverter.csproj" Id="b5f7220d-acce-4d36-b831-fbbd1e45fdcc" />
   <Project Path="Fmweb/Fmweb.csproj" />
 </Solution>
