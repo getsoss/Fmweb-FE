@@ -1,10 +1,8 @@
 # 세력모니터 웹버전 백엔드 API 문서
 
-마지막 수정: 2026-08-15 (토)
-
-API 버전: v08
-
-모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 합니다.
+- 마지막 수정: 2026-08-15 (토)
+- API 버전: v08
+- 모든 API route에는 앞에 https://api.motrader.co.kr/proc/fmweb 을 붙여주어야 합니다.
 
 ## 1. 주식 일봉 차트 조회
 
@@ -394,6 +392,8 @@ GET /search-by-have?datebegin={datebegin}&dateend={dateend}&investors={investors
 {investors}는 bit field이며, 다음과 같습니다:
 
 개인투자자 = 1, 외국인투자자 = 2, 기관계 = 4, 금융투자 = 8, 보험 = 16, 투신 = 32, 기타금융 = 64, 은행 = 128, 연기금등 = 256, 사모펀드 = 512, 국가 = 1024, 기타법인 = 2048, 내외국인 = 4096
+
+예를 들어 `GET /search-by-have?datebegin=20260102&dateend=20260105&investors=3`은 2026년 1월 5일의 개인투자자와 외국인투자자 보유비중의 합에서 2026년 1월 2일의 것을 뺀 결과를 보여줍니다.
 
 ### 11.2. Response
 

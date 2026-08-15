@@ -61,6 +61,7 @@ CREATE TABLE opt10001(종목코드 TEXT PRIMARY KEY,종목명 TEXT,결산월 INT
 ```
 
 - Kiwoom Open API+의 opt10001 : 주식기본정보요청 을 호출하여 만든다.
+- opt10001로 받아온 유통 주식 수는 천 단위이며, TABLE opt10001에도 천 단위로 저장한다. 따라서 프로그램 상에서 정확한 유통 주식 수를 구하려면 column "유통주식"에 1000을 곱해줘야 한다.
 
 ## TABLE kospidaq
 
@@ -111,9 +112,21 @@ CREATE TABLE mpt10081_000020(일자 INT PRIMARY KEY,수정인수 REAL);
 ```sqlite
 CREATE TABLE mvgtradeprice_000050(일자 INT PRIMARY KEY,개인투자자B REAL,개인투자자S REAL,외국인투자자B REAL,외국인투자자S REAL,기관계B REAL,기관계S REAL,금융투자B REAL,금융투자S REAL,보험B REAL,보험S REAL,투신B REAL,투신S REAL,기타금융B REAL,기타금융S REAL,은행B REAL,은행S REAL,연기금등B REAL,연기금등S REAL,사모펀드B REAL,사모펀드S REAL,국가B REAL,국가S REAL,기타법인B REAL,기타법인S REAL,내외국인B REAL,내외국인S REAL);
 ```
-- TABLE opt10081, opt10059, mpt10081을 이용하여 만든다.
+- TABLE opt10081, opt10059, mpt10081 을 이용하여 만든다. TABLE opt10081은 각 날짜의 종가를 받아오기 위해, opt10059는 각 날짜의 매수량과 매도량을 구하기 위해, mpt10081은 수정주가를 적용하기 위해 이용한다.
+- 수정주가를 적용한다.
 - B는 "평균매수단가", S는 "평균매도단가"를 의미한다.
-- 수정주가가 적용되었다.
 - Windows 세력모니터 프로그램에서는 이 TABLE이 필수다.
 
+## TABLE have
+
+```sqlite
+CREATE TABLE have(ticker TEXT,dat INT,individual REAL,foreigner REAL,organization REAL,financeinvest REAL,insurance REAL,investtrust REAL,otherfinance REAL,bank REAL,pension REAL,privatefund REAL,nation REAL,othercorporation REAL,inout REAL,PRIMARY KEY(ticker,dat));
+```
+
+- TABLE opt10001, opt10059, mpt10081 을 이용하여 만든다. TABLE opt10001은 유통주식수를 구하기 위해, opt10059는 각 날짜의 매수량과 매도량을 구하기 위해, mpt10081은 수정주가를 적용하기 위해 이용한다.
+- 수정주가를 적용한다.
+- ticker는 종목코드를, dat은 날짜를 나타낸다. 나머지 column은 "보유비중증감" 지표 값을 나타내며, 그 값은 퍼센트(%) 단위로 저장한다.
+- "보유비중증감" 지표는 세력이 그 날 가지고 있는 보유 주식 수를 유통 주식 수로 나눈 비율이다. 맨 처음의 보유 주식 수는 0으로 간주한다. 그 이후의 보유 주식 수는 순매수의 누적합을 구한 것과 같다. 순매수는 매수량에서 매도량을 뺀 것이다.
+- 이론상, 각 날짜에서 모든 세력의 "보유비중증감" 지표 값을 합하면 0이 나와야 한다. 그러나 수정주가에 의한 계산 오차 때문에 정확히 0이 나오지 않을 때도 있다.
+- 이론상, "보유비중증감" 지표 값은 -100보다 작거나 100보다 클 수 없다. 그러나 유통 주식 수가 수정주가이벤트에 의해 변하고 TABLE opt10001에 반영되지 않는다면, 혹은 수정주가에 의한 계산 오차가 발생한다면 -100보다 작거나 100보다 큰 값이 나올 수 있다.
 

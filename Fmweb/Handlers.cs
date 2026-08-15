@@ -110,10 +110,13 @@ namespace Fmweb
         {
             var jo = new JObject();
 
-            if (!_tickerRegex.IsMatch(ticker))
+            if (string.IsNullOrWhiteSpace(ticker))
             {
                 jo["errno"] = 1;
-
+            }
+            else if (!_tickerRegex.IsMatch(ticker))
+            {
+                jo["errno"] = 1;
             }
             else if (!_conn.GetAllTickers().Contains(ticker))
             {

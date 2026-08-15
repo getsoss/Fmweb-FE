@@ -65,81 +65,10 @@ namespace Fmweb.SQLite
         }
 
 
-        /// <summary>
-        /// Thread-safe. Date-descending.
-        /// </summary>
-        public List<ModifiedInvestRow> GetModifiedInvestRows(string ticker, BuySell buySell)
-        {
-            var org = _conn.GetUnmodifiedInvestRows(ticker, buySell);
-            List<ModifyFactor> modifyFactors = _conn.GetModifyFactors(ticker);
-            var ret = new List<ModifiedInvestRow>();
-            for (int i = 0; i < modifyFactors.Count; i++)
-            {
-                ModifiedInvestRow modifiedCandle = org[i] * modifyFactors[i];
-                ret.Add(modifiedCandle);
-            }
-            return ret;
-        }
+        
 
 
-        /// <summary>
-        /// In percentage. Thread-safe. Date-descending.
-        /// </summary>
-        public List<ModifiedHaveRow> GetModifiedHaveRows(string ticker)
-        {
-            var modifiedInvestRowsBuy = GetModifiedInvestRows(ticker, BuySell.Buy);
-            var modifiedInvestRowsSell = GetModifiedInvestRows(ticker, BuySell.Sell);
-            var jongmok = _conn.GetJongmokDict()[ticker];
-
-            // ( jongmok.outstandingStock * 1000 ) is exact actual quantity.
-            // But we set denominator to ( jongmok.outstandingStock * 10 ) to get "have" value in **PERCENTAGE** unit.
-            long denominator = jongmok.OutstandingStock * 10;
-
-            // Prevent division by zero.
-            denominator = Math.Max(denominator, 1);
-
-            List<ModifiedHaveRow> ret = new List<ModifiedHaveRow>();
-
-            for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
-            {
-                var row = new ModifiedHaveRow();
-                row.Date = modifiedInvestRowsBuy[i].Date;
-
-                double f(Func<ModifiedInvestRow, double> func)
-                {
-                    return Math.Abs(func(modifiedInvestRowsBuy[i])) - Math.Abs(func(modifiedInvestRowsSell[i]));
-                }
-
-                row.개인투자자 = f(x => x.개인투자자);
-                row.외국인투자자 = f(x => x.외국인투자자);
-                row.기관계 = f(x => x.기관계);
-                row.금융투자 = f(x => x.금융투자);
-                row.보험 = f(x => x.보험);
-                row.투신 = f(x => x.투신);
-                row.기타금융 = f(x => x.기타금융);
-                row.은행 = f(x => x.은행);
-                row.연기금등 = f(x => x.연기금등);
-                row.사모펀드 = f(x => x.사모펀드);
-                row.국가 = f(x => x.국가);
-                row.기타법인 = f(x => x.기타법인);
-                row.내외국인 = f(x => x.내외국인);
-                ret.Add(row);
-            }
-
-            // Make prefix sum.
-            for (int i = modifiedInvestRowsBuy.Count - 2; i >= 0; i--)
-            {
-                ret[i].Add(ret[i + 1]);
-            }
-
-            // 각 일자의 각 세력의 주식보유량을 유통주식수로 나눠준다.
-            for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
-            {
-                ret[i].Div(denominator);
-            }
-
-            return ret;
-        }
+        
 
 
         
@@ -442,37 +371,31 @@ namespace Fmweb.SQLite
             return ret;
         }
 
+        
+
 
         /// <param name="date">8 digits. yyyyMMdd format.</param>
         public bool BojongExists(int date)
         {
-            return GetAllBojongTables().Contains("bojong_" + date);
+            HashSet<string> allBojongTables = GetAllBojongTables();
+            return allBojongTables.Contains("bojong_" + date);
         }
 
 
         /// <inheritdoc cref="SQLiteConnection3.GetAllTickers"/>
-        public HashSet<string> GetAllTickers()
-        {
-            return _conn.GetAllTickers();
-        }
+        public HashSet<string> GetAllTickers() => _conn.GetAllTickers();
+
+        /// <inheritdoc cref="SQLiteConnection3.GetModifiedHaveRows(string)"/>
+        public List<ModifiedHaveRow> GetModifiedHaveRows(string ticker) => _conn.GetModifiedHaveRows(ticker);
 
         /// <inheritdoc cref="SQLiteConnection3.GetAllBojongRowsByTicker(string)"/>
-        public List<BojongRow> GetAllBojongRowsByTicker(string ticker)
-        {
-            return _conn.GetAllBojongRowsByTicker(ticker);
-        }
+        public List<BojongRow> GetAllBojongRowsByTicker(string ticker) => _conn.GetAllBojongRowsByTicker(ticker);
 
         /// <inheritdoc cref="SQLiteConnection3.GetModifiedAverageTradePrices(string)"/>
-        public List<ModifiedAverageTradePriceRow> GetModifiedAverageTradePrices(string ticker)
-        {
-            return _conn.GetModifiedAverageTradePrices(ticker);
-        }
+        public List<ModifiedAverageTradePriceRow> GetModifiedAverageTradePrices(string ticker) => _conn.GetModifiedAverageTradePrices(ticker);
 
         /// <inheritdoc cref="SQLiteConnection3.GetAllBojongTables"/>
-        public HashSet<string> GetAllBojongTables()
-        {
-            return _conn.GetAllBojongTables();
-        }
+        public HashSet<string> GetAllBojongTables() => _conn.GetAllBojongTables();
 
 
     }

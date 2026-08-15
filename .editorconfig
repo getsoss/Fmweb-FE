@@ -252,3 +252,6 @@ dotnet_diagnostic.CA1834.severity = warning
 
 # CA1861: Avoid constant arrays as arguments
 dotnet_diagnostic.CA1861.severity = warning
+
+# IDE0028: Simplify collection initialization
+dotnet_diagnostic.IDE0028.severity = silent

@@ -2,6 +2,7 @@ using Fmweb.Data;
 using Microsoft.VisualBasic;
 using Microsoft.VisualBasic.FileIO;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Data.SqlTypes;
@@ -9,6 +10,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Text;
 
 namespace Fmweb.SQLite
 {
@@ -20,7 +22,7 @@ namespace Fmweb.SQLite
         public const int DAY_MAX = 600;
 
         private readonly SQLiteConnection2 _conn;
-        private readonly object _readLock = new object();
+        private readonly object _lock = new object();
 
         public SQLiteConnection3()
         {
@@ -30,6 +32,8 @@ namespace Fmweb.SQLite
             }
 
             _conn = new SQLiteConnection2("fmclient.db");
+            _conn.CommandText = "CREATE TABLE IF NOT EXISTS have(ticker TEXT,dat INT,individual REAL,foreigner REAL,organization REAL,financeinvest REAL,insurance REAL,investtrust REAL,otherfinance REAL,bank REAL,pension REAL,privatefund REAL,nation REAL,othercorporation REAL,inout REAL,PRIMARY KEY(ticker,dat))";
+            _conn.ExecuteNonQuery();
         }
 
 
@@ -38,7 +42,7 @@ namespace Fmweb.SQLite
         /// </summary>
         public List<UnmodifiedCandle> GetUnmodifiedCandles(string ticker)
         {
-            lock (_readLock)
+            lock (_lock)
             {
                 List<UnmodifiedCandle> ret = new List<UnmodifiedCandle>();
 
@@ -70,7 +74,7 @@ namespace Fmweb.SQLite
         /// </summary>
         internal List<MarketCandle> GetMarketCandles(Market market)
         {
-            lock (_readLock)
+            lock (_lock)
             {
                 var ret = new List<MarketCandle>();
                 string upcode = (market == Market.Kospi) ? "001" : "101";
@@ -111,7 +115,7 @@ namespace Fmweb.SQLite
                 return _marketDict;
             }
 
-            lock (_readLock)
+            lock (_lock)
             {
                 var ret = new Dictionary<string, Market>();
                 _conn.CommandText = $"SELECT 종목코드,시장 FROM kospidaq ; ";
@@ -150,7 +154,7 @@ namespace Fmweb.SQLite
         /// </summary>
         public List<ModifyFactor> GetModifyFactors(string ticker)
         {
-            lock (_readLock)
+            lock (_lock)
             {
                 List<ModifyFactor> list = new List<ModifyFactor>();
 
@@ -187,7 +191,7 @@ namespace Fmweb.SQLite
                 return _allJongmoks;
             }
 
-            lock (_readLock)
+            lock (_lock)
             {
                 List<Jongmok> tmp = new List<Jongmok>();
                 _conn.CommandText = "SELECT 종목코드,종목명,결산월,액면가,자본금,상장주식,유통주식,유통비율,상장일 FROM opt10001";
@@ -248,7 +252,7 @@ namespace Fmweb.SQLite
             }
 
             HashSet<string> allBojongTables = new HashSet<string>();
-            lock (_readLock)
+            lock (_lock)
             {
                 _conn.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name like 'bojong_%';";
                 using (var rdr = _conn.ExecuteReader())
@@ -271,7 +275,7 @@ namespace Fmweb.SQLite
         /// </summary>
         public List<BojongRow> GetAllBojongRowsByTicker(string ticker)
         {
-            lock (_readLock)
+            lock (_lock)
             {
                 HashSet<string> allBojongTables = GetAllBojongTables();
 
@@ -325,7 +329,7 @@ namespace Fmweb.SQLite
         /// <param name="date">8 digits. yyyyMMdd format.</param>
         public List<BojongRow> GetAllBojongRowsByDate(int date)
         {
-            lock (_readLock)
+            lock (_lock)
             {
                 List<BojongRow> ret = new List<BojongRow>();
 
@@ -359,7 +363,7 @@ namespace Fmweb.SQLite
         /// </summary>
         public List<ModifiedAverageTradePriceRow> GetModifiedAverageTradePrices(string ticker)
         {
-            lock (_readLock)
+            lock (_lock)
             {
                 var ret = new List<ModifiedAverageTradePriceRow>();
 
@@ -412,7 +416,7 @@ namespace Fmweb.SQLite
         /// </summary>
         public List<UnmodifiedInvestRow> GetUnmodifiedInvestRows(string ticker, BuySell buySell)
         {
-            lock (_readLock)
+            lock (_lock)
             {
                 string bs = (buySell == BuySell.Buy) ? "buy" : "sel";
                 string tableName = $"opt10059_{bs}_{ticker}";
@@ -447,7 +451,7 @@ namespace Fmweb.SQLite
         }
 
 
-        
+
 
 
 
@@ -480,9 +484,9 @@ namespace Fmweb.SQLite
         public double GetModifiedClosePrice(int date, string ticker)
         {
             double ret = -1;
-            lock (_readLock)
+            lock (_lock)
             {
-                _conn.CommandText = $"SELECT 현재가 FROM opt10081_{ticker} WHERE 일자 = {date} ;";
+                _conn.CommandText = $"SELECT 현재가 FROM opt10081_{ticker} WHERE 일자={date}";
                 using (SQLiteDataReader rdr = _conn.ExecuteReader())
                 {
                     if (rdr.StepCount == 0)
@@ -495,7 +499,7 @@ namespace Fmweb.SQLite
                     }
                     rdr.Close();
                 }
-                _conn.CommandText = $"SELECT 수정인수 FROM mpt10081_{ticker} WHERE 일자 = {date} ;";
+                _conn.CommandText = $"SELECT 수정인수 FROM mpt10081_{ticker} WHERE 일자={date}";
                 using (SQLiteDataReader rdr = _conn.ExecuteReader())
                 {
                     while (rdr.Read())
@@ -508,6 +512,216 @@ namespace Fmweb.SQLite
             }
             return ret;
         }
+
+
+        /// <summary>
+        /// Thread-safe. Date-descending.
+        /// </summary>
+        public List<ModifiedInvestRow> GetModifiedInvestRows(string ticker, BuySell buySell)
+        {
+            var org = GetUnmodifiedInvestRows(ticker, buySell);
+            List<ModifyFactor> modifyFactors = GetModifyFactors(ticker);
+            var ret = new List<ModifiedInvestRow>();
+            for (int i = 0; i < modifyFactors.Count; i++)
+            {
+                ModifiedInvestRow modifiedCandle = org[i] * modifyFactors[i];
+                ret.Add(modifiedCandle);
+            }
+            return ret;
+        }
+
+
+        //private void InsertIntoHaveValues(string ticker)
+        //{
+        //    var modifiedInvestRowsBuy = GetModifiedInvestRows(ticker, BuySell.Buy);
+        //    var modifiedInvestRowsSell = GetModifiedInvestRows(ticker, BuySell.Sell);
+        //    var jongmok = GetJongmokDict()[ticker];
+
+        //    // ( jongmok.outstandingStock * 1000 ) is exact actual quantity.
+        //    // But we set denominator to ( jongmok.outstandingStock * 10 ) to get "have" value in **PERCENTAGE** unit.
+        //    long denominator = jongmok.OutstandingStock * 10;
+
+        //    // Prevent division by zero.
+        //    denominator = Math.Max(denominator, 1);
+
+        //    List<ModifiedHaveRow> ret = new List<ModifiedHaveRow>();
+
+        //    for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
+        //    {
+        //        var row = new ModifiedHaveRow();
+        //        row.Date = modifiedInvestRowsBuy[i].Date;
+
+        //        double f(Func<ModifiedInvestRow, double> func)
+        //        {
+        //            return Math.Abs(func(modifiedInvestRowsBuy[i])) - Math.Abs(func(modifiedInvestRowsSell[i]));
+        //        }
+
+        //        row.individual = f(x => x.개인투자자);
+        //        row.foreigner = f(x => x.외국인투자자);
+        //        row.organization = f(x => x.기관계);
+        //        row.financeinvest = f(x => x.금융투자);
+        //        row.insurance = f(x => x.보험);
+        //        row.investtrust = f(x => x.투신);
+        //        row.otherfinance = f(x => x.기타금융);
+        //        row.bank = f(x => x.은행);
+        //        row.pension = f(x => x.연기금등);
+        //        row.privatefund = f(x => x.사모펀드);
+        //        row.nation = f(x => x.국가);
+        //        row.othercorporation = f(x => x.기타법인);
+        //        row.inout = f(x => x.내외국인);
+        //        ret.Add(row);
+        //    }
+
+        //    // Make prefix sum.
+        //    for (int i = modifiedInvestRowsBuy.Count - 2; i >= 0; i--)
+        //    {
+        //        ret[i].Add(ret[i + 1]);
+        //    }
+
+        //    // 각 일자의 각 세력의 주식보유량을 유통주식수로 나눠준다.
+        //    for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
+        //    {
+        //        ret[i].Div(denominator);
+        //    }
+
+        //    StringBuilder sb = new StringBuilder();
+        //    sb.Append("INSERT INTO have(ticker,dat,individual,foreigner,organization,financeinvest,insurance,investtrust,otherfinance,bank,pension,privatefund,nation,othercorporation,inout)VALUES");
+        //    int nrow = 0;
+        //    foreach (var row in ret)
+        //    {
+        //        if (nrow > 0)
+        //        {
+        //            sb.Append(',');
+        //        }
+        //        sb.AppendFormat("('{0}',{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14})", ticker, row.Date,
+        //            row.individual, row.foreigner, row.organization, row.financeinvest, row.insurance, row.investtrust, row.otherfinance, row.bank, row.pension, row.privatefund, row.nation, row.othercorporation, row.inout
+        //        );
+        //        nrow++;
+        //    }
+        //    if (nrow > 0)
+        //    {
+        //        lock (_lock)
+        //        {
+        //            _conn.CommandText = sb.ToString();
+        //            _conn.ExecuteNonQuery();
+        //        }
+        //    }
+        //}
+
+
+        private ConcurrentDictionary<string, List<ModifiedHaveRow>> _GetModifiedHaveRows_cache = new ConcurrentDictionary<string, List<ModifiedHaveRow>>();
+        /// <summary>
+        /// In percentage. Thread-safe. Date-descending. Cached.
+        /// </summary>
+        public List<ModifiedHaveRow> GetModifiedHaveRows(string ticker)
+        {
+            //List<ModifiedHaveRow> ret = new List<ModifiedHaveRow>();
+
+            //for (int i = 0; i < 2; i++)
+            //{
+            //    lock (_lock)
+            //    {
+            //        _conn.CommandText = "SELECT ticker,dat,individual,foreigner,organization,financeinvest,insurance,investtrust,otherfinance,bank,pension,privatefund,nation,othercorporation,inout FROM have WHERE ticker=$a";
+            //        _conn.AddParamWithValue("$a", ticker);
+            //        using (var rdr = _conn.ExecuteReader())
+            //        {
+            //            while (rdr.Read())
+            //            {
+            //                var row = new ModifiedHaveRow();
+            //                row.Date = rdr.GetInt32(1);
+            //                row.individual = rdr.GetDouble(2);
+            //                row.foreigner = rdr.GetDouble(3);
+            //                row.organization = rdr.GetDouble(4);
+            //                row.financeinvest = rdr.GetDouble(5);
+            //                row.insurance = rdr.GetDouble(6);
+            //                row.investtrust = rdr.GetDouble(7);
+            //                row.otherfinance = rdr.GetDouble(8);
+            //                row.bank = rdr.GetDouble(9);
+            //                row.pension = rdr.GetDouble(10);
+            //                row.privatefund = rdr.GetDouble(11);
+            //                row.nation = rdr.GetDouble(12);
+            //                row.othercorporation = rdr.GetDouble(13);
+            //                row.inout = rdr.GetDouble(14);
+            //                ret.Add(row);
+            //            }
+            //        }
+            //        _conn.ClearParams();
+            //    }
+
+            //    if(ret.Count > 0)
+            //    {
+            //        return ret;
+            //    }
+
+            //    if (i == 0)
+            //    {
+            //        InsertIntoHaveValues(ticker);
+            //    }
+            //}
+
+            //return ret;
+
+            if (_GetModifiedHaveRows_cache.TryGetValue(ticker, out List<ModifiedHaveRow> value))
+            {
+                return value;
+            }
+
+            var modifiedInvestRowsBuy = GetModifiedInvestRows(ticker, BuySell.Buy);
+            var modifiedInvestRowsSell = GetModifiedInvestRows(ticker, BuySell.Sell);
+            var jongmok = GetJongmokDict()[ticker];
+
+            // ( jongmok.outstandingStock * 1000 ) is exact actual quantity.
+            // But we set denominator to ( jongmok.outstandingStock * 10 ) to get "have" value in **PERCENTAGE** unit.
+            long denominator = jongmok.OutstandingStock * 10;
+
+            // Prevent division by zero.
+            denominator = Math.Max(denominator, 1);
+
+            List<ModifiedHaveRow> ret = new List<ModifiedHaveRow>();
+
+            for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
+            {
+                var row = new ModifiedHaveRow();
+                row.Date = modifiedInvestRowsBuy[i].Date;
+
+                double f(Func<ModifiedInvestRow, double> func)
+                {
+                    return Math.Abs(func(modifiedInvestRowsBuy[i])) - Math.Abs(func(modifiedInvestRowsSell[i]));
+                }
+
+                row.individual = f(x => x.개인투자자);
+                row.foreigner = f(x => x.외국인투자자);
+                row.organization = f(x => x.기관계);
+                row.financeinvest = f(x => x.금융투자);
+                row.insurance = f(x => x.보험);
+                row.investtrust = f(x => x.투신);
+                row.otherfinance = f(x => x.기타금융);
+                row.bank = f(x => x.은행);
+                row.pension = f(x => x.연기금등);
+                row.privatefund = f(x => x.사모펀드);
+                row.nation = f(x => x.국가);
+                row.othercorporation = f(x => x.기타법인);
+                row.inout = f(x => x.내외국인);
+                ret.Add(row);
+            }
+
+            // Make prefix sum.
+            for (int i = modifiedInvestRowsBuy.Count - 2; i >= 0; i--)
+            {
+                ret[i].Add(ret[i + 1]);
+            }
+
+            // 각 일자의 각 세력의 주식보유량을 유통주식수로 나눠준다.
+            for (int i = 0; i < modifiedInvestRowsBuy.Count; i++)
+            {
+                ret[i].Div(denominator);
+            }
+
+            _GetModifiedHaveRows_cache[ticker] = ret;
+
+            return ret;
+        }
+
 
     }
 

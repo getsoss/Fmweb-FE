@@ -5,24 +5,30 @@ using System.Text.RegularExpressions;
 
 namespace Fmweb.SQLite
 {
+    /// <summary>
+    /// Manages both DbConnection and DbCommand.
+    /// </summary>
     internal class SQLiteConnection2 : IDisposable
     {
         private readonly SQLiteConnection _conn;
         private readonly SQLiteCommand _cmd;
 
+
+        /// <summary>
+        /// Initializes the connection and its command with the specified data source.
+        /// </summary>
         public SQLiteConnection2(string dataSource)
         {
             _conn = new SQLiteConnection("Data Source=\"" + dataSource + "\"");
             _conn.Open();
             _cmd = _conn.CreateCommand();
-
         }
 
 
         public HashSet<string> ReadAllTableNames()
         {
             var ret = new HashSet<string>();
-            _cmd.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table'";
+            CommandText = "SELECT name FROM sqlite_master WHERE type = 'table'";
             using (SQLiteDataReader r = ExecuteReader())
             {
                 while (r.Read())
@@ -35,30 +41,10 @@ namespace Fmweb.SQLite
         }
 
 
-        /// <summary>
-        /// Usage example:
-        /// <code>
-        /// using(var rdr=ExecuteReader())
-        /// {
-        ///  while(rdr.Read())
-        ///  {
-        ///   r.GetString(0);
-        ///  }
-        /// }
-        /// </code>
-        /// </summary>
+        /// <inheritdoc cref="SQLiteCommand.ExecuteReader()"/>
         public SQLiteDataReader ExecuteReader()
         {
-
-            SQLiteDataReader ret = _cmd.ExecuteReader() ?? throw new Exception();
-            return ret;
-        }
-
-
-        /// <inheritdoc cref="SQLiteCommand.ExecuteScalar()"/>
-        public object ExecuteScalar()
-        {
-            return _cmd.ExecuteScalar();
+            return _cmd.ExecuteReader();
         }
 
 
@@ -70,12 +56,14 @@ namespace Fmweb.SQLite
         }
 
 
+        /// <inheritdoc cref="SQLiteParameterCollection.AddWithValue(string, object)"/>
         public SQLiteParameter AddParamWithValue(string parameterName, object value)
         {
             return _cmd.Parameters.AddWithValue(parameterName, value);
         }
 
 
+        /// <inheritdoc cref="SQLiteParameterCollection.Clear"/>
         public void ClearParams()
         {
             _cmd.Parameters.Clear();
