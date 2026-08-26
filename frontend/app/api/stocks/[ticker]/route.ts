@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { get } from "node:https";
+import { rootCertificates } from "node:tls";
+import { LETS_ENCRYPT_YR_CHAIN } from "../../auth/letsencrypt-yr-chain";
 
 const API_BASE_URL = process.env.API_BASE_URL;
 
@@ -25,7 +27,7 @@ async function request<T>(path: string): Promise<T> {
     // The upstream omits part of its certificate chain. Keep this exception
     // scoped to the configured API host; user input is only used as a query value.
     const url = new URL(path.replace(/^\/+/, ""), `${API_BASE_URL.replace(/\/+$/, "")}/`);
-    const call = get(url, { rejectUnauthorized: false, headers: { Accept: "application/json", "User-Agent": "ForceMonitor-Web/1.0" } }, (response) => {
+    const call = get(url, { rejectUnauthorized: true, ca: [...rootCertificates, LETS_ENCRYPT_YR_CHAIN], headers: { Accept: "application/json", "User-Agent": "ForceMonitor-Web/1.0" } }, (response) => {
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => { body += chunk; });

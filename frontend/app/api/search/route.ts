@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get } from "node:https";
+import { rootCertificates } from "node:tls";
+import { LETS_ENCRYPT_YR_CHAIN } from "../auth/letsencrypt-yr-chain";
 
 const API_BASE_URL = process.env.API_BASE_URL;
 
@@ -7,7 +9,7 @@ function request(path: string): Promise<{ errno: number; result: [string, number
   return new Promise((resolve, reject) => {
     if (!API_BASE_URL) return reject(new Error("API_BASE_URL 환경변수가 설정되지 않았습니다."));
     const url = new URL(path.replace(/^\/+/, ""), `${API_BASE_URL.replace(/\/+$/, "")}/`);
-    const call = get(url, { rejectUnauthorized: false, headers: { Accept: "application/json", "User-Agent": "ForceMonitor-Web/1.0" } }, (response) => {
+    const call = get(url, { rejectUnauthorized: true, ca: [...rootCertificates, LETS_ENCRYPT_YR_CHAIN], headers: { Accept: "application/json", "User-Agent": "ForceMonitor-Web/1.0" } }, (response) => {
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => { body += chunk; });
