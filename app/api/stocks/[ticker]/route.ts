@@ -8,15 +8,14 @@ const API_BASE_URL = process.env.API_BASE_URL;
 type ApiResult<T> = { errno: number; result: T };
 type ExistsResult = { result: boolean };
 
-function requiredEnv(name:string){const value=process.env[name];if(!value)throw new Error(`${name} 환경변수가 설정되지 않았습니다.`);return value;}
 const SERIES = {
-  candles: requiredEnv("MARKET_PATH_CANDLES"),
-  holdings: requiredEnv("MARKET_PATH_HOLDINGS"),
-  averageTradePrices: requiredEnv("MARKET_PATH_AVERAGE_TRADE_PRICES"),
-  holdingChanges: requiredEnv("MARKET_PATH_HOLDING_CHANGES"),
-  power: requiredEnv("MARKET_PATH_POWER"),
-  direction: requiredEnv("MARKET_PATH_DIRECTION"),
-  rs: requiredEnv("MARKET_PATH_RS"),
+  candles: "/modified-candles",
+  holdings: "/bojong",
+  averageTradePrices: "/modified-average-trade-price",
+  holdingChanges: "/modified-have",
+  power: "/power",
+  direction: "/direction",
+  rs: "/rs",
 } as const;
 
 async function request<T>(path: string): Promise<T> {
@@ -60,7 +59,7 @@ export async function GET(
   }
 
   try {
-    const exists = await request<ExistsResult>(`${requiredEnv("MARKET_PATH_TICKER_EXISTS")}?ticker=${ticker}`);
+    const exists = await request<ExistsResult>(`/ticker-exists?ticker=${ticker}`);
     if (!exists.result) {
       return NextResponse.json({ message: "존재하지 않는 종목코드입니다." }, { status: 404 });
     }

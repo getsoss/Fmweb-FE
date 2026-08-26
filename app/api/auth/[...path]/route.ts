@@ -10,18 +10,18 @@ const REFRESH_COOKIE = requiredEnv("AUTH_COOKIE_REFRESH_NAME");
 
 type RouteConfig = { method: "GET" | "POST"; upstream: string; upstreamMethod?: "GET" | "POST"; protected?: boolean };
 const routes: Record<string, RouteConfig> = {
-  login: { method: "POST", upstream: requiredEnv("AUTH_PATH_LOGIN") },
-  logout: { method: "POST", upstream: requiredEnv("AUTH_PATH_LOGOUT"), upstreamMethod: "GET", protected: true },
-  "cert/mail": { method: "POST", upstream: requiredEnv("AUTH_PATH_CERT_MAIL") },
-  "cert/check": { method: "POST", upstream: requiredEnv("AUTH_PATH_CERT_CHECK") },
-  join: { method: "POST", upstream: requiredEnv("AUTH_PATH_JOIN") },
-  me: { method: "GET", upstream: requiredEnv("AUTH_PATH_USER_INFO"), protected: true },
-  subscription: { method: "GET", upstream: requiredEnv("AUTH_PATH_SUBSCRIPTION"), protected: true },
-  withdraw: { method: "POST", upstream: requiredEnv("AUTH_PATH_WITHDRAW"), upstreamMethod: "GET", protected: true },
-  password: { method: "POST", upstream: requiredEnv("AUTH_PATH_PASSWORD") },
-  terms: { method: "GET", upstream: requiredEnv("AUTH_PATH_TERMS_LIST") },
-  agreements: { method: "GET", upstream: requiredEnv("AUTH_PATH_AGREEMENTS"), protected: true },
-  agree: { method: "POST", upstream: requiredEnv("AUTH_PATH_AGREE"), protected: true },
+  login: { method: "POST", upstream: "/login" },
+  logout: { method: "POST", upstream: "/logout", upstreamMethod: "GET", protected: true },
+  "cert/mail": { method: "POST", upstream: "/cert/mail/send" },
+  "cert/check": { method: "POST", upstream: "/cert/check" },
+  join: { method: "POST", upstream: "/join" },
+  me: { method: "GET", upstream: "/user/info", protected: true },
+  subscription: { method: "GET", upstream: "/user/subscribe/info", protected: true },
+  withdraw: { method: "POST", upstream: "/user/withdraw", upstreamMethod: "GET", protected: true },
+  password: { method: "POST", upstream: "/find/pw" },
+  terms: { method: "GET", upstream: "/terms/list" },
+  agreements: { method: "GET", upstream: "/user/terms/agree/list", protected: true },
+  agree: { method: "POST", upstream: "/user/terms/agree/insert", protected: true },
 };
 
 function cookieOptions(maxAge: number) {
@@ -47,7 +47,7 @@ async function upstream(path: string, method: "GET" | "POST", body?: unknown, ac
 }
 
 async function refreshAccessToken(refreshToken: string) {
-  const response = await requestAuthServer(requiredEnv("AUTH_PATH_TOKEN"),"POST",refreshToken,{"Content-Type":"text/plain",Accept:"text/plain"});
+  const response = await requestAuthServer("/token","POST",refreshToken,{"Content-Type":"text/plain",Accept:"text/plain"});
   if (!response.ok) return null;
   const token = (await response.text()).trim().replace(/^"|"$/g, "");
   return token || null;
@@ -57,7 +57,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
   const { path } = await context.params;
   const key = path.join("/");
   const termsMatch = key.match(/^terms\/(\d+)$/);
-  const config = termsMatch ? { method: "GET" as const, upstream: `${requiredEnv("AUTH_PATH_TERMS_INFO")}?termsId=${termsMatch[1]}` } : routes[key];
+  const config = termsMatch ? { method: "GET" as const, upstream: `/terms/info?termsId=${termsMatch[1]}` } : routes[key];
   if (!config || config.method !== method) return NextResponse.json({ message: "지원하지 않는 인증 요청입니다." }, { status: 404 });
   const origin=request.headers.get("origin");
   if(method==="POST"&&origin&&origin!==request.nextUrl.origin)return NextResponse.json({message:"허용되지 않은 출처입니다."},{status:403});
