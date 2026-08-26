@@ -34,6 +34,17 @@ test("메인창에서 차트와 데이터 패널을 동시에 제공한다", asy
   await expect(page.locator(".results-panel")).toBeVisible();
   await expect(page.locator(".watch-panel")).toBeVisible();
   await expect(page.locator(".news-panel")).toBeVisible();
+  const viewport = await page.evaluate(() => ({
+    clientHeight: document.documentElement.clientHeight,
+    workspaceBottom: document.querySelector(".workspace-page")?.getBoundingClientRect().bottom ?? 0,
+    documentOverflow: getComputedStyle(document.documentElement).overflow,
+    bodyOverflow: getComputedStyle(document.body).overflow,
+  }));
+  expect(viewport.workspaceBottom).toBeLessThanOrEqual(viewport.clientHeight + 1);
+  expect(viewport.documentOverflow).toBe("hidden");
+  expect(viewport.bodyOverflow).toBe("hidden");
+  await page.mouse.wheel(0, 2000);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(page.getByRole("button", { name: "홈", exact: true })).toHaveCount(0);
   const indicators = page.getByLabel("차트 표시 지표");
   await expect(indicators.getByText("평균매수단가", { exact: true })).toBeVisible();

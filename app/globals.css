@@ -87,3 +87,10 @@
 /* Landing rhythm and hierarchy refinements */
 .landing-hero{min-height:500px;padding-top:84px;padding-bottom:64px}.landing-hero>.eyebrow,.pricing-section .eyebrow{font-size:17px;letter-spacing:.04em}.landing-features{padding-top:64px;padding-bottom:64px}.landing-features article{min-height:230px;padding:30px 34px}.landing-features article>span{font-size:18px}.landing-features h2{margin-top:34px}.trading-products{padding-top:76px;padding-bottom:76px}.trading-products>div>p{font-size:15px}.pricing-section{padding-top:76px;padding-bottom:76px}
 @media(max-width:720px){.landing-hero{padding-top:60px;padding-bottom:52px}.landing-features{padding-top:44px;padding-bottom:44px}.landing-features article{min-height:200px}.landing-features h2{margin-top:28px}.trading-products,.pricing-section{padding-top:56px;padding-bottom:56px}}
+
+/* Keep the desktop monitor pinned to the visible viewport at every browser zoom. */
+html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
+.app-shell{width:100%;height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.app-shell>.app-bar{height:64px;flex:0 0 64px;position:relative}
+.app-shell>.workspace-page{height:auto;min-height:0;flex:1;overflow:hidden}
+@media(max-width:900px){.app-shell>.workspace-page{overflow:auto}}
