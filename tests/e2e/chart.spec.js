@@ -1,5 +1,23 @@
 const { expect, test } = require("@playwright/test");
 
+async function mockStockData(page) {
+  await page.route("**/api/stocks/*", route => {
+    const ticker = new URL(route.request().url()).pathname.split("/").at(-1);
+    const investors = (date, base) => [date, ...Array.from({ length: 13 }, (_, index) => base + index)];
+    return route.fulfill({
+      json: {
+        ticker,
+        candles: [[20260831, 74200, 1200000, 0, 73500, 74800, 73000], [20260830, 73500, 980000, 0, 72800, 74000, 72400]],
+        holdings: [[20260831, 0, 51, 69800], [20260830, 0, 49, 69400]],
+        holdingChanges: [investors(20260831, 1), investors(20260830, 0)],
+        power: [investors(20260831, 2), investors(20260830, 1)],
+        direction: [investors(20260831, 1), investors(20260830, -1)],
+        rs: [[20260831, 94], [20260830, 92]],
+      },
+    });
+  });
+}
+
 test("와이어프레임 기반 랜딩과 외부 링크를 제공한다", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /세력의 움직임을 읽고/ })).toBeVisible();
@@ -26,6 +44,7 @@ test("회원가입 이메일 인증 단계를 제공한다", async ({ page }) =>
 });
 
 test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동시에 제공한다", async ({ page }) => {
+  await mockStockData(page);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   await expect(page.locator(".pro-chart")).toBeVisible();
@@ -71,6 +90,7 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
 });
 
 test("검색조건 만들기는 배경 조작을 차단하는 모달로 열린다", async ({ page }) => {
+  await mockStockData(page);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   const launcher = page.getByLabel("종목 및 저장 검색");
@@ -102,6 +122,11 @@ test("검색조건 만들기는 배경 조작을 차단하는 모달로 열린�
   expect(modalPosition.verticalGap).toBeLessThanOrEqual(1);
   await expect(page.locator(".pro-chart")).toBeVisible();
   await expect(page.locator(".results-panel")).toBeVisible();
+  await settings.getByRole("button", { name: "임시 검색" }).first().click();
+  const modalAlert = settings.getByRole("status");
+  await expect(modalAlert).toContainText("검색기간을 선택해 주세요");
+  await expect(page.locator(".market-workspace > .workspace-message")).toHaveCount(0);
+  await modalAlert.getByRole("button", { name: "알림 닫기" }).click();
   const movingAverageOption = settings.getByText("정배열 (20이평 > 60이평)", { exact: true });
   await movingAverageOption.scrollIntoViewIfNeeded();
   await movingAverageOption.click();
@@ -119,6 +144,7 @@ test("검색조건 만들기는 배경 조작을 차단하는 모달로 열린�
 });
 
 test("API v09 조건 검색 모드를 제공한다", async ({ page }) => {
+  await mockStockData(page);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   await page.getByRole("button", { name: "조건 검색", exact: true }).click();
