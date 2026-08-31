@@ -102,6 +102,10 @@ test("검색조건 만들기는 배경 조작을 차단하는 모달로 열린�
   expect(modalPosition.verticalGap).toBeLessThanOrEqual(1);
   await expect(page.locator(".pro-chart")).toBeVisible();
   await expect(page.locator(".results-panel")).toBeVisible();
+  const movingAverageOption = settings.getByText("정배열 (20이평 > 60이평)", { exact: true });
+  await movingAverageOption.scrollIntoViewIfNeeded();
+  await movingAverageOption.click();
+  await expect.poll(() => settings.evaluate(element => element.scrollTop)).toBe(0);
   await page.keyboard.press("Escape");
   await expect(settings).toHaveCount(0);
   await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
