@@ -133,7 +133,7 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .preset-description span{color:var(--primary);font-weight:700}
 .open-search-settings{grid-column:2;grid-row:2/4;height:46px;background:var(--primary)}
 .search-settings-panel{position:relative;z-index:30;min-height:300px;margin:0;display:grid;grid-template-columns:205px minmax(0,1fr);border-radius:14px;box-shadow:0 14px 46px rgba(10,11,13,.15)}
-.workspace-search-modal{position:fixed;inset:0;width:min(1120px,calc(100vw - 48px));height:min(760px,calc(100dvh - 96px));max-width:none;max-height:none;padding:0;overflow:hidden;border:1px solid var(--hairline);border-radius:18px;background:#fff;color:var(--ink);box-shadow:0 28px 90px rgba(10,11,13,.3)}
+.workspace-search-modal{position:fixed;inset:0;width:min(1120px,calc(100vw - 48px));height:min(760px,calc(100dvh - 96px));max-width:none;max-height:none;margin:auto;padding:0;overflow:hidden;border:1px solid var(--hairline);border-radius:18px;background:#fff;color:var(--ink);box-shadow:0 28px 90px rgba(10,11,13,.3)}
 .workspace-search-modal:not([open]){display:none}
 .workspace-search-modal[open]{display:grid}
 .workspace-search-modal::backdrop{background:rgba(10,11,13,.62);backdrop-filter:blur(3px)}

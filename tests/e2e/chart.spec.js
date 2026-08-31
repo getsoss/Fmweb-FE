@@ -91,6 +91,15 @@ test("검색조건 만들기는 배경 조작을 차단하는 모달로 열린�
   await expect(settings).toHaveAttribute("open", "");
   await expect(page.getByRole("dialog", { name: "새 검색 만들기" })).toBeVisible();
   await expect(settings.getByRole("button", { name: "검색 설정 닫기" })).toBeFocused();
+  const modalPosition = await settings.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      horizontalGap: Math.abs(bounds.left + bounds.width / 2 - window.innerWidth / 2),
+      verticalGap: Math.abs(bounds.top + bounds.height / 2 - window.innerHeight / 2),
+    };
+  });
+  expect(modalPosition.horizontalGap).toBeLessThanOrEqual(1);
+  expect(modalPosition.verticalGap).toBeLessThanOrEqual(1);
   await expect(page.locator(".pro-chart")).toBeVisible();
   await expect(page.locator(".results-panel")).toBeVisible();
   await page.keyboard.press("Escape");
