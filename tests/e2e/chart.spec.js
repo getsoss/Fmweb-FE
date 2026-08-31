@@ -25,15 +25,16 @@ test("회원가입 이메일 인증 단계를 제공한다", async ({ page }) =>
   await expect(dialog.getByText("회원 정보를 입력해 주세요")).toBeVisible();
 });
 
-test("메인창에서 차트와 데이터 패널을 동시에 제공한다", async ({ page }) => {
+test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동시에 제공한다", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   await expect(page.locator(".pro-chart")).toBeVisible();
   await expect(page.locator(".chart-engine canvas").first()).toBeVisible();
-  await expect(page.locator(".search-builder")).toBeVisible();
+  await expect(page.locator(".search-dock")).toBeVisible();
   await expect(page.locator(".results-panel")).toBeVisible();
   await expect(page.locator(".watch-panel")).toBeVisible();
   await expect(page.locator(".news-panel")).toBeVisible();
+  await expect(page.getByRole("separator")).toHaveCount(4);
   const viewport = await page.evaluate(() => ({
     clientHeight: document.documentElement.clientHeight,
     workspaceBottom: document.querySelector(".workspace-page")?.getBoundingClientRect().bottom ?? 0,
@@ -50,9 +51,56 @@ test("메인창에서 차트와 데이터 패널을 동시에 제공한다", asy
   await expect(indicators.getByText("평균매수단가", { exact: true })).toBeVisible();
   await expect(indicators.getByText("20 이평선", { exact: true })).toBeVisible();
   await expect(indicators.getByText("60 이평선", { exact: true })).toBeVisible();
-  await indicators.getByText("RS", { exact: true }).click();
+  const alwaysVisible = page.getByLabel("항상 표시 지표");
+  await expect(alwaysVisible).toContainText("주가 · 거래량");
+  await expect(alwaysVisible).toContainText("개미지수");
+  await expect(alwaysVisible).toContainText("RS");
+  const holdingControls = page.locator(".chart-holding-controls");
+  await holdingControls.getByRole("checkbox", { name: "외국인", exact: true }).check();
+  await holdingControls.getByRole("checkbox", { name: "기관계", exact: true }).check();
+  await expect(holdingControls.locator("input:checked")).toHaveCount(2);
+
+  const primaryBefore = await page.locator(".workspace-primary").evaluate(element => element.getBoundingClientRect().width);
+  await page.getByRole("separator", { name: "차트와 데이터 창 너비 조절" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  const primaryAfter = await page.locator(".workspace-primary").evaluate(element => element.getBoundingClientRect().width);
+  expect(primaryAfter).toBeLessThan(primaryBefore);
+
   await page.locator(".result-table tbody tr").filter({ hasText: "SK하이닉스" }).click();
   await expect(page.locator(".chart-identity")).toContainText("000660");
+});
+
+test("검색조건 만들기는 워크스페이스 내부 비모달 설정으로 열린다", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  const launcher = page.getByLabel("종목 및 저장 검색");
+  const nameInput = launcher.getByLabel("종목이름");
+  const tickerInput = launcher.getByLabel("종목코드");
+  await expect(nameInput).toBeVisible();
+  await expect(tickerInput).toBeVisible();
+  await nameInput.fill("현대차");
+  await expect(tickerInput).toHaveValue("");
+  await tickerInput.fill("000660");
+  await expect(nameInput).toHaveValue("");
+  await expect(launcher.getByRole("button", { name: /^검색 \d$/ })).toHaveCount(5);
+  await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
+
+  const settings = page.getByLabel("검색 설정창");
+  await expect(settings).toBeVisible();
+  await expect(settings).not.toHaveAttribute("aria-modal", "true");
+  await expect(page.locator(".pro-chart")).toBeVisible();
+  await expect(page.locator(".results-panel")).toBeVisible();
+  const settingsHeightBefore = await settings.evaluate(element => element.getBoundingClientRect().height);
+  const heightResizer = page.getByRole("separator", { name: "차트와 검색 영역 높이 조절" });
+  await heightResizer.focus();
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(() => settings.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(settingsHeightBefore);
+  await settings.getByRole("button", { name: /^검색 1/ }).click();
+  await settings.getByText("1주", { exact: true }).click();
+  await settings.getByLabel("검색 제목").fill("급등주 위주");
+  await settings.getByRole("button", { name: "검색조건 저장" }).click();
+  await expect(settings).toHaveCount(0);
+  await expect(launcher.locator(".preset-description")).toContainText("급등주 위주");
 });
 
 test("API v09 조건 검색 모드를 제공한다", async ({ page }) => {
