@@ -133,7 +133,10 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .preset-description span{color:var(--primary);font-weight:700}
 .open-search-settings{grid-column:2;grid-row:2/4;height:46px;background:var(--primary)}
 .search-settings-panel{position:relative;z-index:30;min-height:300px;margin:0;display:grid;grid-template-columns:205px minmax(0,1fr);border-radius:14px;box-shadow:0 14px 46px rgba(10,11,13,.15)}
-.workspace-primary>.search-settings-panel{min-height:300px;flex:0 0 auto}
+.workspace-search-modal{position:fixed;inset:0;width:min(1120px,calc(100vw - 48px));height:min(760px,calc(100dvh - 96px));max-width:none;max-height:none;padding:0;overflow:hidden;border:1px solid var(--hairline);border-radius:18px;background:#fff;color:var(--ink);box-shadow:0 28px 90px rgba(10,11,13,.3)}
+.workspace-search-modal:not([open]){display:none}
+.workspace-search-modal[open]{display:grid}
+.workspace-search-modal::backdrop{background:rgba(10,11,13,.62);backdrop-filter:blur(3px)}
 .search-settings-panel>aside{min-height:0;padding:18px;overflow:auto}
 .settings-panel-heading{display:flex;align-items:center;justify-content:space-between}
 .settings-panel-heading button{width:32px;height:32px;border:0;border-radius:50%;background:#fff;color:var(--body);font-size:21px}
@@ -142,7 +145,7 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .search-settings-panel .condition-title{position:sticky;top:-20px;z-index:5;margin:-20px -20px 16px;padding:20px;background:rgba(255,255,255,.96);border-bottom:1px solid var(--hairline-soft);backdrop-filter:blur(10px)}
 .search-settings-panel .condition-title p{margin:6px 0 0;color:var(--muted);font-size:11px}
 .search-settings-panel .condition-card{padding:13px}
-@media(max-width:1100px){.market-workspace{grid-template-columns:minmax(450px,var(--workspace-left)) 8px minmax(280px,1fr)}.search-dock{padding-inline:12px}.stock-lookup label{grid-template-columns:1fr;gap:3px}.workspace-secondary .panel-toolbar{padding:9px 12px}.workspace-secondary .news-panel>a{display:none}}
+@media(max-width:1100px){.market-workspace{grid-template-columns:minmax(450px,var(--workspace-left)) 8px minmax(280px,1fr)}.search-dock{padding-inline:12px}.stock-lookup label{grid-template-columns:1fr;gap:3px}.workspace-secondary .panel-toolbar{padding:9px 12px}.workspace-secondary .news-panel>a{display:none}.workspace-search-modal{width:calc(100vw - 24px);height:calc(100dvh - 48px);grid-template-columns:180px minmax(0,1fr)}}
 @media(max-width:900px){.workspace-page{height:auto;min-height:0;overflow:hidden}.market-workspace{height:100%;grid-template-columns:minmax(440px,var(--workspace-left)) 8px minmax(270px,1fr)}.workspace-primary{height:100%}.workspace-chart-slot{height:auto;min-height:0;max-height:none;flex:1}.workspace-primary>.search-builder{height:auto;min-height:0}.workspace-secondary{height:100%}.workspace-secondary>.results-panel{height:auto;min-height:0}.workspace-secondary>.watch-panel{max-height:none}.workspace-secondary>.news-panel{min-height:0}}
 
 /* Multi-pane chart controls: actual checkboxes are preferred in the compact area. */

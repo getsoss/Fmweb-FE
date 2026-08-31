@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 
 type Stock = { name: string; ticker: string };
 type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; antPriority: string; holding: boolean; influence: boolean; rs: string; ibd: string; ma: string; ma20: boolean; ma60: boolean; volume: string; detailVolume: string[]; value: string };
@@ -45,7 +45,6 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { s
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [columnSplit, setColumnSplit] = useState(66);
   const [dockHeight, setDockHeight] = useState(184);
-  const [settingsHeight, setSettingsHeight] = useState(360);
   const [rightTop, setRightTop] = useState(47);
   const [rightMiddle, setRightMiddle] = useState(28);
 
@@ -59,14 +58,13 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { s
       if (value.watchlists) setWatchlists(value.watchlists);
       if (Number.isFinite(value.columnSplit)) setColumnSplit(value.columnSplit);
       if (Number.isFinite(value.dockHeight)) setDockHeight(value.dockHeight);
-      if (Number.isFinite(value.settingsHeight)) setSettingsHeight(value.settingsHeight);
       if (Number.isFinite(value.rightTop)) setRightTop(value.rightTop);
       if (Number.isFinite(value.rightMiddle)) setRightMiddle(value.rightMiddle);
     } catch { /* Ignore damaged local preferences. */ }
   }, []);
   useEffect(() => {
-    localStorage.setItem("forcemonitor:workspace", JSON.stringify({ slots, bookmarks, watchlists, columnSplit, dockHeight, settingsHeight, rightTop, rightMiddle }));
-  }, [slots, bookmarks, watchlists, columnSplit, dockHeight, settingsHeight, rightTop, rightMiddle]);
+    localStorage.setItem("forcemonitor:workspace", JSON.stringify({ slots, bookmarks, watchlists, columnSplit, dockHeight, rightTop, rightMiddle }));
+  }, [slots, bookmarks, watchlists, columnSplit, dockHeight, rightTop, rightMiddle]);
   useEffect(() => {
     setDirectTicker(ticker);
     setDirectName(stocks.find(stock => stock.ticker === ticker)?.name ?? "");
@@ -150,12 +148,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { s
   function resizeDock(event: ReactPointerEvent<HTMLDivElement>) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
-    if (!bounds) return;
-    if (settingsOpen) {
-      setSettingsHeight(clamp(bounds.bottom - event.clientY, 300, Math.max(300, Math.min(520, bounds.height - 220))));
-    } else {
-      setDockHeight(clamp(bounds.bottom - event.clientY, 164, Math.min(300, bounds.height * .45)));
-    }
+    if (bounds) setDockHeight(clamp(bounds.bottom - event.clientY, 164, Math.min(300, bounds.height * .45)));
   }
   function resizeRightMiddle(event: ReactPointerEvent<HTMLDivElement>) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
@@ -170,8 +163,8 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { s
     {message && <div className="workspace-message" role="status">{message}<button onClick={() => setMessage("")} aria-label="알림 닫기">×</button></div>}
     <div className="workspace-primary">
       <div className="workspace-chart-slot">{chart}</div>
-      <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="차트와 검색 영역 높이 조절" aria-orientation="horizontal" aria-valuemin={settingsOpen ? 300 : 164} aria-valuemax={settingsOpen ? 520 : 300} aria-valuenow={settingsOpen ? settingsHeight : dockHeight} tabIndex={0} onPointerDown={capture} onPointerMove={resizeDock} onDoubleClick={() => settingsOpen ? setSettingsHeight(360) : setDockHeight(184)} onKeyDown={event => { if (settingsOpen) { if (event.key === "ArrowUp") setSettingsHeight(value => clamp(value + 8, 300, 520)); if (event.key === "ArrowDown") setSettingsHeight(value => clamp(value - 8, 300, 520)); } else { if (event.key === "ArrowUp") setDockHeight(value => clamp(value + 8, 164, 300)); if (event.key === "ArrowDown") setDockHeight(value => clamp(value - 8, 164, 300)); } }} />
-      {!settingsOpen ? <section className="workspace-panel search-dock" style={{ flexBasis: dockHeight }} aria-label="종목 및 저장 검색">
+      <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="차트와 검색 영역 높이 조절" aria-orientation="horizontal" aria-valuemin={164} aria-valuemax={300} aria-valuenow={dockHeight} tabIndex={0} onPointerDown={capture} onPointerMove={resizeDock} onDoubleClick={() => setDockHeight(184)} onKeyDown={event => { if (event.key === "ArrowUp") setDockHeight(value => clamp(value + 8, 164, 300)); if (event.key === "ArrowDown") setDockHeight(value => clamp(value - 8, 164, 300)); }} />
+      <section className="workspace-panel search-dock" style={{ flexBasis: dockHeight }} aria-label="종목 및 저장 검색">
         <div className="stock-lookup">
           <label>종목이름<input value={directName} onChange={event => { setDirectName(event.target.value); setDirectTicker(""); }} placeholder="삼성전자" /></label>
           <label>종목코드<input inputMode="numeric" maxLength={6} value={directTicker} onChange={event => { setDirectTicker(event.target.value.replace(/\D/g, "")); setDirectName(""); }} placeholder="005930" /></label>
@@ -180,7 +173,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { s
         <div className="quick-presets" aria-label="저장 검색">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => chooseSlot(index)}>검색 {index + 1}</button>)}</div>
         <p className="preset-description"><span>검색조건</span>{activeDescription}</p>
         <button className="open-search-settings" onClick={() => setSettingsOpen(true)}>검색조건 만들기</button>
-      </section> : <SearchSettingsPanel height={settingsHeight} slots={slots} activeSlot={activeSlot} preset={preset} investors={investors} onClose={() => setSettingsOpen(false)} onSelectSlot={(index, slot) => { setActiveSlot(index); setPreset(slot ? { ...emptyPreset, ...slot } : emptyPreset); }} setPreset={setPreset} setActiveSlot={setActiveSlot} setInvestors={setInvestors} onSave={savePreset} onSearch={runSearch} />}
+      </section>
     </div>
 
     <div className="workspace-resizer workspace-resizer-column" role="separator" aria-label="차트와 데이터 창 너비 조절" aria-orientation="vertical" aria-valuemin={48} aria-valuemax={76} aria-valuenow={columnSplit} tabIndex={0} onPointerDown={capture} onPointerMove={resizeColumns} onDoubleClick={() => setColumnSplit(66)} onKeyDown={event => { if (event.key === "ArrowLeft") setColumnSplit(value => clamp(value - 2, 48, 76)); if (event.key === "ArrowRight") setColumnSplit(value => clamp(value + 2, 48, 76)); }} />
@@ -192,13 +185,29 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { s
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="관심종목과 뉴스 높이 조절" aria-orientation="horizontal" aria-valuemin={18} aria-valuemax={82 - rightTop} aria-valuenow={rightMiddle} tabIndex={0} onPointerDown={capture} onPointerMove={resizeRightMiddle} onDoubleClick={() => setRightMiddle(28)} onKeyDown={event => { if (event.key === "ArrowUp") setRightMiddle(value => clamp(value - 2, 18, 82 - rightTop)); if (event.key === "ArrowDown") setRightMiddle(value => clamp(value + 2, 18, 82 - rightTop)); }} />
       <div className="workspace-panel news-panel"><div><span className="panel-kicker">종목 뉴스</span><h2>{sample.find(row => row.ticker === ticker)?.name ?? ticker} 관련 뉴스</h2><p>최신 기사는 새 브라우저 탭에서 확인합니다.</p></div><a target="_blank" rel="noreferrer" href={`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent((sample.find(row => row.ticker === ticker)?.name ?? ticker) + " 주식")}`}>네이버 뉴스에서 보기 <span>↗</span></a></div>
     </aside>
+    {settingsOpen && <SearchSettingsDialog slots={slots} activeSlot={activeSlot} preset={preset} investors={investors} onClose={() => setSettingsOpen(false)} onSelectSlot={(index, slot) => { setActiveSlot(index); setPreset(slot ? { ...emptyPreset, ...slot } : emptyPreset); }} setPreset={setPreset} setActiveSlot={setActiveSlot} setInvestors={setInvestors} onSave={savePreset} onSearch={runSearch} />}
   </section>;
 }
 
-function SearchSettingsPanel({ height, slots, activeSlot, preset, investors, onClose, onSelectSlot, setPreset, setActiveSlot, setInvestors, onSave, onSearch }: { height: number; slots: (SearchPreset | null)[]; activeSlot: number | null; preset: SearchPreset; investors: Record<string, string>; onClose: () => void; onSelectSlot: (index: number, slot: SearchPreset | null) => void; setPreset: (value: SearchPreset) => void; setActiveSlot: (value: number | null) => void; setInvestors: (value: Record<string, string>) => void; onSave: () => void; onSearch: () => void }) {
-  return <section className="workspace-panel search-builder search-settings-panel" style={{ flexBasis: height }} aria-label="검색 설정창">
-    <aside><div className="settings-panel-heading"><span className="panel-kicker">저장 위치</span><button onClick={onClose} aria-label="검색 설정 닫기">×</button></div><div className="preset-slots">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => onSelectSlot(index, slot)}><b>검색 {index + 1}</b><small>{slot?.title || "설정되지 않음"}</small></button>)}</div><label>검색 제목<input required value={preset.title} placeholder="예: 급등주 위주" onChange={event => setPreset({ ...preset, title: event.target.value })} /></label><button className="secondary-action" onClick={onSave}>검색조건 저장</button></aside>
-    <div className="condition-scroll"><div className="condition-title"><div><span className="panel-kicker">검색 설정창</span><h2>{activeSlot === null ? "새 검색 만들기" : `검색 ${activeSlot + 1}`}</h2><p>검색조건은 임시 검색으로 먼저 확인한 뒤 원하는 위치에 저장할 수 있습니다.</p></div><div className="builder-actions"><button onClick={() => { setPreset(emptyPreset); setActiveSlot(null); }}>초기화</button><button className="primary-action" onClick={onSearch}>임시 검색</button></div></div>
+function SearchSettingsDialog({ slots, activeSlot, preset, investors, onClose, onSelectSlot, setPreset, setActiveSlot, setInvestors, onSave, onSearch }: { slots: (SearchPreset | null)[]; activeSlot: number | null; preset: SearchPreset; investors: Record<string, string>; onClose: () => void; onSelectSlot: (index: number, slot: SearchPreset | null) => void; setPreset: (value: SearchPreset) => void; setActiveSlot: (value: number | null) => void; setInvestors: (value: Record<string, string>) => void; onSave: () => void; onSearch: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    return () => { if (dialog?.open) dialog.close(); };
+  }, []);
+
+  function closeFromBackdrop(event: React.MouseEvent<HTMLDialogElement>) {
+    if (event.target !== event.currentTarget) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const inside = event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+    if (!inside) onClose();
+  }
+
+  return <dialog ref={dialogRef} className="workspace-panel search-builder search-settings-panel workspace-search-modal" aria-modal="true" aria-labelledby="search-settings-title" onCancel={event => { event.preventDefault(); onClose(); }} onMouseDown={closeFromBackdrop}>
+    <aside><div className="settings-panel-heading"><span className="panel-kicker">저장 위치</span><button autoFocus onClick={onClose} aria-label="검색 설정 닫기">×</button></div><div className="preset-slots">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => onSelectSlot(index, slot)}><b>검색 {index + 1}</b><small>{slot?.title || "설정되지 않음"}</small></button>)}</div><label>검색 제목<input required value={preset.title} placeholder="예: 급등주 위주" onChange={event => setPreset({ ...preset, title: event.target.value })} /></label><button className="secondary-action" onClick={onSave}>검색조건 저장</button></aside>
+    <div className="condition-scroll"><div className="condition-title"><div><span className="panel-kicker">검색 설정창</span><h2 id="search-settings-title">{activeSlot === null ? "새 검색 만들기" : `검색 ${activeSlot + 1}`}</h2><p>검색조건은 임시 검색으로 먼저 확인한 뒤 원하는 위치에 저장할 수 있습니다.</p></div><div className="builder-actions"><button onClick={() => { setPreset(emptyPreset); setActiveSlot(null); }}>초기화</button><button className="primary-action" onClick={onSearch}>임시 검색</button></div></div>
       <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
       <Condition title="최종 검색 결과 최대치 *" required><Radio values={[20, 50, 100, 200, 300]} value={preset.limit} set={limit => setPreset({ ...preset, limit: Number(limit) })} prefix="상위 " /></Condition>
       <Condition title="개별 검색결과 허용 종목수 *" required><Radio values={[100, 200, 400]} value={preset.perLimit} set={perLimit => setPreset({ ...preset, perLimit: Number(perLimit) })} prefix="상위 " /></Condition>
@@ -211,7 +220,7 @@ function SearchSettingsPanel({ height, slots, activeSlot, preset, investors, onC
       <Condition title="세부 특이 거래량"><div className="detail-volume-options">{investorGroups.slice(1).map(name => <Toggle key={name} checked={preset.detailVolume.includes(name)} label={name} onChange={checked => setPreset({ ...preset, detailVolume: checked ? [...preset.detailVolume, name] : preset.detailVolume.filter(item => item !== name) })} />)}</div></Condition>
       <div className="temporary-search"><div><b>저장하지 않고 결과 확인</b><p>위에서 설정한 조건으로 검색 결과를 먼저 확인합니다.</p></div><button onClick={onSearch}>임시 검색</button></div>
     </div>
-  </section>;
+  </dialog>;
 }
 
 function ResultsPanel({ ordered, ticker, sort, hidden, gather, bookmarks, onSelect, onSort, onToggleBookmark, onAddWatch, onShowAll, onClearBookmarks, onToggleGather, onToggleColumn, onAiCopy }: { ordered: ResultRow[]; ticker: string; sort: { key: keyof ResultRow; asc: boolean }; hidden: string[]; gather: boolean; bookmarks: string[]; onSelect: (ticker: string) => void; onSort: (key: keyof ResultRow) => void; onToggleBookmark: (ticker: string) => void; onAddWatch: (ticker: string) => void; onShowAll: () => void; onClearBookmarks: () => void; onToggleGather: () => void; onToggleColumn: (key: string) => void; onAiCopy: () => void }) {

@@ -70,7 +70,7 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(page.locator(".chart-identity")).toContainText("000660");
 });
 
-test("검색조건 만들기는 워크스페이스 내부 비모달 설정으로 열린다", async ({ page }) => {
+test("검색조건 만들기는 배경 조작을 차단하는 모달로 열린다", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   const launcher = page.getByLabel("종목 및 저장 검색");
@@ -85,16 +85,18 @@ test("검색조건 만들기는 워크스페이스 내부 비모달 설정으로
   await expect(launcher.getByRole("button", { name: /^검색 \d$/ })).toHaveCount(5);
   await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
 
-  const settings = page.getByLabel("검색 설정창");
+  const settings = page.locator(".workspace-search-modal");
   await expect(settings).toBeVisible();
-  await expect(settings).not.toHaveAttribute("aria-modal", "true");
+  await expect(settings).toHaveAttribute("aria-modal", "true");
+  await expect(settings).toHaveAttribute("open", "");
+  await expect(page.getByRole("dialog", { name: "새 검색 만들기" })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "검색 설정 닫기" })).toBeFocused();
   await expect(page.locator(".pro-chart")).toBeVisible();
   await expect(page.locator(".results-panel")).toBeVisible();
-  const settingsHeightBefore = await settings.evaluate(element => element.getBoundingClientRect().height);
-  const heightResizer = page.getByRole("separator", { name: "차트와 검색 영역 높이 조절" });
-  await heightResizer.focus();
-  await page.keyboard.press("ArrowUp");
-  await expect.poll(() => settings.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(settingsHeightBefore);
+  await page.keyboard.press("Escape");
+  await expect(settings).toHaveCount(0);
+  await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
+  await expect(settings).toBeVisible();
   await settings.getByRole("button", { name: /^검색 1/ }).click();
   await settings.getByText("1주", { exact: true }).click();
   await settings.getByLabel("검색 제목").fill("급등주 위주");
