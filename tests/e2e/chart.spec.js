@@ -89,7 +89,7 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(page.locator(".chart-identity")).toContainText("000660");
 });
 
-test("검색조건 만들기는 배경 조작을 차단하는 모달로 열린다", async ({ page }) => {
+test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영역을 연다", async ({ page }) => {
   await mockStockData(page);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
@@ -103,38 +103,37 @@ test("검색조건 만들기는 배경 조작을 차단하는 모달로 열린�
   await tickerInput.fill("000660");
   await expect(nameInput).toHaveValue("");
   await expect(launcher.getByRole("button", { name: /^검색 \d$/ })).toHaveCount(5);
-  await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
+  await expect(launcher.getByRole("button", { name: "검색조건 만들기" })).toHaveCount(0);
+  const openSettings = page.getByRole("button", { name: "검색조건 만들기" });
+  await expect(openSettings).toHaveAttribute("aria-expanded", "false");
+  await openSettings.click();
 
-  const settings = page.locator(".workspace-search-modal");
+  const settings = page.getByLabel("검색 설정창");
   await expect(settings).toBeVisible();
-  await expect(settings).toHaveAttribute("aria-modal", "true");
-  await expect(settings).toHaveAttribute("open", "");
-  await expect(page.getByRole("dialog", { name: "새 검색 만들기" })).toBeVisible();
-  await expect(settings.getByRole("button", { name: "검색 설정 닫기" })).toBeFocused();
-  const modalPosition = await settings.evaluate(element => {
-    const bounds = element.getBoundingClientRect();
+  await expect(settings).not.toHaveAttribute("aria-modal");
+  await expect(page.getByRole("dialog", { name: "새 검색 만들기" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "검색조건 접기" })).toHaveAttribute("aria-expanded", "true");
+  const layout = await page.evaluate(() => {
+    const workspace = document.querySelector(".market-workspace").getBoundingClientRect();
+    const settings = document.querySelector(".search-settings-page").getBoundingClientRect();
     return {
-      horizontalGap: Math.abs(bounds.left + bounds.width / 2 - window.innerWidth / 2),
-      verticalGap: Math.abs(bounds.top + bounds.height / 2 - window.innerHeight / 2),
+      settingsBelowWorkspace: settings.top >= workspace.bottom,
+      leftGap: Math.abs(settings.left - workspace.left),
+      widthGap: Math.abs(settings.width - workspace.width),
     };
   });
-  expect(modalPosition.horizontalGap).toBeLessThanOrEqual(1);
-  expect(modalPosition.verticalGap).toBeLessThanOrEqual(1);
+  expect(layout.settingsBelowWorkspace).toBe(true);
+  expect(layout.leftGap).toBeLessThanOrEqual(1);
+  expect(layout.widthGap).toBeLessThanOrEqual(1);
   await expect(page.locator(".pro-chart")).toBeVisible();
   await expect(page.locator(".results-panel")).toBeVisible();
+  await page.locator(".result-table tbody tr").filter({ hasText: "SK하이닉스" }).click();
+  await expect(page.locator(".chart-identity")).toContainText("000660");
+  await expect(settings).toHaveCount(1);
   await settings.getByRole("button", { name: "임시 검색" }).first().click();
-  const modalAlert = settings.getByRole("status");
-  await expect(modalAlert).toContainText("검색기간을 선택해 주세요");
-  await expect(page.locator(".market-workspace > .workspace-message")).toHaveCount(0);
-  await modalAlert.getByRole("button", { name: "알림 닫기" }).click();
-  const movingAverageOption = settings.getByText("정배열 (20이평 > 60이평)", { exact: true });
-  await movingAverageOption.scrollIntoViewIfNeeded();
-  await movingAverageOption.click();
-  await expect.poll(() => settings.evaluate(element => element.scrollTop)).toBe(0);
-  await page.keyboard.press("Escape");
-  await expect(settings).toHaveCount(0);
-  await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
-  await expect(settings).toBeVisible();
+  const alert = page.getByRole("status");
+  await expect(alert).toContainText("검색기간을 선택해 주세요");
+  await alert.getByRole("button", { name: "알림 닫기" }).click();
   await settings.getByRole("button", { name: /^검색 1/ }).click();
   await settings.getByText("1주", { exact: true }).click();
   await settings.getByLabel("검색 제목").fill("급등주 위주");
