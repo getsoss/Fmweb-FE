@@ -16,22 +16,22 @@ export default function Home() {
   const [entered, setEntered] = useState(false);
   const [input, setInput] = useState("005930"); const [ticker, setTicker] = useState("005930"); const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [showScreener, setShowScreener] = useState(false);
-  const [showLogin, setShowLogin] = useState(false); const [accountOpen, setAccountOpen] = useState(false); const [memberId, setMemberId] = useState(""); const [signedIn, setSignedIn] = useState(false); const [authUser,setAuthUser]=useState<AuthUser|null>(null); const [subscription,setSubscription]=useState<Subscription|null>(null); const [agreementCount,setAgreementCount]=useState(0); const [accountMessage,setAccountMessage]=useState("");
+  const [showLogin, setShowLogin] = useState(false); const [accountOpen, setAccountOpen] = useState(false); const [passwordOpen,setPasswordOpen]=useState(false); const [withdrawOpen,setWithdrawOpen]=useState(false); const [memberId, setMemberId] = useState(""); const [signedIn, setSignedIn] = useState(false); const [authUser,setAuthUser]=useState<AuthUser|null>(null); const [subscription,setSubscription]=useState<Subscription|null>(null); const [accountMessage,setAccountMessage]=useState("");
   useEffect(() => { setMemberId(localStorage.getItem("forcemonitor:member-id") ?? ""); }, []);
   useEffect(()=>{if(!entered||signedIn)return;fetch("/api/auth/me").then(async response=>{if(!response.ok)return null;return response.json();}).then(body=>{if(body?.status===200){setAuthUser(body.user);setMemberId(body.user.email);setSignedIn(true);}}).catch(()=>{});},[entered,signedIn]);
-  useEffect(()=>{if(!accountOpen||!signedIn)return;Promise.all([fetch("/api/auth/me"),fetch("/api/auth/subscription"),fetch("/api/auth/agreements")]).then(async responses=>Promise.all(responses.map(response=>response.json()))).then(([userBody,subscribeBody,agreementsBody])=>{if(userBody.status===200)setAuthUser(userBody.user);if(subscribeBody.status===200)setSubscription(subscribeBody.subscribe);setAgreementCount(Array.isArray(agreementsBody.list)?agreementsBody.list.length:0);}).catch(()=>setAccountMessage("계정 정보를 불러오지 못했습니다."));},[accountOpen,signedIn]);
+  useEffect(()=>{if(!accountOpen||!signedIn)return;Promise.all([fetch("/api/auth/me"),fetch("/api/auth/subscription")]).then(async responses=>Promise.all(responses.map(response=>response.json()))).then(([userBody,subscribeBody])=>{if(userBody.status===200)setAuthUser(userBody.user);if(subscribeBody.status===200)setSubscription(subscribeBody.subscribe);}).catch(()=>setAccountMessage("계정 정보를 불러오지 못했습니다."));},[accountOpen,signedIn]);
   useEffect(() => { if (!entered) return; const controller = new AbortController(); setLoading(true); setError(""); fetch(`/api/stocks/${ticker}`, { signal: controller.signal }).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.message); return body as StockData; }).then(setData).catch(reason => { if (reason.name !== "AbortError") setError(reason.message); }).finally(() => setLoading(false)); return () => controller.abort(); }, [ticker, entered]);
   const name = stocks.find(stock => stock.ticker === ticker)?.name ?? ticker;
   function search(event: FormEvent) { event.preventDefault(); if (!/^\d{6}$/.test(input)) return setError("종목코드를 숫자 6자리로 입력해 주세요."); setTicker(input); }
   function selectTicker(next: string) { setInput(next); setTicker(next); }
   async function login(email:string,password:string,remember:boolean){try{const response=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});const body=await response.json();if(!response.ok)throw new Error(body.message);const errors:Record<number,string>={201:"이메일 인증이 완료되지 않았습니다.",202:"아이디 혹은 비밀번호가 올바르지 않습니다.",203:"구독 기간이 만료되었습니다.",204:"존재하지 않는 아이디입니다. 회원가입을 진행해 주세요."};if(body.status!==200)return errors[body.status]??"로그인하지 못했습니다.";const meResponse=await fetch("/api/auth/me");const meBody=await meResponse.json();if(meBody.status!==200)throw new Error(meBody.message??"회원 정보를 확인하지 못했습니다.");setMemberId(email);setAuthUser(meBody.user);setSignedIn(true);if(remember)localStorage.setItem("forcemonitor:member-id",email);else localStorage.removeItem("forcemonitor:member-id");return null;}catch(error){return error instanceof Error?error.message:"로그인하지 못했습니다.";}}
   async function logout(){await fetch("/api/auth/logout",{method:"POST"});setSignedIn(false);setAuthUser(null);setSubscription(null);setAccountOpen(false);}
-  async function withdraw(){if(!window.confirm("회원 탈퇴 즉시 계정과 구독 정보를 더 이상 이용할 수 없습니다. 정말 탈퇴하시겠습니까?"))return;const response=await fetch("/api/auth/withdraw",{method:"POST"});const body=await response.json();if(body.status===200){await logout();setEntered(false);}else setAccountMessage(body.status===201?"회원 정보를 찾을 수 없습니다.":body.message??"탈퇴하지 못했습니다.");}
+  async function withdraw():Promise<string|null>{try{const response=await fetch("/api/auth/withdraw",{method:"POST"});const body=await response.json();if(body.status===200){setWithdrawOpen(false);await logout();setEntered(false);return null;}const message=body.status===201?"회원 정보를 찾을 수 없습니다.":body.message??"탈퇴하지 못했습니다.";setAccountMessage(message);return message;}catch{return "탈퇴하지 못했습니다.";}}
 
   if (!entered) return <LandingPage onEnter={() => setEntered(true)}/>;
 
   return <main className="app-shell">
-    <header className="app-bar"><div className="app-bar-inner"><div className="wordmark"><Image className="brand-symbol" src="/assets/brand/motrader-symbol.png" alt="" width={30} height={35} priority/>세력모니터</div><nav className="service-links" aria-label="서비스 링크"><a href="https://cafe.naver.com/motrader" target="_blank" rel="noreferrer" aria-label="모트레이더 네이버카페 새 창에서 열기">네이버카페</a><a href="https://gemini.google.com" target="_blank" rel="noreferrer">제미나이</a><a href="https://chatgpt.com" target="_blank" rel="noreferrer">ChatGPT</a></nav><form className="global-search" onSubmit={search}><span aria-hidden="true">⌕</span><input aria-label="종목코드 검색" placeholder="종목코드 6자리를 입력해 주세요" value={input} maxLength={6} onChange={event => setInput(event.target.value.replace(/\D/g, ""))}/><button disabled={loading}>{loading ? "조회 중" : "조회하기"}</button></form><button className="app-search-button" onClick={() => setShowScreener(true)}>조건 검색</button><div className="account-wrap"><button className="account-button" aria-label="계정" onClick={() => signedIn ? setAccountOpen(!accountOpen) : setShowLogin(true)}>{signedIn ? (authUser?.name||memberId).slice(0,1).toUpperCase() : "계정"}</button>{accountOpen && <div className="account-menu account-detail"><div><b>{authUser?.name||"세력모니터 회원"}</b><span>{authUser?.email||memberId}</span></div><dl><div><dt>회원 등급</dt><dd>{authUser?.grade??"—"}</dd></div><div><dt>구독 기간</dt><dd>{subscription?`${subscription.strStartDate.slice(0,10)} ~ ${subscription.strEndDate.slice(0,10)}`:"확인 중"}</dd></div><div><dt>약관 동의</dt><dd>{agreementCount}건</dd></div></dl>{accountMessage&&<small>{accountMessage}</small>}<button onClick={logout}>로그아웃</button><button className="withdraw-button" onClick={withdraw}>회원 탈퇴</button></div>}</div></div></header>
+    <header className="app-bar"><div className="app-bar-inner"><div className="wordmark"><Image className="brand-symbol" src="/assets/brand/motrader-symbol.png" alt="" width={30} height={35} priority/>세력모니터</div><form className="global-search" onSubmit={search}><span aria-hidden="true">⌕</span><input aria-label="종목코드 검색" placeholder="종목코드 6자리를 입력해 주세요" value={input} maxLength={6} onChange={event => setInput(event.target.value.replace(/\D/g, ""))}/><button disabled={loading}>{loading ? "조회 중" : "조회하기"}</button></form><button className="app-search-button" onClick={() => setShowScreener(true)}>조건 검색</button><nav className="service-links" aria-label="서비스 링크"><a href="https://cafe.naver.com/motrader" target="_blank" rel="noreferrer" aria-label="모트레이더 네이버카페 새 창에서 열기">네이버카페</a><a href="https://gemini.google.com" target="_blank" rel="noreferrer">제미나이</a><a href="https://chatgpt.com" target="_blank" rel="noreferrer">ChatGPT</a></nav><button className="account-button" onClick={() => signedIn ? setAccountOpen(true) : setShowLogin(true)}>계정</button></div></header>
     <div className="workspace-page">
       {error && <div className="workspace-error" role="alert">{error} 종목코드를 확인하고 다시 조회해 주세요.</div>}
       {loading && !data && <div className="loading-card"><span/><span/><span/><p>시장 데이터를 가져오고 있어요</p></div>}
@@ -42,7 +42,47 @@ export default function Home() {
       onSelect={value => { selectTicker(value); setShowScreener(false); }}
     />}
     {showLogin && <LoginDialog initialId={memberId} onClose={() => setShowLogin(false)} onEnter={async(id,password,remember)=>{const error=await login(id,password,remember);if(!error)setShowLogin(false);return error;}}/>}
+    {accountOpen&&<AccountDialog user={authUser} subscription={subscription} message={accountMessage} onClose={()=>setAccountOpen(false)} onLogout={logout} onPassword={()=>{setAccountOpen(false);setPasswordOpen(true)}} onWithdraw={()=>{setAccountOpen(false);setWithdrawOpen(true)}}/>}
+    {passwordOpen&&<PasswordResetDialog accountMode initialEmail={authUser?.email||memberId} onBack={()=>{setPasswordOpen(false);setAccountOpen(true)}} onClose={()=>setPasswordOpen(false)}/>}
+    {withdrawOpen&&<WithdrawDialog email={authUser?.email||memberId} onClose={()=>setWithdrawOpen(false)} onWithdraw={withdraw}/>}
   </main>;
+}
+
+function AccountDialog({user,subscription,message,onClose,onLogout,onPassword,onWithdraw}:{user:AuthUser|null;subscription:Subscription|null;message:string;onClose:()=>void;onLogout:()=>void;onPassword:()=>void;onWithdraw:()=>void}) {
+  const end = subscription ? new Date(subscription.strEndDate).getTime() : NaN;
+  const remaining = Number.isFinite(end) ? Math.max(0, Math.ceil((end - Date.now()) / 86400000)) : null;
+  return <div className="sheet-backdrop account-backdrop" onMouseDown={onClose}>
+    <section className="account-dialog" role="dialog" aria-modal="true" aria-label="마이페이지" onMouseDown={event => event.stopPropagation()}>
+      <header><div><Image className="account-title-icon" src="/assets/brand/motrader-symbol.png" alt="" width={18} height={21}/><b>마이페이지</b></div><div className="account-window-controls"><span aria-hidden="true">−</span><span aria-hidden="true">□</span><button onClick={onClose} aria-label="닫기">×</button></div></header>
+      <button className="account-logout" onClick={onLogout}>로그아웃</button>
+      <dl><div><dt>이메일</dt><dd>{user?.email||"—"}</dd></div><div><dt>실명</dt><dd>{user?.name||"—"}</dd></div><div><dt>등급</dt><dd>{user?.grade||"—"}</dd></div><div><dt>인증 유무</dt><dd>{user?.certYn||"—"}</dd></div><div><dt>가입일</dt><dd>{user?.joinDate||"—"}</dd></div><div><dt>최근 로그인 날짜</dt><dd>{user?.loginDate||"—"}</dd></div><div><dt>구독 기간</dt><dd>{subscription?<>{subscription.strStartDate}부터 {subscription.strEndDate}까지{remaining!==null&&<span className="subscription-remaining">(구독 만료까지 {remaining}일 남음)</span>}</>:"—"}</dd></div><div><dt>결제 예정일</dt><dd>{subscription?.strPayExpectDate||"—"}</dd></div></dl>
+      {message&&<small>{message}</small>}
+      <footer><button onClick={onPassword}>비밀번호 변경</button><button onClick={onWithdraw}>회원탈퇴</button></footer>
+    </section>
+  </div>;
+}
+
+function WithdrawDialog({email,onClose,onWithdraw}:{email:string;onClose:()=>void;onWithdraw:()=>Promise<string|null>}) {
+  const [value, setValue] = useState("");
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
+  async function submit(event:FormEvent) {
+    event.preventDefault();
+    if (value !== email) return;
+    setPending(true);
+    const error = await onWithdraw();
+    if (error) setMessage(error);
+    setPending(false);
+  }
+  return <div className="sheet-backdrop account-backdrop" onMouseDown={onClose}>
+    <form className="withdraw-dialog" role="dialog" aria-modal="true" aria-label="회원 탈퇴" onMouseDown={event => event.stopPropagation()} onSubmit={submit}>
+      <header><b>회원 탈퇴</b><button type="button" onClick={onClose} aria-label="닫기">×</button></header>
+      <p><strong>탈퇴시 구매/이용중인 잔여 구독 기간에 대한<br/>자동해지 및 구매기록이 소멸됩니다.</strong><br/>탈퇴하시려면 아래에 {email}을(를) 입력하십시오.</p>
+      <input autoFocus value={value} onChange={event => setValue(event.target.value)} aria-label="탈퇴 확인 이메일"/>
+      {message&&<small>{message}</small>}
+      <button className="withdraw-confirm" disabled={pending||value!==email}>{pending?"처리 중":"탈퇴하기"}</button>
+    </form>
+  </div>;
 }
 
 function LoginDialog({ initialId, onClose, onEnter }: { initialId: string; onClose: () => void; onEnter: (id: string,password:string,remember:boolean) => Promise<string|null> }) {
@@ -52,7 +92,93 @@ function LoginDialog({ initialId, onClose, onEnter }: { initialId: string; onClo
   return <div className="sheet-backdrop login-backdrop" onMouseDown={onClose}><form className="login-dialog" role="dialog" aria-modal="true" aria-label="세력모니터 입장" onMouseDown={event => event.stopPropagation()} onSubmit={submit}><Image src="/assets/brand/motrader-symbol.png" alt="" width={54} height={63}/><span className="eyebrow">FORCE MONITOR</span><h2>세력모니터 입장하기</h2><p>프로그램 인증에 사용하는 계정 정보를 입력해 주세요.</p><label>ID<input autoFocus autoComplete="username" required value={id} aria-invalid={Boolean(loginError)} onChange={event => {setId(event.target.value);setLoginError("")}}/></label><label>PW<input type={showPassword ? "text" : "password"} autoComplete="current-password" required value={password} aria-invalid={Boolean(loginError)} onChange={event => {setPassword(event.target.value);setLoginError("")}}/></label><div className="login-options"><label><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/> ID 기억하기</label><label><input type="checkbox" checked={showPassword} onChange={event => setShowPassword(event.target.checked)}/> 비밀번호 보이기</label></div>{loginError&&<div className="login-error" role="alert">{loginError}</div>}<button className="primary-button" disabled={pending}>{pending?"확인 중":"입장하기"}</button><button type="button" className="password-reset-link" onClick={()=>setResetOpen(true)}>비밀번호 찾기</button><small>아이디만 이 기기에 저장하며 비밀번호는 저장하지 않습니다.</small><button type="button" className="login-close" onClick={onClose} aria-label="닫기">×</button></form></div>;
 }
 
-function PasswordResetDialog({initialEmail,onBack,onClose}:{initialEmail:string;onBack:()=>void;onClose:()=>void}){const[email,setEmail]=useState(initialEmail);const[password,setPassword]=useState("");const[confirm,setConfirm]=useState("");const[certKey,setCertKey]=useState("");const[verified,setVerified]=useState(false);const[pending,setPending]=useState(false);const[message,setMessage]=useState("");async function send(){setPending(true);setMessage("");try{const response=await fetch("/api/auth/cert/mail",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,type:"password"})});const body=await response.json();if(body.status===201)return setMessage("인증 메일은 1분 후 다시 발송할 수 있습니다.");if(body.status!==200||!body.certKey)throw new Error(body.message);setCertKey(body.certKey);setMessage("인증 메일을 발송했습니다.");}catch(error){setMessage(error instanceof Error?error.message:"인증 메일을 발송하지 못했습니다.");}finally{setPending(false)}}async function verify(){setPending(true);try{const response=await fetch("/api/auth/cert/check",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({certKey})});const body=await response.json();if(body.status===201)return setMessage("메일의 인증 링크를 먼저 눌러 주세요.");if(body.status===202){setCertKey("");return setMessage("인증 시간이 지났습니다. 다시 발송해 주세요.");}if(body.status!==200)throw new Error(body.message);setVerified(true);setMessage("이메일 인증이 완료되었습니다.");}catch(error){setMessage(error instanceof Error?error.message:"인증을 확인하지 못했습니다.");}finally{setPending(false)}}async function change(event:FormEvent){event.preventDefault();if(!verified||password.length<8||password!==confirm)return;setPending(true);try{const response=await fetch("/api/auth/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});const body=await response.json();const errors:Record<number,string>={201:"회원정보가 없습니다.",202:"인증 메일을 먼저 발송해 주세요.",203:"이메일 인증을 먼저 확인해 주세요."};if(body.status!==200)return setMessage(errors[body.status]??body.message??"비밀번호를 변경하지 못했습니다.");setMessage("비밀번호를 변경했습니다. 새 비밀번호로 로그인해 주세요.");setTimeout(onBack,900);}catch{setMessage("비밀번호를 변경하지 못했습니다.");}finally{setPending(false)}}return <div className="sheet-backdrop login-backdrop" onMouseDown={onClose}><form className="login-dialog password-reset-dialog" role="dialog" aria-modal="true" aria-label="비밀번호 찾기" onMouseDown={event=>event.stopPropagation()} onSubmit={change}><span className="eyebrow">PASSWORD RESET</span><h2>비밀번호 찾기</h2><p>이메일 인증 후 새 비밀번호를 설정합니다.</p><label>이메일<input type="email" required readOnly={Boolean(certKey)} value={email} onChange={event=>setEmail(event.target.value)}/></label><div className="reset-actions">{!certKey?<button type="button" onClick={send} disabled={pending}>인증 메일 발송</button>:<button type="button" onClick={verify} disabled={pending||verified}>{verified?"인증 완료":"인증 확인"}</button>}</div><label>새 비밀번호<input type="password" minLength={8} required value={password} onChange={event=>setPassword(event.target.value)}/></label><label>새 비밀번호 확인<input type="password" minLength={8} required value={confirm} onChange={event=>setConfirm(event.target.value)}/></label>{message&&<div className="login-error" role="status">{message}</div>}<button className="primary-button" disabled={pending||!verified||password!==confirm}>비밀번호 변경</button><button type="button" className="password-reset-link" onClick={onBack}>로그인으로 돌아가기</button><button type="button" className="login-close" onClick={onClose} aria-label="닫기">×</button></form></div>}
+function PasswordResetDialog({initialEmail,onBack,onClose,accountMode=false}:{initialEmail:string;onBack:()=>void;onClose:()=>void;accountMode?:boolean}) {
+  const [email, setEmail] = useState(initialEmail);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [certKey, setCertKey] = useState("");
+  const [verified, setVerified] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function send() {
+    setPending(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/auth/cert/mail", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email,type:"password"}) });
+      const body = await response.json();
+      if (body.status === 201) return setMessage("인증 메일은 1분 후 다시 발송할 수 있습니다.");
+      if (body.status !== 200 || !body.certKey) throw new Error(body.message);
+      setCertKey(body.certKey);
+      setVerified(false);
+      setMessage("인증 메일을 발송했습니다.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "인증 메일을 발송하지 못했습니다.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function checkCertification() {
+    const response = await fetch("/api/auth/cert/check", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({certKey}) });
+    const body = await response.json();
+    if (body.status === 201) { setMessage("메일의 인증 링크를 먼저 눌러 주세요."); return false; }
+    if (body.status === 202) { setCertKey(""); setMessage("인증 시간이 지났습니다. 다시 발송해 주세요."); return false; }
+    if (body.status !== 200) throw new Error(body.message);
+    setVerified(true);
+    setMessage("이메일 인증이 완료되었습니다.");
+    return true;
+  }
+
+  async function verify() {
+    setPending(true);
+    try {
+      await checkCertification();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "인증을 확인하지 못했습니다.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function change(event:FormEvent) {
+    event.preventDefault();
+    if (password.length < 8 || password !== confirm || (!accountMode && !verified)) return;
+    setPending(true);
+    try {
+      if (accountMode && !verified) {
+        if (!certKey) { setMessage("인증 메일을 먼저 발송해 주세요."); return; }
+        if (!await checkCertification()) return;
+      }
+      const response = await fetch("/api/auth/password", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email,password}) });
+      const body = await response.json();
+      const errors:Record<number,string> = {201:"회원정보가 없습니다.",202:"인증 메일을 먼저 발송해 주세요.",203:"이메일 인증을 먼저 확인해 주세요."};
+      if (body.status !== 200) return setMessage(errors[body.status] ?? body.message ?? "비밀번호를 변경하지 못했습니다.");
+      setMessage("비밀번호를 변경했습니다. 새 비밀번호로 로그인해 주세요.");
+      setTimeout(onBack, 900);
+    } catch {
+      setMessage("비밀번호를 변경하지 못했습니다.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return <div className="sheet-backdrop login-backdrop" onMouseDown={onClose}>
+    <form className={`login-dialog password-reset-dialog ${accountMode ? "account-password-dialog" : ""}`} role="dialog" aria-modal="true" aria-label={accountMode ? "비밀번호 재설정" : "비밀번호 찾기"} onMouseDown={event => event.stopPropagation()} onSubmit={change}>
+      {!accountMode&&<span className="eyebrow">PASSWORD RESET</span>}
+      <h2>{accountMode ? "비밀번호 재설정" : "비밀번호 찾기"}</h2>
+      {!accountMode&&<p>이메일 인증 후 새 비밀번호를 설정합니다.</p>}
+      <label>이메일<input type="email" required readOnly={Boolean(certKey)} value={email} onChange={event => setEmail(event.target.value)}/></label>
+      <div className="reset-actions">{accountMode||!certKey?<button type="button" onClick={send} disabled={pending}>인증 메일 발송</button>:<button type="button" onClick={verify} disabled={pending||verified}>{verified?"인증 완료":"인증 확인"}</button>}</div>
+      <label>새 비밀번호<input type="password" minLength={8} required value={password} onChange={event => setPassword(event.target.value)}/></label>
+      <label>새 비밀번호 확인<input type="password" minLength={8} required value={confirm} onChange={event => setConfirm(event.target.value)}/></label>
+      {message&&<div className="login-error" role="status">{message}</div>}
+      <button className="primary-button" disabled={pending||(!accountMode&&!verified)||password!==confirm}>{accountMode?"비밀번호 재설정":"비밀번호 변경"}</button>
+      {!accountMode&&<button type="button" className="password-reset-link" onClick={onBack}>로그인으로 돌아가기</button>}
+      <button type="button" className="login-close" onClick={onClose} aria-label="닫기">×</button>
+    </form>
+  </div>;
+}
 
 function Screener({ onClose, onSelect }: { onClose: () => void; onSelect: (ticker: string) => void }) {
   type SearchType = "price" | "profit" | "have";

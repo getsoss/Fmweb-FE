@@ -166,3 +166,76 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .chart-indicator-controls .indicator-checks input{position:static;width:13px;height:13px;margin:0;opacity:1;accent-color:var(--primary)}
 .chart-indicator-controls .indicator-checks span{min-height:0;padding:0;border:0;border-radius:0;background:transparent!important;color:var(--body)!important;font-size:10px;white-space:nowrap}
 .chart-investor-options{max-height:34px;overflow:auto}
+
+/* PDF revision: account dialogs, result-column modal, and alert-status table. */
+.app-bar .account-button{width:44px;min-width:44px;padding:0;border-radius:50%}
+.search-dock{min-height:206px;grid-template-rows:48px 38px 34px 38px}
+.search-dock>.search-settings-entry{height:38px;border:0;background:transparent}
+.search-dock .open-search-settings{height:38px;padding:0 22px;border:0;border-radius:8px;background:var(--up);color:#fff;font-size:12px;font-weight:700}
+
+.account-backdrop,.login-backdrop{z-index:75}
+.account-backdrop{background:rgba(10,11,13,.56)}
+.account-dialog,.withdraw-dialog{position:relative;width:min(760px,calc(100vw - 40px));max-height:calc(100dvh - 40px);overflow:auto;border:1px solid #c8cbd0;border-radius:8px;background:#f1f1f1;box-shadow:0 24px 70px rgba(10,11,13,.24)}
+.account-dialog>header,.withdraw-dialog>header{height:48px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #dedfe2;background:#fff}
+.account-dialog>header>div:first-child{display:flex;align-items:center;gap:8px}
+.account-title-icon{width:auto;height:21px;object-fit:contain}
+.account-window-controls{height:100%;display:flex;align-items:center;gap:22px;color:#a7a9ad}
+.account-window-controls button,.withdraw-dialog>header button{width:32px;height:32px;padding:0;border:0;background:transparent;color:#555;font-size:22px;line-height:1}
+.account-logout{margin:12px 18px 12px auto;padding:0;display:block;border:0;border-bottom:1px solid currentColor;background:transparent;color:#087aea;font-size:14px}
+.account-dialog dl{min-height:350px;margin:0 14px;padding:12px;border:1px solid #b9bcc1;background:#f7f7f7}
+.account-dialog dl>div{min-height:34px;display:grid;grid-template-columns:190px minmax(0,1fr);align-items:start;gap:12px;font-size:14px;line-height:1.45}
+.account-dialog dt{color:var(--ink)}
+.account-dialog dd{min-width:0;margin:0;color:var(--ink);overflow-wrap:anywhere}
+.subscription-remaining{display:block}
+.account-dialog>small{margin:10px 16px 0;display:block;color:var(--down)}
+.account-dialog>footer{max-width:none;margin:0;padding:14px 16px;display:flex;justify-content:space-between;border:0;background:transparent}
+.account-dialog>footer button{padding:0;border:0;border-bottom:1px solid currentColor;background:transparent;color:#087aea;font-size:14px}
+
+.withdraw-dialog{width:min(730px,calc(100vw - 40px));padding-bottom:30px}
+.withdraw-dialog>p{min-height:220px;margin:0;padding:20px;color:var(--ink);font-size:16px;line-height:1.55}
+.withdraw-dialog>p strong{color:#ff2029;font-weight:500}
+.withdraw-dialog>input{width:calc(100% - 40px);height:42px;margin:0 20px;padding:0 12px;border:1px solid #b8bbc0;background:#fff;outline:none}
+.withdraw-dialog>small{margin:9px 20px 0;display:block;color:var(--down)}
+.withdraw-dialog>.withdraw-confirm{width:calc(100% - 40px);height:58px;margin:16px 20px 0;border:1px solid #b8bbc0;background:#f7f7f7;color:#777;font-size:16px}
+.withdraw-dialog>.withdraw-confirm:not(:disabled){border-color:var(--down);background:var(--down);color:#fff}
+
+.account-password-dialog{width:min(660px,calc(100vw - 40px));padding:58px 18px 24px;border:1px solid #bbb;border-radius:8px;background:#f1f1f1}
+.account-password-dialog h2{position:absolute;left:0;right:0;top:0;height:46px;margin:0;padding:0 48px;display:flex;align-items:center;border-bottom:1px solid #ddd;background:#fff;font-size:15px;text-align:left}
+.account-password-dialog .login-close{right:7px;top:7px;width:32px;height:32px;border-radius:0;background:transparent}
+.account-password-dialog>label{min-height:50px;margin-top:8px;display:grid;grid-template-columns:180px minmax(0,1fr);align-items:center;gap:12px;color:var(--ink);font-size:14px;font-weight:500}
+.account-password-dialog>label input{height:44px;border-radius:0}
+.account-password-dialog .reset-actions{width:160px;margin:4px 0 130px 192px}
+.account-password-dialog .reset-actions button{height:44px;border-radius:0;background:#eee}
+.account-password-dialog>.login-error{margin:12px 0}
+.account-password-dialog>.primary-button{width:350px;height:54px;margin:10px auto 0;border:1px solid #999;border-radius:0;background:#88e887;color:#111}
+
+.column-modal-backdrop{position:fixed;inset:0;z-index:80;padding:20px;display:grid;place-items:center;background:rgba(10,11,13,.5)}
+.column-modal{position:relative;width:min(820px,calc(100vw - 40px));border:1px solid #444;background:#dedede;box-shadow:0 24px 70px rgba(10,11,13,.24)}
+.column-modal>header{height:82px;display:flex;align-items:center;justify-content:center}
+.column-modal h2{margin:0;font-size:28px;font-weight:500}
+.column-modal header button{position:absolute;right:12px;top:10px;width:44px;height:44px;padding:0;border:0;background:transparent;color:#000;font-size:42px;font-weight:300;line-height:1}
+.column-modal>div{min-height:180px;padding:26px 20px 36px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:start;gap:18px}
+.column-modal label{min-width:0;display:flex;align-items:center;flex-direction:column;gap:12px;color:#111;font-size:16px;line-height:1.15;text-align:center;word-break:keep-all}
+.column-modal input{position:static;width:36px;height:36px;margin:0;opacity:1;accent-color:var(--primary)}
+
+.workspace-secondary .result-table-alerts{min-width:100%}
+.result-table-alerts{border-collapse:separate;border-spacing:2px;background:#fff}
+.result-table-alerts th{height:48px;background:#c5534f;color:#fff;font-size:13px;text-align:center}
+.result-table-alerts th:nth-child(2),.result-table-alerts td:nth-child(2){text-align:center}
+.result-table-alerts th button{color:#fff}
+.result-table-alerts td{height:54px;border:0;background:#f1e4e4;color:#111;font-size:13px;text-align:center}
+.result-table-alerts tr:hover td,.result-table-alerts tr.selected td{background:#ead6d6}
+.result-table-alerts td.alert-status{min-width:92px;font-size:16px}
+.result-table-alerts td.alert-status-warning,.result-table-alerts tr:hover td.alert-status-warning,.result-table-alerts tr.selected td.alert-status-warning{background:#ffc000}
+.result-table-alerts td.alert-status-caution,.result-table-alerts tr:hover td.alert-status-caution,.result-table-alerts tr.selected td.alert-status-caution{background:#ffff00}
+.result-table-alerts td.alert-status-low,.result-table-alerts tr:hover td.alert-status-low,.result-table-alerts tr.selected td.alert-status-low{background:#10a9da}
+
+@media(max-width:720px){.account-dialog dl>div{grid-template-columns:120px minmax(0,1fr)}.account-password-dialog>label{grid-template-columns:1fr;gap:4px}.account-password-dialog .reset-actions{width:100%;margin:4px 0 72px}.account-password-dialog>.primary-button{width:100%}.column-modal>div{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 10px}.column-modal h2{font-size:23px}}
+
+.workspace-secondary>.api-news-panel{display:flex;align-items:stretch;flex-direction:column;justify-content:flex-start}
+.api-news-panel>div:first-child{flex:none}
+.api-news-panel .news-list{min-height:0;flex:1;overflow:auto}
+.api-news-panel .news-list>p{margin:8px 0;color:var(--muted);font-size:12px}
+.api-news-panel .news-list>a{padding:8px 0;display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--hairline-soft);color:var(--ink);font-size:12px;text-decoration:none}
+.api-news-panel .news-list>a span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.api-news-panel .news-list>a small{flex:none;color:var(--muted)}

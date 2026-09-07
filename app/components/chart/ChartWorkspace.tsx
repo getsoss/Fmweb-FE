@@ -520,7 +520,7 @@ export default function ChartWorkspace({
 
         <InvestorControls
           className="chart-holding-controls"
-          label="보유비중 증감"
+          label="보유비중"
           selected={holdingInvestors}
           setSelected={setHoldingInvestors}
         />

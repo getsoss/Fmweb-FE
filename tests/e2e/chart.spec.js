@@ -16,6 +16,12 @@ async function mockStockData(page) {
       },
     });
   });
+  await page.route("**/api/news?*", route => {
+    const query = new URL(route.request().url()).searchParams.get("query");
+    return route.fulfill({
+      json: { result: [[`${query} 뉴스 제목`, "3일 전", "https://example.com/news"]] },
+    });
+  });
 }
 
 test("와이어프레임 기반 랜딩과 외부 링크를 제공한다", async ({ page }) => {
@@ -44,6 +50,10 @@ test("회원가입 이메일 인증 단계를 제공한다", async ({ page }) =>
 });
 
 test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동시에 제공한다", async ({ page }) => {
+  const consoleErrors = [];
+  page.on("console", message => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
   await mockStockData(page);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
@@ -53,6 +63,7 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(page.locator(".results-panel")).toBeVisible();
   await expect(page.locator(".watch-panel")).toBeVisible();
   await expect(page.locator(".news-panel")).toBeVisible();
+  await expect(page.locator(".news-panel").getByRole("link", { name: "삼성전자 뉴스 제목 3일 전" })).toHaveAttribute("href", "https://example.com/news");
   await expect(page.getByRole("separator")).toHaveCount(4);
   const viewport = await page.evaluate(() => ({
     clientHeight: document.documentElement.clientHeight,
@@ -75,6 +86,7 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(alwaysVisible).toContainText("개미지수");
   await expect(alwaysVisible).toContainText("RS");
   const holdingControls = page.locator(".chart-holding-controls");
+  await expect(holdingControls.getByText("보유비중", { exact: true })).toBeVisible();
   await holdingControls.getByRole("checkbox", { name: "외국인", exact: true }).check();
   await holdingControls.getByRole("checkbox", { name: "기관계", exact: true }).check();
   await expect(holdingControls.locator("input:checked")).toHaveCount(2);
@@ -87,6 +99,35 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
 
   await page.locator(".result-table tbody tr").filter({ hasText: "SK하이닉스" }).click();
   await expect(page.locator(".chart-identity")).toContainText("000660");
+  await expect(page.locator(".news-panel")).toContainText("SK하이닉스 뉴스 제목");
+  expect(await page.locator("tr").evaluateAll(rows => rows.some(row => [...row.childNodes].some(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === "" && node.textContent.length > 0)))).toBe(false);
+  expect(consoleErrors.filter(message => message.includes("whitespace text nodes") || message.includes("hydration"))).toEqual([]);
+});
+
+test("검색 결과의 기본 4열과 창 설정 모달을 제공한다", async ({ page }) => {
+  await mockStockData(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+
+  const table = page.locator(".result-table-alerts");
+  await expect(table.locator("thead th")).toHaveCount(4);
+  await expect(table.locator("thead")).toContainText("번호");
+  await expect(table.locator("thead")).toContainText("종목");
+  await expect(table.locator("thead")).toContainText("상태");
+  await expect(table.locator("thead")).toContainText("알람 가격");
+  await expect(table.locator(".alert-status-warning")).toHaveText("U-20%");
+  await expect(table.locator(".alert-status-caution")).toHaveText("U-12%");
+  await expect(table.locator(".alert-status-low")).toHaveText("-50%");
+
+  await page.getByRole("button", { name: "창 설정", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "검색창 설정 하기" });
+  await expect(dialog).toBeVisible();
+  for (const label of ["알람가격", "현재상황", "계좌수익률", "거래액(백만)", "5일평균 거래액", "IBD RS", "고수 계좌"]) {
+    await expect(dialog.getByRole("checkbox", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(dialog.getByRole("checkbox")).toHaveCount(7);
+  await dialog.getByRole("checkbox", { name: "계좌수익률", exact: true }).check();
+  await expect(table.locator("thead")).toContainText("계좌 수익률");
 });
 
 test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영역을 연다", async ({ page }) => {
@@ -102,9 +143,8 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await expect(tickerInput).toHaveValue("");
   await tickerInput.fill("000660");
   await expect(nameInput).toHaveValue("");
-  await expect(launcher.getByRole("button", { name: /^검색 \d$/ })).toHaveCount(5);
-  await expect(launcher.getByRole("button", { name: "검색조건 만들기" })).toHaveCount(0);
-  const openSettings = page.getByRole("button", { name: "검색조건 만들기" });
+  await expect(launcher.getByRole("button", { name: /^검색\d$/ })).toHaveCount(5);
+  const openSettings = launcher.getByRole("button", { name: "검색조건 만들기" });
   await expect(openSettings).toHaveAttribute("aria-expanded", "false");
   await openSettings.click();
 
@@ -140,6 +180,39 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await settings.getByRole("button", { name: "검색조건 저장" }).click();
   await expect(settings).toHaveCount(0);
   await expect(launcher.locator(".preset-description")).toContainText("급등주 위주");
+});
+
+test("계정에서 마이페이지와 비밀번호 재설정 및 회원 탈퇴 모달을 연다", async ({ page }) => {
+  const user = { userId: 1, name: "나기윤", email: "nakwna@gmail.com", grade: "4(관측형)", certYn: "Y", joinDate: "2024-02-12 15:39:06", loginDate: "2026-09-01 17:19:05", withdraw: "N" };
+  await mockStockData(page);
+  await page.route("**/api/auth/me", route => route.fulfill({ json: { status: 200, user } }));
+  await page.route("**/api/auth/subscription", route => route.fulfill({ json: { status: 200, subscribe: { strStartDate: "2024-02-12 15:39:07", strEndDate: "2056-03-11 15:39:07", strPayExpectDate: "2056-10-11 00:00:00" } } }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  await page.getByRole("button", { name: "계정", exact: true }).click();
+
+  const account = page.getByRole("dialog", { name: "마이페이지" });
+  await expect(account).toBeVisible();
+  for (const label of ["이메일", "실명", "등급", "인증 유무", "가입일", "최근 로그인 날짜", "구독 기간", "결제 예정일"]) {
+    await expect(account.getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(account).toContainText("구독 만료까지");
+  await account.getByRole("button", { name: "비밀번호 변경", exact: true }).click();
+
+  const password = page.getByRole("dialog", { name: "비밀번호 재설정" });
+  await expect(password).toBeVisible();
+  await expect(password.getByRole("button", { name: "인증 메일 발송" })).toBeVisible();
+  await expect(password.getByLabel("새 비밀번호", { exact: true })).toBeVisible();
+  await expect(password.getByLabel("새 비밀번호 확인")).toBeVisible();
+  await password.getByRole("button", { name: "닫기" }).click();
+
+  await page.getByRole("button", { name: "계정", exact: true }).click();
+  await page.getByRole("dialog", { name: "마이페이지" }).getByRole("button", { name: "회원탈퇴", exact: true }).click();
+  const withdraw = page.getByRole("dialog", { name: "회원 탈퇴" });
+  await expect(withdraw).toContainText("자동해지 및 구매기록이 소멸됩니다.");
+  await expect(withdraw.getByRole("button", { name: "탈퇴하기" })).toBeDisabled();
+  await withdraw.getByLabel("탈퇴 확인 이메일").fill(user.email);
+  await expect(withdraw.getByRole("button", { name: "탈퇴하기" })).toBeEnabled();
 });
 
 test("API v09 조건 검색 모드를 제공한다", async ({ page }) => {
