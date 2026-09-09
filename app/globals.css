@@ -160,11 +160,13 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 
 /* Multi-pane chart controls: actual checkboxes are preferred in the compact area. */
 .chart-stage--multi-pane{min-height:0;flex:1}
-.chart-holding-legend{width:128px;min-width:128px;padding:10px 8px;display:flex;align-items:stretch;flex-direction:column;justify-content:center;gap:7px;overflow:auto;border-left:1px solid var(--hairline);background:#fff}
-.chart-holding-legend>div{min-width:0;display:grid;grid-template-columns:7px minmax(0,1fr);align-items:center;gap:2px 6px;color:var(--body);font-size:10px}
+.ohlcv-strip:has(.chart-holding-legend){gap:0;overflow:hidden}
+.ohlcv-values{min-width:0;display:flex;align-items:center;gap:14px;flex:1;overflow-x:auto}
+.chart-holding-legend{max-width:50%;height:100%;margin-left:auto;padding-left:12px;display:flex;align-items:center;gap:12px;flex:none;overflow-x:auto;border-left:1px solid var(--hairline-soft);background:#fff}
+.chart-holding-legend>div{display:flex;align-items:center;gap:5px;color:var(--body);font-size:10px}
 .chart-holding-legend i{width:7px;height:7px;border-radius:50%}
-.chart-holding-legend span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chart-holding-legend b{grid-column:2;color:var(--ink);font:10px var(--mono)}
+.chart-holding-legend span{white-space:nowrap}
+.chart-holding-legend b{color:var(--ink);font:10px var(--mono);white-space:nowrap}
 .chart-indicator-controls{max-height:142px;padding:8px 10px;display:grid;grid-template-columns:1fr;align-items:start;justify-content:stretch;gap:5px;overflow:auto;border-top:1px solid var(--hairline);border-bottom:0;background:#fff}
 .chart-always-visible,.chart-indicator-group{min-width:0;display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:8px}
 .chart-always-visible strong,.chart-indicator-label{color:var(--body);font-size:10px;white-space:nowrap}

@@ -505,37 +505,33 @@ export default function ChartWorkspace({
       </header>
 
       <div className="ohlcv-strip">
-        <span>
-          {latest ? new Date(latest.time * 1000).toLocaleDateString("ko-KR") : "—"}
-        </span>
-        {latest && (
-          <>
-            <span>
-              시 <b>{latest.open.toLocaleString()}</b>
-            </span>
-            <span>
-              고 <b>{latest.high.toLocaleString()}</b>
-            </span>
-            <span>
-              저 <b>{latest.low.toLocaleString()}</b>
-            </span>
-            <span>
-              종 <b>{latest.close.toLocaleString()}</b>
-            </span>
-            <span className={change >= 0 ? "up" : "down"}>
-              {change >= 0 ? "+" : ""}
-              {change.toFixed(2)}%
-            </span>
-            <span>
-              거래량 <b>{latest.volume.toLocaleString()}</b>
-            </span>
-          </>
-        )}
-      </div>
-
-      <div className="chart-stage chart-stage--multi-pane">
-        <div className="chart-surface">
-          <div ref={hostRef} className="chart-engine" />
+        <div className="ohlcv-values">
+          <span>
+            {latest ? new Date(latest.time * 1000).toLocaleDateString("ko-KR") : "—"}
+          </span>
+          {latest && (
+            <>
+              <span>
+                시 <b>{latest.open.toLocaleString()}</b>
+              </span>
+              <span>
+                고 <b>{latest.high.toLocaleString()}</b>
+              </span>
+              <span>
+                저 <b>{latest.low.toLocaleString()}</b>
+              </span>
+              <span>
+                종 <b>{latest.close.toLocaleString()}</b>
+              </span>
+              <span className={change >= 0 ? "up" : "down"}>
+                {change >= 0 ? "+" : ""}
+                {change.toFixed(2)}%
+              </span>
+              <span>
+                거래량 <b>{latest.volume.toLocaleString()}</b>
+              </span>
+            </>
+          )}
         </div>
         {holdingInvestors.length > 0 && (
           <aside className="chart-holding-legend" aria-label="선택 세력 차트 레전드">
@@ -552,6 +548,12 @@ export default function ChartWorkspace({
             })}
           </aside>
         )}
+      </div>
+
+      <div className="chart-stage chart-stage--multi-pane">
+        <div className="chart-surface">
+          <div ref={hostRef} className="chart-engine" />
+        </div>
       </div>
 
       <div

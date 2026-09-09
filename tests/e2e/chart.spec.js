@@ -162,11 +162,22 @@ test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 
   await expect(legend).not.toContainText("보유비중");
   await expect(legend).not.toContainText("증감");
   const legendLayout = await page.evaluate(() => {
+    const stage = document.querySelector(".chart-stage")?.getBoundingClientRect();
     const surface = document.querySelector(".chart-surface")?.getBoundingClientRect();
     const legend = document.querySelector(".chart-holding-legend")?.getBoundingClientRect();
-    return { surfaceRight: surface?.right ?? 0, legendLeft: legend?.left ?? -1 };
+    const readout = document.querySelector(".ohlcv-strip")?.getBoundingClientRect();
+    return {
+      stageWidth: stage?.width ?? 0,
+      surfaceWidth: surface?.width ?? -1,
+      surfaceTop: surface?.top ?? -1,
+      legendBottom: legend?.bottom ?? 0,
+      legendRight: legend?.right ?? 0,
+      readoutRight: readout?.right ?? -1,
+    };
   });
-  expect(legendLayout.legendLeft).toBeGreaterThanOrEqual(legendLayout.surfaceRight - 1);
+  expect(Math.abs(legendLayout.stageWidth - legendLayout.surfaceWidth)).toBeLessThanOrEqual(1);
+  expect(legendLayout.legendBottom).toBeLessThanOrEqual(legendLayout.surfaceTop + 1);
+  expect(legendLayout.legendRight).toBeLessThanOrEqual(legendLayout.readoutRight + 1);
 });
 
 test("검색 결과의 기본 4열과 창 설정 모달을 제공한다", async ({ page }) => {
