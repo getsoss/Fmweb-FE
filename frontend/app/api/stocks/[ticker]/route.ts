@@ -11,7 +11,6 @@ type ExistsResult = { result: boolean };
 const SERIES = {
   candles: "/modified-candles",
   holdings: "/bojong",
-  averageTradePrices: "/modified-average-trade-price",
   holdingChanges: "/modified-have",
   power: "/power",
   direction: "/direction",
