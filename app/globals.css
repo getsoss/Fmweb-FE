@@ -173,11 +173,13 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .chart-always-visible>span{margin-right:10px;color:var(--muted);font-size:10px;white-space:nowrap}
 .chart-always-visible{display:flex;padding-bottom:4px;border-bottom:1px solid var(--hairline-soft)}
 .chart-always-visible strong{margin-right:3px;color:var(--primary)}
-.chart-indicator-controls .indicator-checks{display:flex;gap:5px 12px;flex-wrap:wrap}
+.chart-indicator-controls .indicator-checks{display:grid;grid-template-columns:repeat(3,minmax(max-content,1fr));gap:5px 12px}
 .chart-indicator-controls .indicator-checks label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.chart-indicator-controls .indicator-checks label:not(:first-child):not(:last-child){justify-self:center}
+.chart-indicator-controls .indicator-checks label:last-child{justify-self:end}
 .chart-indicator-controls .indicator-checks input{position:static;width:13px;height:13px;margin:0;opacity:1;accent-color:var(--primary)}
 .chart-indicator-controls .indicator-checks span{min-height:0;padding:0;border:0;border-radius:0;background:transparent!important;color:var(--body)!important;font-size:10px;white-space:nowrap}
-.chart-investor-options{max-height:34px;overflow:auto}
+.chart-indicator-controls .chart-investor-options{grid-template-columns:repeat(13,minmax(max-content,1fr));max-height:34px;overflow-x:auto;overflow-y:hidden}
 
 /* PDF revision: account dialogs, result-column modal, and alert-status table. */
 .app-bar .account-button{width:44px;min-width:44px;padding:0;border-radius:50%}

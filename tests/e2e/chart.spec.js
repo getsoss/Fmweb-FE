@@ -168,6 +168,10 @@ test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 
     const readout = document.querySelector(".ohlcv-strip")?.getBoundingClientRect();
     const firstPane = document.querySelector(".chart-engine table tr");
     const rightAxis = firstPane?.lastElementChild?.getBoundingClientRect();
+    const overlayOptions = document.querySelector(".chart-overlay-options")?.getBoundingClientRect();
+    const overlayLast = document.querySelector(".chart-overlay-options label:last-child")?.getBoundingClientRect();
+    const investorOptions = document.querySelector(".chart-holding-controls .chart-investor-options")?.getBoundingClientRect();
+    const investorLast = document.querySelector(".chart-holding-controls label:last-child")?.getBoundingClientRect();
     return {
       stageWidth: stage?.width ?? 0,
       surfaceWidth: surface?.width ?? -1,
@@ -176,12 +180,16 @@ test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 
       legendRight: legend?.right ?? 0,
       readoutRight: readout?.right ?? -1,
       rightAxisWidth: rightAxis?.width ?? Number.POSITIVE_INFINITY,
+      overlayGap: (overlayOptions?.right ?? 0) - (overlayLast?.right ?? Number.NEGATIVE_INFINITY),
+      investorGap: (investorOptions?.right ?? 0) - (investorLast?.right ?? Number.NEGATIVE_INFINITY),
     };
   });
   expect(Math.abs(legendLayout.stageWidth - legendLayout.surfaceWidth)).toBeLessThanOrEqual(1);
   expect(legendLayout.legendBottom).toBeLessThanOrEqual(legendLayout.surfaceTop + 1);
   expect(legendLayout.legendRight).toBeLessThanOrEqual(legendLayout.readoutRight + 1);
   expect(legendLayout.rightAxisWidth).toBeLessThanOrEqual(70);
+  expect(Math.abs(legendLayout.overlayGap)).toBeLessThanOrEqual(1);
+  expect(Math.abs(legendLayout.investorGap)).toBeLessThanOrEqual(1);
 });
 
 test("검색 결과의 기본 4열과 창 설정 모달을 제공한다", async ({ page }) => {
