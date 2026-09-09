@@ -118,6 +118,11 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .workspace-resizer-row{height:8px;cursor:row-resize}
 .workspace-resizer-row::after{inset:3px 0}
 .workspace-secondary{height:100%;min-width:0;min-height:0;display:grid;gap:0}
+.workspace-menu{min-width:0;padding:0 12px;display:flex;align-items:center;justify-content:flex-end;border-bottom:1px solid var(--hairline);background:#fff}
+.workspace-service-links{min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:16px}
+.workspace-service-links a,.workspace-service-links>button{flex:none;padding:0;border:0;background:transparent;color:var(--body);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap}
+.workspace-service-links a:hover,.workspace-service-links>button:hover{color:var(--primary)}
+.workspace-service-links>.account-button{width:40px;min-width:40px;height:40px;border:1px solid var(--hairline);border-radius:50%;color:var(--ink)}
 .workspace-secondary>.workspace-panel{min-height:0;max-height:none;margin:0;overflow:hidden}
 .workspace-secondary>.results-panel{min-height:0;display:flex;flex-direction:column}
 .workspace-secondary .result-table-wrap{min-height:0;flex:1;overflow:auto}
@@ -155,6 +160,11 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 
 /* Multi-pane chart controls: actual checkboxes are preferred in the compact area. */
 .chart-stage--multi-pane{min-height:0;flex:1}
+.chart-holding-legend{width:128px;min-width:128px;padding:10px 8px;display:flex;align-items:stretch;flex-direction:column;justify-content:center;gap:7px;overflow:auto;border-left:1px solid var(--hairline);background:#fff}
+.chart-holding-legend>div{min-width:0;display:grid;grid-template-columns:7px minmax(0,1fr);align-items:center;gap:2px 6px;color:var(--body);font-size:10px}
+.chart-holding-legend i{width:7px;height:7px;border-radius:50%}
+.chart-holding-legend span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chart-holding-legend b{grid-column:2;color:var(--ink);font:10px var(--mono)}
 .chart-indicator-controls{max-height:142px;padding:8px 10px;display:grid;grid-template-columns:1fr;align-items:start;justify-content:stretch;gap:5px;overflow:auto;border-top:1px solid var(--hairline);border-bottom:0;background:#fff}
 .chart-always-visible,.chart-indicator-group{min-width:0;display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:8px}
 .chart-always-visible strong,.chart-indicator-label{color:var(--body);font-size:10px;white-space:nowrap}

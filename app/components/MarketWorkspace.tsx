@@ -28,7 +28,7 @@ function describePreset(preset: SearchPreset) {
   return `${preset.title} · ${filters.join(" · ")}`;
 }
 
-export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { stocks: Stock[]; ticker: string; onSelect: (ticker: string) => void; chart: React.ReactNode }) {
+export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu }: { stocks: Stock[]; ticker: string; onSelect: (ticker: string) => void; chart: React.ReactNode; menu: React.ReactNode }) {
   const [preset, setPreset] = useState<SearchPreset>(emptyPreset);
   const [slots, setSlots] = useState<(SearchPreset | null)[]>([null, null, null, null, null]);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
@@ -162,7 +162,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { s
   }
 
   const workspaceStyle = { "--workspace-left": `${columnSplit}%` } as CSSProperties;
-  const rightStyle = { gridTemplateRows: `${rightTop}fr 8px ${rightMiddle}fr 8px ${100 - rightTop - rightMiddle}fr` };
+  const rightStyle = { gridTemplateRows: `48px ${rightTop}fr 8px ${rightMiddle}fr 8px ${100 - rightTop - rightMiddle}fr` };
 
   return <div className={`market-workspace-shell ${settingsOpen ? "settings-open" : ""}`}>
   <section className="market-workspace" style={workspaceStyle} aria-label="세력모니터 워크스페이스">
@@ -185,6 +185,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart }: { s
     <div className="workspace-resizer workspace-resizer-column" role="separator" aria-label="차트와 데이터 창 너비 조절" aria-orientation="vertical" aria-valuemin={48} aria-valuemax={76} aria-valuenow={columnSplit} tabIndex={0} onPointerDown={capture} onPointerMove={resizeColumns} onDoubleClick={() => setColumnSplit(66)} onKeyDown={event => { if (event.key === "ArrowLeft") setColumnSplit(value => clamp(value - 2, 48, 76)); if (event.key === "ArrowRight") setColumnSplit(value => clamp(value + 2, 48, 76)); }} />
 
     <aside className="workspace-secondary" style={rightStyle}>
+      <div className="workspace-menu">{menu}</div>
       <ResultsPanel ordered={ordered} ticker={ticker} sort={sort} hidden={hidden} gather={gather} onSelect={onSelect} onSort={setSortKey} onShowAll={() => { setResults(sample); setMessage("전체 종목을 표시합니다."); }} onClearBookmarks={() => setBookmarks([])} onToggleGather={() => setGather(!gather)} onToggleColumn={key => setHidden(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])} onAiCopy={aiCopy} />
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="검색 결과와 관심종목 높이 조절" aria-orientation="horizontal" aria-valuemin={30} aria-valuemax={82 - rightMiddle} aria-valuenow={rightTop} tabIndex={0} onPointerDown={capture} onPointerMove={resizeRightTop} onDoubleClick={() => setRightTop(47)} onKeyDown={event => { if (event.key === "ArrowUp") setRightTop(value => clamp(value - 2, 30, 82 - rightMiddle)); if (event.key === "ArrowDown") setRightTop(value => clamp(value + 2, 30, 82 - rightMiddle)); }} />
       <WatchPanel watchlists={watchlists} watchTab={watchTab} selectedWatch={selectedWatch} ticker={ticker} onTab={setWatchTab} onSelect={onSelect} onAdd={addWatch} onClear={() => setWatchlists(current => current.map((list, index) => index === watchTab ? [] : list))} onRemove={code => setWatchlists(current => current.map((list, index) => index === watchTab ? list.filter(item => item !== code) : list))} onMoveToResults={() => { const codes = new Set(selectedWatch.map(item => item.ticker)); setResults(sample.filter(row => codes.has(row.ticker))); setMessage(`관심 ${watchTab + 1} 종목을 검색 결과로 옮겼습니다.`); }} />

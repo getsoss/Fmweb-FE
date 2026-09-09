@@ -53,6 +53,11 @@ const investorOptions = [
   [13, "내외국인"],
 ] as const;
 type InvestorIndex = (typeof investorOptions)[number][0];
+type PaneKey = "price" | "ant" | "holding" | "power" | "rs";
+type SavedChartView = {
+  key: string;
+  paneStretch: Partial<Record<PaneKey, number>>;
+};
 
 const investorColors = [
   "#0052ff",
@@ -69,6 +74,15 @@ const investorColors = [
   "#f4511e",
   "#546e7a",
 ] as const;
+
+const plainPriceFormat = {
+  type: "custom" as const,
+  minMove: 0.01,
+  formatter: (value: number) => {
+    const rounded = Number(value.toFixed(2));
+    return Object.is(rounded, -0) ? "0" : String(rounded);
+  },
+};
 
 function timestamp(value: number): UTCTimestamp {
   const text = String(value);
@@ -165,6 +179,7 @@ export default function ChartWorkspace({
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const priceRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const savedViewRef = useRef<SavedChartView | null>(null);
   const [interval, setInterval] = useState<Interval>("1D");
   const [chartType, setChartType] = useState<ChartKind>("candles");
   const [scale, setScale] = useState<"normal" | "log" | "percent">("normal");
@@ -192,6 +207,7 @@ export default function ChartWorkspace({
     [rows],
   );
   const data = useMemo(() => aggregate(base, interval), [base, interval]);
+  const viewKey = `${ticker}:${interval}:${rows.length}:${rows[0]?.[0] ?? ""}`;
   const latest = hovered ?? data.at(-1) ?? null;
   const previous = latest
     ? data[Math.max(0, data.findIndex((row) => row.time === latest.time) - 1)]
@@ -237,6 +253,7 @@ export default function ChartWorkspace({
         borderVisible: false,
         wickUpColor: "#cf202f",
         wickDownColor: "#2563eb",
+        priceFormat: plainPriceFormat,
       });
       series.setData(data);
       price = series;
@@ -244,11 +261,16 @@ export default function ChartWorkspace({
       const series = chart.addSeries(BarSeries, {
         upColor: "#cf202f",
         downColor: "#2563eb",
+        priceFormat: plainPriceFormat,
       });
       series.setData(data);
       price = series;
     } else {
-      const series = chart.addSeries(LineSeries, { color: "#0052ff", lineWidth: 2 });
+      const series = chart.addSeries(LineSeries, {
+        color: "#0052ff",
+        lineWidth: 2,
+        priceFormat: plainPriceFormat,
+      });
       series.setData(data.map((row) => ({ time: row.time, value: row.close })));
       price = series;
     }
@@ -262,6 +284,7 @@ export default function ChartWorkspace({
         priceLineVisible: false,
         lastValueVisible: true,
         title: "평균 매입 단가",
+        priceFormat: plainPriceFormat,
       });
       series.setData(lineData(holdings, 3));
     }
@@ -272,6 +295,7 @@ export default function ChartWorkspace({
         priceLineVisible: false,
         lastValueVisible: false,
         title: "20 이평선",
+        priceFormat: plainPriceFormat,
       });
       series.setData(movingAverage(data, 20));
     }
@@ -282,6 +306,7 @@ export default function ChartWorkspace({
         priceLineVisible: false,
         lastValueVisible: false,
         title: "60 이평선",
+        priceFormat: plainPriceFormat,
       });
       series.setData(movingAverage(data, 60));
     }
@@ -304,6 +329,7 @@ export default function ChartWorkspace({
     );
 
     let paneIndex = 1;
+    const paneKeys: PaneKey[] = ["price"];
     const stretchFactors = [6];
 
     const antIndex = chart.addSeries(LineSeries, {
@@ -312,29 +338,31 @@ export default function ChartWorkspace({
       priceScaleId: "ant-index",
       priceLineVisible: false,
       title: "개미지수",
+      priceFormat: plainPriceFormat,
     });
     antIndex.setData(lineData(holdings, 2));
     antIndex.moveToPane(paneIndex++);
     antIndex.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
+    paneKeys.push("ant");
     stretchFactors.push(1.5);
 
     if (holdingInvestors.length) {
       const holdingPane = paneIndex++;
       holdingInvestors.forEach((investor) => {
-        const label = investorOptions.find(([value]) => value === investor)?.[1] ?? "";
         const series = chart.addSeries(LineSeries, {
           color: investorColors[investor - 1],
           lineWidth: 2,
-          priceScaleId: "holding-change",
+          priceScaleId: "right",
           priceFormat: { type: "percent" },
           priceLineVisible: false,
-          lastValueVisible: true,
-          title: `보유비중 증감 · ${label}`,
+          lastValueVisible: false,
+          title: "",
         });
         series.setData(lineData(holdingChanges, investor));
         series.moveToPane(holdingPane);
         series.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
       });
+      paneKeys.push("holding");
       stretchFactors.push(2);
     }
 
@@ -350,7 +378,7 @@ export default function ChartWorkspace({
           priceFormat: { type: "percent" },
           priceLineVisible: false,
           lastValueVisible: false,
-          title: `영향력 · ${label}`,
+          title: label,
         });
         series.setData(
           power
@@ -374,6 +402,7 @@ export default function ChartWorkspace({
         series.moveToPane(powerPane);
         series.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.08 } });
       });
+      paneKeys.push("power");
       stretchFactors.push(2);
     }
 
@@ -388,10 +417,14 @@ export default function ChartWorkspace({
     rsSeries.setData(lineData(rs, 1));
     rsSeries.moveToPane(paneIndex);
     rsSeries.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
+    paneKeys.push("rs");
     stretchFactors.push(1.5);
 
+    const savedView = savedViewRef.current?.key === viewKey ? savedViewRef.current : null;
     chart.panes().forEach((pane, index) => {
-      pane.setStretchFactor(stretchFactors[index] ?? 1);
+      pane.setStretchFactor(
+        savedView?.paneStretch[paneKeys[index]] ?? stretchFactors[index] ?? 1,
+      );
     });
 
     chart.subscribeCrosshairMove((param) =>
@@ -400,6 +433,14 @@ export default function ChartWorkspace({
     chart.timeScale().fitContent();
 
     return () => {
+      savedViewRef.current = {
+        key: viewKey,
+        paneStretch: Object.fromEntries(
+          chart
+            .panes()
+            .map((pane, index) => [paneKeys[index], pane.getStretchFactor()]),
+        ),
+      };
       chart.remove();
       chartRef.current = null;
       priceRef.current = null;
@@ -496,6 +537,21 @@ export default function ChartWorkspace({
         <div className="chart-surface">
           <div ref={hostRef} className="chart-engine" />
         </div>
+        {holdingInvestors.length > 0 && (
+          <aside className="chart-holding-legend" aria-label="선택 세력 차트 레전드">
+            {holdingInvestors.map((investor) => {
+              const label = investorOptions.find(([value]) => value === investor)?.[1] ?? "";
+              const value = Number(holdingChanges[0]?.[investor]);
+              return (
+                <div key={investor}>
+                  <i style={{ background: investorColors[investor - 1] }} />
+                  <span>{label}</span>
+                  <b>{Number.isFinite(value) ? `${value.toFixed(2)}%` : "—"}</b>
+                </div>
+              );
+            })}
+          </aside>
+        )}
       </div>
 
       <div

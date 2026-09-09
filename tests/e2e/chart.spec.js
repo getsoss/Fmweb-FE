@@ -59,6 +59,19 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   await expect(page.locator(".pro-chart")).toBeVisible();
   await expect(page.locator(".chart-engine canvas").first()).toBeVisible();
+  await expect(page.locator(".app-bar")).toHaveCount(0);
+  const workspaceMenu = page.locator(".workspace-menu");
+  await expect(workspaceMenu.getByRole("link", { name: "모트레이더 네이버카페 새 창에서 열기" })).toBeVisible();
+  await expect(workspaceMenu.getByRole("link", { name: "제미나이" })).toBeVisible();
+  await expect(workspaceMenu.getByRole("link", { name: "ChatGPT" })).toBeVisible();
+  await expect(workspaceMenu.getByRole("button", { name: "계정", exact: true })).toBeVisible();
+  const workspaceTops = await page.evaluate(() => ({
+    workspace: document.querySelector(".market-workspace")?.getBoundingClientRect().top ?? -1,
+    chart: document.querySelector(".workspace-chart-slot")?.getBoundingClientRect().top ?? -2,
+    menu: document.querySelector(".workspace-menu")?.getBoundingClientRect().top ?? -3,
+  }));
+  expect(Math.abs(workspaceTops.chart - workspaceTops.workspace)).toBeLessThanOrEqual(1);
+  expect(Math.abs(workspaceTops.menu - workspaceTops.workspace)).toBeLessThanOrEqual(1);
   await expect(page.locator(".search-dock")).toBeVisible();
   await expect(page.locator(".results-panel")).toBeVisible();
   await expect(page.locator(".watch-panel")).toBeVisible();
@@ -85,6 +98,9 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(alwaysVisible).toContainText("주가 · 거래량");
   await expect(alwaysVisible).toContainText("개미지수");
   await expect(alwaysVisible).toContainText("RS");
+  await expect(page.getByLabel("차트 종류")).toBeVisible();
+  await expect(page.getByLabel("가격 스케일")).toBeVisible();
+  await expect(page.getByRole("button", { name: "전체 구간" })).toBeVisible();
   const holdingControls = page.locator(".chart-holding-controls");
   await expect(holdingControls.getByText("보유비중", { exact: true })).toBeVisible();
   await holdingControls.getByRole("checkbox", { name: "외국인", exact: true }).check();
@@ -102,6 +118,55 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(page.locator(".news-panel")).toContainText("SK하이닉스 뉴스 제목");
   expect(await page.locator("tr").evaluateAll(rows => rows.some(row => [...row.childNodes].some(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === "" && node.textContent.length > 0)))).toBe(false);
   expect(consoleErrors.filter(message => message.includes("whitespace text nodes") || message.includes("hydration"))).toEqual([]);
+});
+
+test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 유지한다", async ({ page }) => {
+  await mockStockData(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  await page.locator(".chart-engine canvas").first().waitFor();
+
+  const chartRows = page.locator(".chart-engine table tr");
+  const chartTable = page.locator(".chart-engine table");
+  const ma60 = page.getByLabel("차트 표시 지표").getByRole("checkbox", { name: "60 이평선" });
+  let previousTable = await chartTable.elementHandle();
+  await ma60.uncheck();
+  await expect.poll(() => previousTable.evaluate(element => element.isConnected)).toBe(false);
+  const firstSeparator = chartRows.nth(1).locator("div").last();
+  const separatorBox = await firstSeparator.boundingBox();
+  expect(separatorBox).not.toBeNull();
+  await page.mouse.move(separatorBox.x + separatorBox.width / 2, separatorBox.y + separatorBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(separatorBox.x + separatorBox.width / 2, separatorBox.y + separatorBox.height / 2 + 40, { steps: 6 });
+  await page.mouse.up();
+  const resizedHeight = await chartRows.nth(0).evaluate(element => element.getBoundingClientRect().height);
+  previousTable = await chartTable.elementHandle();
+  await ma60.check();
+  await expect.poll(() => previousTable.evaluate(element => element.isConnected)).toBe(false);
+  await expect.poll(() => chartRows.nth(0).evaluate(element => element.getBoundingClientRect().height)).toBe(resizedHeight);
+
+  const holdingControls = page.locator(".chart-holding-controls");
+  previousTable = await chartTable.elementHandle();
+  await holdingControls.getByRole("checkbox", { name: "외국인", exact: true }).check();
+  await expect.poll(() => previousTable.evaluate(element => element.isConnected)).toBe(false);
+  await expect(chartRows).toHaveCount(8);
+  const holdingHeight = await chartRows.nth(0).evaluate(element => element.getBoundingClientRect().height);
+  previousTable = await chartTable.elementHandle();
+  await holdingControls.getByRole("checkbox", { name: "기관계", exact: true }).check();
+  await expect.poll(() => previousTable.evaluate(element => element.isConnected)).toBe(false);
+  await expect.poll(() => chartRows.nth(0).evaluate(element => element.getBoundingClientRect().height)).toBe(holdingHeight);
+
+  const legend = page.getByLabel("선택 세력 차트 레전드");
+  await expect(legend).toContainText("외국인");
+  await expect(legend).toContainText("기관계");
+  await expect(legend).not.toContainText("보유비중");
+  await expect(legend).not.toContainText("증감");
+  const legendLayout = await page.evaluate(() => {
+    const surface = document.querySelector(".chart-surface")?.getBoundingClientRect();
+    const legend = document.querySelector(".chart-holding-legend")?.getBoundingClientRect();
+    return { surfaceRight: surface?.right ?? 0, legendLeft: legend?.left ?? -1 };
+  });
+  expect(legendLayout.legendLeft).toBeGreaterThanOrEqual(legendLayout.surfaceRight - 1);
 });
 
 test("검색 결과의 기본 4열과 창 설정 모달을 제공한다", async ({ page }) => {
@@ -215,16 +280,12 @@ test("계정에서 마이페이지와 비밀번호 재설정 및 회원 탈퇴 �
   await expect(withdraw.getByRole("button", { name: "탈퇴하기" })).toBeEnabled();
 });
 
-test("API v09 조건 검색 모드를 제공한다", async ({ page }) => {
+test("차트 상단의 중복 메뉴를 제거한다", async ({ page }) => {
   await mockStockData(page);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
-  await page.getByRole("button", { name: "조건 검색", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "종목 조건 검색" });
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "보유비중" }).click();
-  await expect(dialog.getByLabel("시작일")).toBeVisible();
-  await expect(dialog.getByLabel("종료일")).toBeVisible();
+  await expect(page.getByRole("button", { name: "조건 검색", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("종목코드 검색")).toHaveCount(0);
 });
 
 test("로그인 옵션과 오류 상태를 제공한다", async ({ page }) => {
