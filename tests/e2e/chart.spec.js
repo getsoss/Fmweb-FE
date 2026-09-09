@@ -8,7 +8,7 @@ async function mockStockData(page) {
       json: {
         ticker,
         candles: [[20260831, 74200, 1200000, 0, 73500, 74800, 73000], [20260830, 73500, 980000, 0, 72800, 74000, 72400]],
-        holdings: [[20260831, 0, 51, 69800], [20260830, 0, 49, 69400]],
+        holdings: [[20260831, 0, 1413177, 69800], [20260830, 0, 1400000, 69400]],
         holdingChanges: [investors(20260831, 1), investors(20260830, 0)],
         power: [investors(20260831, 2), investors(20260830, 1)],
         direction: [investors(20260831, 1), investors(20260830, -1)],
@@ -166,6 +166,8 @@ test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 
     const surface = document.querySelector(".chart-surface")?.getBoundingClientRect();
     const legend = document.querySelector(".chart-holding-legend")?.getBoundingClientRect();
     const readout = document.querySelector(".ohlcv-strip")?.getBoundingClientRect();
+    const firstPane = document.querySelector(".chart-engine table tr");
+    const rightAxis = firstPane?.lastElementChild?.getBoundingClientRect();
     return {
       stageWidth: stage?.width ?? 0,
       surfaceWidth: surface?.width ?? -1,
@@ -173,11 +175,13 @@ test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 
       legendBottom: legend?.bottom ?? 0,
       legendRight: legend?.right ?? 0,
       readoutRight: readout?.right ?? -1,
+      rightAxisWidth: rightAxis?.width ?? Number.POSITIVE_INFINITY,
     };
   });
   expect(Math.abs(legendLayout.stageWidth - legendLayout.surfaceWidth)).toBeLessThanOrEqual(1);
   expect(legendLayout.legendBottom).toBeLessThanOrEqual(legendLayout.surfaceTop + 1);
   expect(legendLayout.legendRight).toBeLessThanOrEqual(legendLayout.readoutRight + 1);
+  expect(legendLayout.rightAxisWidth).toBeLessThanOrEqual(70);
 });
 
 test("검색 결과의 기본 4열과 창 설정 모달을 제공한다", async ({ page }) => {

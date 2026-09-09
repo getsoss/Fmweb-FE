@@ -75,13 +75,29 @@ const investorColors = [
   "#546e7a",
 ] as const;
 
-const plainPriceFormat = {
+function trimChartDecimals(value: number) {
+  const rounded = Number(value.toFixed(2));
+  return Object.is(rounded, -0) ? "0" : String(rounded);
+}
+
+function compactChartNumber(value: number) {
+  const absolute = Math.abs(value);
+  if (absolute >= 1_000_000_000) return `${trimChartDecimals(value / 1_000_000_000)}B`;
+  if (absolute >= 1_000_000) return `${trimChartDecimals(value / 1_000_000)}M`;
+  if (absolute >= 1_000) return `${trimChartDecimals(value / 1_000)}K`;
+  return trimChartDecimals(value);
+}
+
+const compactPriceFormat = {
   type: "custom" as const,
   minMove: 0.01,
-  formatter: (value: number) => {
-    const rounded = Number(value.toFixed(2));
-    return Object.is(rounded, -0) ? "0" : String(rounded);
-  },
+  formatter: compactChartNumber,
+};
+
+const percentPriceFormat = {
+  type: "custom" as const,
+  minMove: 0.01,
+  formatter: (value: number) => `${trimChartDecimals(value)}%`,
 };
 
 function timestamp(value: number): UTCTimestamp {
@@ -225,6 +241,7 @@ export default function ChartWorkspace({
         background: { type: ColorType.Solid, color: "#fff" },
         textColor: "#7c828a",
         fontFamily: "Inter,system-ui,sans-serif",
+        fontSize: 11,
         panes: {
           enableResize: true,
           separatorColor: "#dee1e6",
@@ -241,7 +258,7 @@ export default function ChartWorkspace({
         borderColor: "#dee1e6",
         scaleMargins: { top: 0.08, bottom: 0.25 },
       },
-      timeScale: { borderColor: "#dee1e6", rightOffset: 4, barSpacing: 8 },
+      timeScale: { borderColor: "#dee1e6", rightOffset: 0, barSpacing: 8 },
     });
     chartRef.current = chart;
 
@@ -253,7 +270,7 @@ export default function ChartWorkspace({
         borderVisible: false,
         wickUpColor: "#cf202f",
         wickDownColor: "#2563eb",
-        priceFormat: plainPriceFormat,
+        priceFormat: compactPriceFormat,
       });
       series.setData(data);
       price = series;
@@ -261,7 +278,7 @@ export default function ChartWorkspace({
       const series = chart.addSeries(BarSeries, {
         upColor: "#cf202f",
         downColor: "#2563eb",
-        priceFormat: plainPriceFormat,
+        priceFormat: compactPriceFormat,
       });
       series.setData(data);
       price = series;
@@ -269,7 +286,7 @@ export default function ChartWorkspace({
       const series = chart.addSeries(LineSeries, {
         color: "#0052ff",
         lineWidth: 2,
-        priceFormat: plainPriceFormat,
+        priceFormat: compactPriceFormat,
       });
       series.setData(data.map((row) => ({ time: row.time, value: row.close })));
       price = series;
@@ -284,7 +301,7 @@ export default function ChartWorkspace({
         priceLineVisible: false,
         lastValueVisible: true,
         title: "평균 매입 단가",
-        priceFormat: plainPriceFormat,
+        priceFormat: compactPriceFormat,
       });
       series.setData(lineData(holdings, 3));
     }
@@ -295,7 +312,7 @@ export default function ChartWorkspace({
         priceLineVisible: false,
         lastValueVisible: false,
         title: "20 이평선",
-        priceFormat: plainPriceFormat,
+        priceFormat: compactPriceFormat,
       });
       series.setData(movingAverage(data, 20));
     }
@@ -306,7 +323,7 @@ export default function ChartWorkspace({
         priceLineVisible: false,
         lastValueVisible: false,
         title: "60 이평선",
-        priceFormat: plainPriceFormat,
+        priceFormat: compactPriceFormat,
       });
       series.setData(movingAverage(data, 60));
     }
@@ -338,7 +355,7 @@ export default function ChartWorkspace({
       priceScaleId: "ant-index",
       priceLineVisible: false,
       title: "개미지수",
-      priceFormat: plainPriceFormat,
+      priceFormat: compactPriceFormat,
     });
     antIndex.setData(lineData(holdings, 2));
     antIndex.moveToPane(paneIndex++);
@@ -353,7 +370,7 @@ export default function ChartWorkspace({
           color: investorColors[investor - 1],
           lineWidth: 2,
           priceScaleId: "right",
-          priceFormat: { type: "percent" },
+          priceFormat: percentPriceFormat,
           priceLineVisible: false,
           lastValueVisible: false,
           title: "",
@@ -375,7 +392,7 @@ export default function ChartWorkspace({
         );
         const series = chart.addSeries(HistogramSeries, {
           priceScaleId: "power",
-          priceFormat: { type: "percent" },
+          priceFormat: percentPriceFormat,
           priceLineVisible: false,
           lastValueVisible: false,
           title: label,
@@ -410,7 +427,7 @@ export default function ChartWorkspace({
       color: "#0d88c7",
       lineWidth: 2,
       priceScaleId: "rs",
-      priceFormat: { type: "percent" },
+      priceFormat: percentPriceFormat,
       priceLineVisible: false,
       title: "RS",
     });
