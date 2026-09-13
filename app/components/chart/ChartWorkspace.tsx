@@ -12,6 +12,7 @@ import {
   createChart,
   type IChartApi,
   type ISeriesApi,
+  type LogicalRange,
   type SeriesType,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -57,6 +58,7 @@ type PaneKey = "price" | "ant" | "holding" | "power" | "rs";
 type SavedChartView = {
   key: string;
   paneStretch: Partial<Record<PaneKey, number>>;
+  visibleLogicalRange: LogicalRange | null;
 };
 
 const investorColors = [
@@ -300,7 +302,7 @@ export default function ChartWorkspace({
         lineWidth: 2,
         priceLineVisible: false,
         lastValueVisible: true,
-        title: "평균 매입 단가",
+        title: "",
         priceFormat: compactPriceFormat,
       });
       series.setData(lineData(holdings, 3));
@@ -310,8 +312,8 @@ export default function ChartWorkspace({
         color: "#f4b000",
         lineWidth: 2,
         priceLineVisible: false,
-        lastValueVisible: false,
-        title: "20 이평선",
+        lastValueVisible: true,
+        title: "",
         priceFormat: compactPriceFormat,
       });
       series.setData(movingAverage(data, 20));
@@ -321,8 +323,8 @@ export default function ChartWorkspace({
         color: "#8b5cf6",
         lineWidth: 2,
         priceLineVisible: false,
-        lastValueVisible: false,
-        title: "60 이평선",
+        lastValueVisible: true,
+        title: "",
         priceFormat: compactPriceFormat,
       });
       series.setData(movingAverage(data, 60));
@@ -354,7 +356,7 @@ export default function ChartWorkspace({
       lineWidth: 2,
       priceScaleId: "ant-index",
       priceLineVisible: false,
-      title: "개미지수",
+      title: "",
       priceFormat: compactPriceFormat,
     });
     antIndex.setData(lineData(holdings, 2));
@@ -391,11 +393,14 @@ export default function ChartWorkspace({
           direction.map((row) => [row[0], Number(row[investor])]),
         );
         const series = chart.addSeries(HistogramSeries, {
-          priceScaleId: "power",
+          priceScaleId: "right",
           priceFormat: percentPriceFormat,
           priceLineVisible: false,
           lastValueVisible: false,
           title: label,
+          autoscaleInfoProvider: () => ({
+            priceRange: { minValue: 0, maxValue: 100 },
+          }),
         });
         series.setData(
           power
@@ -447,11 +452,16 @@ export default function ChartWorkspace({
     chart.subscribeCrosshairMove((param) =>
       setHovered(param.time ? data.find((row) => row.time === param.time) ?? null : null),
     );
-    chart.timeScale().fitContent();
+    if (savedView?.visibleLogicalRange) {
+      chart.timeScale().setVisibleLogicalRange(savedView.visibleLogicalRange);
+    } else {
+      chart.timeScale().fitContent();
+    }
 
     return () => {
       savedViewRef.current = {
         key: viewKey,
+        visibleLogicalRange: chart.timeScale().getVisibleLogicalRange(),
         paneStretch: Object.fromEntries(
           chart
             .panes()
@@ -550,21 +560,6 @@ export default function ChartWorkspace({
             </>
           )}
         </div>
-        {holdingInvestors.length > 0 && (
-          <aside className="chart-holding-legend" aria-label="선택 세력 차트 레전드">
-            {holdingInvestors.map((investor) => {
-              const label = investorOptions.find(([value]) => value === investor)?.[1] ?? "";
-              const value = Number(holdingChanges[0]?.[investor]);
-              return (
-                <div key={investor}>
-                  <i style={{ background: investorColors[investor - 1] }} />
-                  <span>{label}</span>
-                  <b>{Number.isFinite(value) ? `${value.toFixed(2)}%` : "—"}</b>
-                </div>
-              );
-            })}
-          </aside>
-        )}
       </div>
 
       <div className="chart-stage chart-stage--multi-pane">
@@ -577,9 +572,6 @@ export default function ChartWorkspace({
         className="indicator-selector chart-indicator-controls"
         aria-label="차트 표시 지표"
       >
-        <div className="chart-always-visible" aria-label="항상 표시 지표">
-          <strong>항상 표시</strong><span>주가 · 거래량</span><span>개미지수</span><span>RS</span>
-        </div>
         <div className="chart-indicator-group chart-overlay-controls">
           <strong className="chart-indicator-label">주가 보조선</strong>
           <div className="indicator-checks chart-overlay-options">
