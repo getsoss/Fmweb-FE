@@ -160,19 +160,10 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 
 /* Multi-pane chart controls: actual checkboxes are preferred in the compact area. */
 .chart-stage--multi-pane{min-height:0;flex:1}
-.ohlcv-strip:has(.chart-holding-legend){gap:0;overflow:hidden}
 .ohlcv-values{min-width:0;display:flex;align-items:center;gap:14px;flex:1;overflow-x:auto}
-.chart-holding-legend{max-width:50%;height:100%;margin-left:auto;padding-left:12px;display:flex;align-items:center;gap:12px;flex:none;overflow-x:auto;border-left:1px solid var(--hairline-soft);background:#fff}
-.chart-holding-legend>div{display:flex;align-items:center;gap:5px;color:var(--body);font-size:10px}
-.chart-holding-legend i{width:7px;height:7px;border-radius:50%}
-.chart-holding-legend span{white-space:nowrap}
-.chart-holding-legend b{color:var(--ink);font:10px var(--mono);white-space:nowrap}
 .chart-indicator-controls{max-height:142px;padding:8px 10px;display:grid;grid-template-columns:1fr;align-items:start;justify-content:stretch;gap:5px;overflow:auto;border-top:1px solid var(--hairline);border-bottom:0;background:#fff}
-.chart-always-visible,.chart-indicator-group{min-width:0;display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:8px}
-.chart-always-visible strong,.chart-indicator-label{color:var(--body);font-size:10px;white-space:nowrap}
-.chart-always-visible>span{margin-right:10px;color:var(--muted);font-size:10px;white-space:nowrap}
-.chart-always-visible{display:flex;padding-bottom:4px;border-bottom:1px solid var(--hairline-soft)}
-.chart-always-visible strong{margin-right:3px;color:var(--primary)}
+.chart-indicator-group{min-width:0;display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:8px}
+.chart-indicator-label{color:var(--body);font-size:10px;white-space:nowrap}
 .chart-indicator-controls .indicator-checks{display:grid;grid-template-columns:repeat(3,minmax(max-content,1fr));gap:5px 12px}
 .chart-indicator-controls .indicator-checks label{display:flex;align-items:center;gap:5px;cursor:pointer}
 .chart-indicator-controls .indicator-checks label:not(:first-child):not(:last-child){justify-self:center}

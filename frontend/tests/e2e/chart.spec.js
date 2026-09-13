@@ -4,10 +4,16 @@ async function mockStockData(page) {
   await page.route("**/api/stocks/*", route => {
     const ticker = new URL(route.request().url()).pathname.split("/").at(-1);
     const investors = (date, base) => [date, ...Array.from({ length: 13 }, (_, index) => base + index)];
+    const candles = Array.from({ length: 80 }, (_, index) => {
+      const date = new Date(Date.UTC(2026, 7, 31 - index));
+      const dateValue = Number(date.toISOString().slice(0, 10).replaceAll("-", ""));
+      const close = 74200 - index * 50;
+      return [dateValue, close, 1200000 - index * 1000, 0, close - 700, close + 600, close - 1200];
+    });
     return route.fulfill({
       json: {
         ticker,
-        candles: [[20260831, 74200, 1200000, 0, 73500, 74800, 73000], [20260830, 73500, 980000, 0, 72800, 74000, 72400]],
+        candles,
         holdings: [[20260831, 0, 1413177, 69800], [20260830, 0, 1400000, 69400]],
         holdingChanges: [investors(20260831, 1), investors(20260830, 0)],
         power: [investors(20260831, 2), investors(20260830, 1)],
@@ -94,10 +100,7 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(indicators.getByText("평균매수단가", { exact: true })).toBeVisible();
   await expect(indicators.getByText("20 이평선", { exact: true })).toBeVisible();
   await expect(indicators.getByText("60 이평선", { exact: true })).toBeVisible();
-  const alwaysVisible = page.getByLabel("항상 표시 지표");
-  await expect(alwaysVisible).toContainText("주가 · 거래량");
-  await expect(alwaysVisible).toContainText("개미지수");
-  await expect(alwaysVisible).toContainText("RS");
+  await expect(page.getByLabel("항상 표시 지표")).toHaveCount(0);
   await expect(page.getByLabel("차트 종류")).toBeVisible();
   await expect(page.getByLabel("가격 스케일")).toBeVisible();
   await expect(page.getByRole("button", { name: "전체 구간" })).toBeVisible();
@@ -120,7 +123,15 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   expect(consoleErrors.filter(message => message.includes("whitespace text nodes") || message.includes("hydration"))).toEqual([]);
 });
 
-test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 유지한다", async ({ page }) => {
+test("지표 변경 뒤에도 차트 크기와 시간축을 유지하고 불필요한 레전드를 표시하지 않는다", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__chartCanvasTexts = [];
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (value, ...args) {
+      window.__chartCanvasTexts.push(String(value));
+      return fillText.call(this, value, ...args);
+    };
+  });
   await mockStockData(page);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
@@ -146,26 +157,53 @@ test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 
   await expect.poll(() => chartRows.nth(0).evaluate(element => element.getBoundingClientRect().height)).toBe(resizedHeight);
 
   const holdingControls = page.locator(".chart-holding-controls");
+  const chartSurface = page.locator(".chart-surface");
+  const surfaceBox = await chartSurface.boundingBox();
+  expect(surfaceBox).not.toBeNull();
+  const timeAxis = chartRows.last();
+  const fittedTimeAxis = await timeAxis.screenshot();
+  await page.mouse.move(surfaceBox.x + surfaceBox.width / 2, surfaceBox.y + 80);
+  await page.mouse.down();
+  await page.mouse.move(surfaceBox.x + surfaceBox.width / 2 - 180, surfaceBox.y + 80, { steps: 8 });
+  await page.mouse.up();
+  await page.mouse.move(surfaceBox.x + 20, surfaceBox.y + surfaceBox.height + 20);
+  const adjustedTimeAxis = await timeAxis.screenshot();
+  expect(adjustedTimeAxis.equals(fittedTimeAxis)).toBe(false);
+
   previousTable = await chartTable.elementHandle();
   await holdingControls.getByRole("checkbox", { name: "외국인", exact: true }).check();
   await expect.poll(() => previousTable.evaluate(element => element.isConnected)).toBe(false);
   await expect(chartRows).toHaveCount(8);
+  expect((await chartRows.last().screenshot()).equals(adjustedTimeAxis)).toBe(true);
   const holdingHeight = await chartRows.nth(0).evaluate(element => element.getBoundingClientRect().height);
   previousTable = await chartTable.elementHandle();
   await holdingControls.getByRole("checkbox", { name: "기관계", exact: true }).check();
   await expect.poll(() => previousTable.evaluate(element => element.isConnected)).toBe(false);
   await expect.poll(() => chartRows.nth(0).evaluate(element => element.getBoundingClientRect().height)).toBe(holdingHeight);
 
-  const legend = page.getByLabel("선택 세력 차트 레전드");
-  await expect(legend).toContainText("외국인");
-  await expect(legend).toContainText("기관계");
-  await expect(legend).not.toContainText("보유비중");
-  await expect(legend).not.toContainText("증감");
+  await expect(page.getByLabel("선택 세력 차트 레전드")).toHaveCount(0);
+  await expect(page.locator(".chart-holding-legend")).toHaveCount(0);
+  await expect(page.locator(".chart-always-visible")).toHaveCount(0);
+
+  const powerControls = page.locator(".chart-power-controls");
+  await powerControls.getByRole("checkbox", { name: "개인투자자", exact: true }).check();
+  await expect.poll(async () => {
+    const texts = await page.evaluate(() => window.__chartCanvasTexts);
+    return texts.includes("0%") && texts.includes("100%");
+  }).toBe(true);
+  const canvasTexts = await page.evaluate(() => window.__chartCanvasTexts);
+  expect(canvasTexts).not.toContain("평균 매입 단가");
+  expect(canvasTexts).not.toContain("20 이평선");
+  expect(canvasTexts).not.toContain("60 이평선");
+  expect(canvasTexts).not.toContain("개미지수");
+  expect(canvasTexts).toContain("69.8K");
+  expect(canvasTexts).toContain("73.72K");
+  expect(canvasTexts).toContain("72.72K");
+  expect(canvasTexts).toContain("1.41M");
+
   const legendLayout = await page.evaluate(() => {
     const stage = document.querySelector(".chart-stage")?.getBoundingClientRect();
     const surface = document.querySelector(".chart-surface")?.getBoundingClientRect();
-    const legend = document.querySelector(".chart-holding-legend")?.getBoundingClientRect();
-    const readout = document.querySelector(".ohlcv-strip")?.getBoundingClientRect();
     const firstPane = document.querySelector(".chart-engine table tr");
     const rightAxis = firstPane?.lastElementChild?.getBoundingClientRect();
     const overlayOptions = document.querySelector(".chart-overlay-options")?.getBoundingClientRect();
@@ -175,18 +213,12 @@ test("차트 크기와 보유비중 레전드 설정을 지표 변경 뒤에도 
     return {
       stageWidth: stage?.width ?? 0,
       surfaceWidth: surface?.width ?? -1,
-      surfaceTop: surface?.top ?? -1,
-      legendBottom: legend?.bottom ?? 0,
-      legendRight: legend?.right ?? 0,
-      readoutRight: readout?.right ?? -1,
       rightAxisWidth: rightAxis?.width ?? Number.POSITIVE_INFINITY,
       overlayGap: (overlayOptions?.right ?? 0) - (overlayLast?.right ?? Number.NEGATIVE_INFINITY),
       investorGap: (investorOptions?.right ?? 0) - (investorLast?.right ?? Number.NEGATIVE_INFINITY),
     };
   });
   expect(Math.abs(legendLayout.stageWidth - legendLayout.surfaceWidth)).toBeLessThanOrEqual(1);
-  expect(legendLayout.legendBottom).toBeLessThanOrEqual(legendLayout.surfaceTop + 1);
-  expect(legendLayout.legendRight).toBeLessThanOrEqual(legendLayout.readoutRight + 1);
   expect(legendLayout.rightAxisWidth).toBeLessThanOrEqual(70);
   expect(Math.abs(legendLayout.overlayGap)).toBeLessThanOrEqual(1);
   expect(Math.abs(legendLayout.investorGap)).toBeLessThanOrEqual(1);
