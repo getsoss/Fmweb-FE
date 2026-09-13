@@ -106,6 +106,28 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(page.getByRole("button", { name: "전체 구간" })).toBeVisible();
   const holdingControls = page.locator(".chart-holding-controls");
   await expect(holdingControls.getByText("보유비중", { exact: true })).toBeVisible();
+  expect(await holdingControls.locator("label span").allTextContents()).toEqual([
+    "개인", "외국인", "기관계", "금투", "보험", "투신", "기금", "은행",
+    "연기", "사모", "기법", "내외국", "사연", "사투", "투연", "사투연",
+  ]);
+  expect(await holdingControls.locator("label span").evaluateAll(elements =>
+    elements.map(element => getComputedStyle(element).color),
+  )).toEqual([
+    "rgb(0, 0, 255)", "rgb(46, 192, 63)", "rgb(255, 0, 0)", "rgb(97, 203, 243)",
+    "rgb(218, 233, 248)", "rgb(190, 80, 20)", "rgb(89, 89, 89)", "rgb(204, 153, 0)",
+    "rgb(255, 255, 0)", "rgb(204, 0, 255)", "rgb(191, 191, 191)", "rgb(0, 255, 153)",
+    "rgb(181, 230, 162)", "rgb(247, 199, 172)", "rgb(255, 192, 0)", "rgb(255, 102, 255)",
+  ]);
+  const powerControls = page.locator(".chart-power-controls");
+  expect(await powerControls.locator("label span").allTextContents()).toEqual([
+    "개인", "외국인", "기관계", "금투", "보험", "투신",
+    "기금", "은행", "연기", "사모", "기법", "내외국",
+  ]);
+  expect(await powerControls.locator("label span").evaluateAll(elements =>
+    elements.every(element => getComputedStyle(element).color === "rgb(0, 0, 0)"),
+  )).toBe(true);
+  await expect(holdingControls.getByText("국가", { exact: true })).toHaveCount(0);
+  await expect(powerControls.getByText("국가", { exact: true })).toHaveCount(0);
   await holdingControls.getByRole("checkbox", { name: "외국인", exact: true }).check();
   await holdingControls.getByRole("checkbox", { name: "기관계", exact: true }).check();
   await expect(holdingControls.locator("input:checked")).toHaveCount(2);
@@ -186,7 +208,7 @@ test("지표 변경 뒤에도 차트 크기와 시간축을 유지하고 불필�
   await expect(page.locator(".chart-always-visible")).toHaveCount(0);
 
   const powerControls = page.locator(".chart-power-controls");
-  await powerControls.getByRole("checkbox", { name: "개인투자자", exact: true }).check();
+  await powerControls.getByRole("checkbox", { name: "개인", exact: true }).check();
   await expect.poll(async () => {
     const texts = await page.evaluate(() => window.__chartCanvasTexts);
     return texts.includes("0%") && texts.includes("100%");
@@ -222,6 +244,51 @@ test("지표 변경 뒤에도 차트 크기와 시간축을 유지하고 불필�
   expect(legendLayout.rightAxisWidth).toBeLessThanOrEqual(70);
   expect(Math.abs(legendLayout.overlayGap)).toBeLessThanOrEqual(1);
   expect(Math.abs(legendLayout.investorGap)).toBeLessThanOrEqual(1);
+});
+
+test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭제한다", async ({ page }) => {
+  await mockStockData(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  await page.locator(".chart-engine canvas").first().waitFor();
+
+  const chartRows = page.locator(".chart-engine table tr");
+  const pricePane = chartRows.nth(0);
+  const pricePaneBox = await pricePane.boundingBox();
+  expect(pricePaneBox).not.toBeNull();
+  const samsungRow = page.locator(".result-table-alerts tbody tr").filter({ hasText: "삼성전자" });
+  const alertPriceCell = samsungRow.locator("td").nth(3);
+  await expect(alertPriceCell).toHaveText("1,300");
+
+  await page.mouse.click(
+    pricePaneBox.x + pricePaneBox.width * 0.6,
+    pricePaneBox.y + pricePaneBox.height * 0.4,
+    { button: "right" },
+  );
+  const alertMenu = page.getByRole("menu", { name: "알람가격 메뉴" });
+  await expect(alertMenu).toBeVisible();
+  await expect(alertMenu.getByRole("menuitem", { name: "알람가격 넣기" })).toBeVisible();
+  await expect(alertMenu.getByRole("menuitem", { name: "알람가격 삭제" })).toBeVisible();
+  await alertMenu.getByRole("menuitem", { name: "알람가격 넣기" }).click();
+  await expect(alertPriceCell).not.toHaveText("1,300");
+  expect(Number((await alertPriceCell.textContent()).replaceAll(",", ""))).toBeGreaterThan(0);
+
+  await page.mouse.click(
+    pricePaneBox.x + pricePaneBox.width * 0.6,
+    pricePaneBox.y + pricePaneBox.height * 0.4,
+    { button: "right" },
+  );
+  await alertMenu.getByRole("menuitem", { name: "알람가격 삭제" }).click();
+  await expect(alertPriceCell).toHaveText("0");
+
+  const antPaneBox = await chartRows.nth(2).boundingBox();
+  expect(antPaneBox).not.toBeNull();
+  await page.mouse.click(
+    antPaneBox.x + antPaneBox.width * 0.6,
+    antPaneBox.y + antPaneBox.height * 0.5,
+    { button: "right" },
+  );
+  await expect(alertMenu).toHaveCount(0);
 });
 
 test("검색 결과의 기본 4열과 창 설정 모달을 제공한다", async ({ page }) => {

@@ -34,7 +34,15 @@ export default function Home() {
     <div className="workspace-page">
       {error && <div className="workspace-error" role="alert">{error} 종목코드를 확인하고 다시 조회해 주세요.</div>}
       {loading && !data && <div className="loading-card"><span/><span/><span/><p>시장 데이터를 가져오고 있어요</p></div>}
-      {data && <MarketWorkspace stocks={stocks} ticker={ticker} onSelect={selectTicker} menu={<nav className="workspace-service-links" aria-label="서비스 링크"><a href="https://cafe.naver.com/motrader" target="_blank" rel="noreferrer" aria-label="모트레이더 네이버카페 새 창에서 열기">네이버카페</a><a href="https://gemini.google.com" target="_blank" rel="noreferrer">제미나이</a><a href="https://chatgpt.com" target="_blank" rel="noreferrer">ChatGPT</a><button className="account-button" onClick={() => signedIn ? setAccountOpen(true) : setShowLogin(true)}>계정</button></nav>} chart={<ChartWorkspace rows={data.candles} holdings={data.holdings} holdingChanges={data.holdingChanges} power={data.power} direction={data.direction} rs={data.rs} ticker={ticker} name={name}/>}/>}
+      {data && (
+        <MarketWorkspace
+          stocks={stocks}
+          ticker={ticker}
+          onSelect={selectTicker}
+          menu={<nav className="workspace-service-links" aria-label="서비스 링크"><a href="https://cafe.naver.com/motrader" target="_blank" rel="noreferrer" aria-label="모트레이더 네이버카페 새 창에서 열기">네이버카페</a><a href="https://gemini.google.com" target="_blank" rel="noreferrer">제미나이</a><a href="https://chatgpt.com" target="_blank" rel="noreferrer">ChatGPT</a><button className="account-button" onClick={() => signedIn ? setAccountOpen(true) : setShowLogin(true)}>계정</button></nav>}
+          chart={onAlertPriceChange => <ChartWorkspace rows={data.candles} holdings={data.holdings} holdingChanges={data.holdingChanges} power={data.power} direction={data.direction} rs={data.rs} ticker={ticker} name={name} onAlertPriceChange={onAlertPriceChange}/>}
+        />
+      )}
     </div>
     {showScreener && <Screener
       onClose={() => setShowScreener(false)}
