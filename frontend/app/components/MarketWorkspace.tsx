@@ -28,7 +28,7 @@ function describePreset(preset: SearchPreset) {
   return `${preset.title} · ${filters.join(" · ")}`;
 }
 
-export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu }: { stocks: Stock[]; ticker: string; onSelect: (ticker: string) => void; chart: React.ReactNode; menu: React.ReactNode }) {
+export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu }: { stocks: Stock[]; ticker: string; onSelect: (ticker: string) => void; chart: (onAlertPriceChange: (price: number) => void) => React.ReactNode; menu: React.ReactNode }) {
   const [preset, setPreset] = useState<SearchPreset>(emptyPreset);
   const [slots, setSlots] = useState<(SearchPreset | null)[]>([null, null, null, null, null]);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
@@ -122,6 +122,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
     setMessage(`${stock.name} 차트를 표시했습니다.`);
   }
   function setSortKey(key: keyof ResultRow) { setSort(current => ({ key, asc: current.key === key ? !current.asc : true })); }
+  function setAlertPrice(price: number) { setResults(current => current.map(row => row.ticker === ticker ? { ...row, alertPrice: price } : row)); }
   function toggleBookmark(code: string) { setBookmarks(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]); }
   function addWatch(code: string) {
     setWatchlists(current => {
@@ -168,7 +169,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
   <section className="market-workspace" style={workspaceStyle} aria-label="세력모니터 워크스페이스">
     {message && <div className="workspace-message" role="status">{message}<button onClick={() => setMessage("")} aria-label="알림 닫기">×</button></div>}
     <div className="workspace-primary">
-      <div className="workspace-chart-slot">{chart}</div>
+      <div className="workspace-chart-slot">{chart(setAlertPrice)}</div>
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="차트와 검색 영역 높이 조절" aria-orientation="horizontal" aria-valuemin={206} aria-valuemax={300} aria-valuenow={dockHeight} tabIndex={0} onPointerDown={capture} onPointerMove={resizeDock} onDoubleClick={() => setDockHeight(224)} onKeyDown={event => { if (event.key === "ArrowUp") setDockHeight(value => clamp(value + 8, 206, 300)); if (event.key === "ArrowDown") setDockHeight(value => clamp(value - 8, 206, 300)); }} />
       <section className="workspace-panel search-dock" style={{ flexBasis: dockHeight }} aria-label="종목 및 저장 검색">
         <div className="stock-lookup">

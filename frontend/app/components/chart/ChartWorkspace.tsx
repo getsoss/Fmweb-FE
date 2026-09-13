@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import {
   BarSeries,
   CandlestickSeries,
@@ -36,46 +42,56 @@ type Props = {
   rs: number[][];
   ticker: string;
   name: string;
+  onAlertPriceChange: (price: number) => void;
 };
 
-const investorOptions = [
-  [1, "개인투자자"],
-  [2, "외국인"],
-  [3, "기관계"],
-  [4, "금융투자"],
-  [5, "보험"],
-  [6, "투신"],
-  [7, "기타금융"],
-  [8, "은행"],
-  [9, "연기금등"],
-  [10, "사모펀드"],
-  [11, "국가"],
-  [12, "기타법인"],
-  [13, "내외국인"],
-] as const;
-type InvestorIndex = (typeof investorOptions)[number][0];
+type InvestorIndex = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+
+const holdingInvestorOptions = [
+  { key: "personal", label: "개인", columns: [1], color: "#0000FF" },
+  { key: "foreign", label: "외국인", columns: [2], color: "#2EC03F" },
+  { key: "institution", label: "기관계", columns: [3], color: "#FF0000" },
+  { key: "finance", label: "금투", columns: [4], color: "#61CBF3" },
+  { key: "insurance", label: "보험", columns: [5], color: "#DAE9F8" },
+  { key: "trust", label: "투신", columns: [6], color: "#BE5014" },
+  { key: "other-finance", label: "기금", columns: [7], color: "#595959" },
+  { key: "bank", label: "은행", columns: [8], color: "#CC9900" },
+  { key: "pension", label: "연기", columns: [9], color: "#FFFF00" },
+  { key: "private-fund", label: "사모", columns: [10], color: "#CC00FF" },
+  { key: "other-corporation", label: "기법", columns: [12], color: "#BFBFBF" },
+  { key: "domestic-foreign", label: "내외국", columns: [13], color: "#00FF99" },
+  { key: "private-pension", label: "사연", columns: [10, 9], color: "#B5E6A2" },
+  { key: "private-trust", label: "사투", columns: [10, 6], color: "#F7C7AC" },
+  { key: "trust-pension", label: "투연", columns: [6, 9], color: "#FFC000" },
+  { key: "private-trust-pension", label: "사투연", columns: [10, 6, 9], color: "#FF66FF" },
+] as const satisfies readonly {
+  key: string;
+  label: string;
+  columns: readonly InvestorIndex[];
+  color: string;
+}[];
+type HoldingInvestorKey = (typeof holdingInvestorOptions)[number]["key"];
+
+const powerInvestorOptions = [
+  { key: 1, label: "개인" },
+  { key: 2, label: "외국인" },
+  { key: 3, label: "기관계" },
+  { key: 4, label: "금투" },
+  { key: 5, label: "보험" },
+  { key: 6, label: "투신" },
+  { key: 7, label: "기금" },
+  { key: 8, label: "은행" },
+  { key: 9, label: "연기" },
+  { key: 10, label: "사모" },
+  { key: 12, label: "기법" },
+  { key: 13, label: "내외국" },
+] as const satisfies readonly { key: InvestorIndex; label: string }[];
 type PaneKey = "price" | "ant" | "holding" | "power" | "rs";
 type SavedChartView = {
   key: string;
   paneStretch: Partial<Record<PaneKey, number>>;
   visibleLogicalRange: LogicalRange | null;
 };
-
-const investorColors = [
-  "#0052ff",
-  "#ef6c00",
-  "#7c3aed",
-  "#00897b",
-  "#d81b60",
-  "#6d4c41",
-  "#3949ab",
-  "#43a047",
-  "#c0a000",
-  "#8e24aa",
-  "#00acc1",
-  "#f4511e",
-  "#546e7a",
-] as const;
 
 function trimChartDecimals(value: number) {
   const rounded = Number(value.toFixed(2));
@@ -167,15 +183,27 @@ function lineData(rows: number[][], column: number) {
     );
 }
 
-function toggleSelection(
-  selected: InvestorIndex[],
-  value: InvestorIndex,
-): InvestorIndex[] {
+function combinedLineData(rows: number[][], columns: readonly InvestorIndex[]) {
+  return rows
+    .slice()
+    .reverse()
+    .flatMap((row) => {
+      const values = columns.map((column) => Number(row[column]));
+      return values.every(Number.isFinite)
+        ? [
+            {
+              time: timestamp(row[0]),
+              value: values.reduce((sum, value) => sum + value, 0),
+            },
+          ]
+        : [];
+    });
+}
+
+function toggleSelection<T>(selected: T[], value: T, order: readonly T[]): T[] {
   return selected.includes(value)
     ? selected.filter((item) => item !== value)
-    : investorOptions
-        .map(([index]) => index)
-        .filter((index) => [...selected, value].includes(index));
+    : order.filter((item) => [...selected, value].includes(item));
 }
 
 function scaleMode(scale: "normal" | "log" | "percent") {
@@ -193,8 +221,10 @@ export default function ChartWorkspace({
   rs,
   ticker,
   name,
+  onAlertPriceChange,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const priceRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const savedViewRef = useRef<SavedChartView | null>(null);
@@ -204,9 +234,14 @@ export default function ChartWorkspace({
   const [averagePrice, setAveragePrice] = useState(true);
   const [ma20, setMa20] = useState(true);
   const [ma60, setMa60] = useState(true);
-  const [holdingInvestors, setHoldingInvestors] = useState<InvestorIndex[]>([]);
+  const [holdingInvestors, setHoldingInvestors] = useState<HoldingInvestorKey[]>([]);
   const [powerInvestors, setPowerInvestors] = useState<InvestorIndex[]>([]);
   const [hovered, setHovered] = useState<OHLC | null>(null);
+  const [alertMenu, setAlertMenu] = useState<{
+    left: number;
+    top: number;
+    price: number;
+  } | null>(null);
 
   const base = useMemo<OHLC[]>(
     () =>
@@ -232,6 +267,57 @@ export default function ChartWorkspace({
     : null;
   const change =
     latest && previous ? ((latest.close - previous.close) / previous.close) * 100 : 0;
+
+  useEffect(() => {
+    if (!alertMenu) return;
+
+    const closeOnPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setAlertMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAlertMenu(null);
+    };
+    document.addEventListener("pointerdown", closeOnPointerDown);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnPointerDown);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [alertMenu]);
+
+  useEffect(() => setAlertMenu(null), [ticker]);
+
+  function openAlertMenu(event: ReactMouseEvent<HTMLDivElement>) {
+    const chart = chartRef.current;
+    const priceSeries = priceRef.current;
+    const pricePane = chart?.panes()[0]?.getHTMLElement();
+    if (!chart || !priceSeries || !pricePane) return;
+
+    const paneBounds = pricePane.getBoundingClientRect();
+    const insidePricePane =
+      event.clientX >= paneBounds.left &&
+      event.clientX <= paneBounds.right &&
+      event.clientY >= paneBounds.top &&
+      event.clientY <= paneBounds.bottom;
+    if (!insidePricePane) {
+      setAlertMenu(null);
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const price = Number(priceSeries.coordinateToPrice(event.clientY - paneBounds.top));
+    if (!Number.isFinite(price)) return;
+
+    const surfaceBounds = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 148;
+    const menuHeight = 72;
+    setAlertMenu({
+      left: Math.max(0, Math.min(event.clientX - surfaceBounds.left, surfaceBounds.width - menuWidth)),
+      top: Math.max(0, Math.min(event.clientY - surfaceBounds.top, surfaceBounds.height - menuHeight)),
+      price: Math.round(price),
+    });
+  }
 
   useEffect(() => {
     const host = hostRef.current;
@@ -367,9 +453,11 @@ export default function ChartWorkspace({
 
     if (holdingInvestors.length) {
       const holdingPane = paneIndex++;
-      holdingInvestors.forEach((investor) => {
+      holdingInvestors.forEach((key) => {
+        const investor = holdingInvestorOptions.find((option) => option.key === key);
+        if (!investor) return;
         const series = chart.addSeries(LineSeries, {
-          color: investorColors[investor - 1],
+          color: investor.color,
           lineWidth: 2,
           priceScaleId: "right",
           priceFormat: percentPriceFormat,
@@ -377,7 +465,7 @@ export default function ChartWorkspace({
           lastValueVisible: false,
           title: "",
         });
-        series.setData(lineData(holdingChanges, investor));
+        series.setData(combinedLineData(holdingChanges, investor.columns));
         series.moveToPane(holdingPane);
         series.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
       });
@@ -388,7 +476,7 @@ export default function ChartWorkspace({
     if (powerInvestors.length) {
       const powerPane = paneIndex++;
       powerInvestors.forEach((investor) => {
-        const label = investorOptions.find(([value]) => value === investor)?.[1] ?? "";
+        const label = powerInvestorOptions.find((option) => option.key === investor)?.label ?? "";
         const directions = new Map(
           direction.map((row) => [row[0], Number(row[investor])]),
         );
@@ -563,8 +651,37 @@ export default function ChartWorkspace({
       </div>
 
       <div className="chart-stage chart-stage--multi-pane">
-        <div className="chart-surface">
+        <div className="chart-surface" onContextMenu={openAlertMenu}>
           <div ref={hostRef} className="chart-engine" />
+          {alertMenu && (
+            <div
+              ref={menuRef}
+              className="chart-alert-menu"
+              role="menu"
+              aria-label="알람가격 메뉴"
+              style={{ left: alertMenu.left, top: alertMenu.top }}
+              onContextMenu={(event) => event.preventDefault()}
+            >
+              <button
+                role="menuitem"
+                onClick={() => {
+                  onAlertPriceChange(alertMenu.price);
+                  setAlertMenu(null);
+                }}
+              >
+                알람가격 넣기
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  onAlertPriceChange(0);
+                  setAlertMenu(null);
+                }}
+              >
+                알람가격 삭제
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -588,12 +705,14 @@ export default function ChartWorkspace({
         <InvestorControls
           className="chart-holding-controls"
           label="보유비중"
+          options={holdingInvestorOptions}
           selected={holdingInvestors}
           setSelected={setHoldingInvestors}
         />
         <InvestorControls
           className="chart-power-controls"
           label="영향력"
+          options={powerInvestorOptions}
           selected={powerInvestors}
           setSelected={setPowerInvestors}
         />
@@ -602,27 +721,38 @@ export default function ChartWorkspace({
   );
 }
 
-function InvestorControls({
+function InvestorControls<T extends string | number>({
   className,
   label,
+  options,
   selected,
   setSelected,
 }: {
   className: string;
   label: string;
-  selected: InvestorIndex[];
-  setSelected: (value: InvestorIndex[]) => void;
+  options: readonly { key: T; label: string; color?: string }[];
+  selected: T[];
+  setSelected: (value: T[]) => void;
 }) {
   return (
     <div className={`chart-indicator-group chart-investor-controls ${className}`}>
       <strong className="chart-indicator-label">{label}</strong>
       <div className="indicator-checks chart-investor-options">
-        {investorOptions.map(([value, investorLabel]) => (
+        {options.map((option) => (
           <Indicator
-            key={value}
-            checked={selected.includes(value)}
-            set={() => setSelected(toggleSelection(selected, value))}
-            label={investorLabel}
+            key={option.key}
+            checked={selected.includes(option.key)}
+            set={() =>
+              setSelected(
+                toggleSelection(
+                  selected,
+                  option.key,
+                  options.map((item) => item.key),
+                ),
+              )
+            }
+            label={option.label}
+            color={option.color}
           />
         ))}
       </div>
@@ -634,10 +764,12 @@ function Indicator({
   checked,
   set,
   label,
+  color,
 }: {
   checked: boolean;
   set: (value: boolean) => void;
   label: string;
+  color?: string;
 }) {
   return (
     <label>
@@ -646,7 +778,7 @@ function Indicator({
         checked={checked}
         onChange={(event) => set(event.target.checked)}
       />
-      <span>{label}</span>
+      <span style={color ? { color } : undefined}>{label}</span>
     </label>
   );
 }
