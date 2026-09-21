@@ -127,8 +127,10 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
     "기금", "은행", "연기", "사모", "기법", "내외국",
   ]);
   expect(await powerControls.locator("label span").evaluateAll(elements =>
-    elements.every(element => getComputedStyle(element).color === "rgb(0, 0, 0)"),
-  )).toBe(true);
+    elements.map(element => getComputedStyle(element).color),
+  )).toEqual(await holdingControls.locator("label span").evaluateAll(elements =>
+    elements.slice(0, 12).map(element => getComputedStyle(element).color),
+  ));
   await expect(holdingControls.getByText("국가", { exact: true })).toHaveCount(0);
   await expect(powerControls.getByText("국가", { exact: true })).toHaveCount(0);
   await holdingControls.getByRole("checkbox", { name: "외국인", exact: true }).check();
@@ -233,20 +235,31 @@ test("지표 변경 뒤에도 차트 크기와 시간축을 유지하고 불필�
     const rightAxis = firstPane?.lastElementChild?.getBoundingClientRect();
     const overlayOptions = document.querySelector(".chart-overlay-options")?.getBoundingClientRect();
     const overlayLast = document.querySelector(".chart-overlay-options label:last-child")?.getBoundingClientRect();
-    const investorOptions = document.querySelector(".chart-holding-controls .chart-investor-options")?.getBoundingClientRect();
-    const investorLast = document.querySelector(".chart-holding-controls label:last-child")?.getBoundingClientRect();
+    const investorRows = [...document.querySelectorAll(".chart-investor-options")].map(row => {
+      const rowRect = row.getBoundingClientRect();
+      const labels = [...row.querySelectorAll("label")].map(label => label.getBoundingClientRect());
+      return {
+        display: getComputedStyle(row).display,
+        justifyContent: getComputedStyle(row).justifyContent,
+        startGap: (labels[0]?.left ?? Number.POSITIVE_INFINITY) - rowRect.left,
+        gaps: labels.slice(1).map((label, index) => label.left - labels[index].right),
+      };
+    });
     return {
       stageWidth: stage?.width ?? 0,
       surfaceWidth: surface?.width ?? -1,
       rightAxisWidth: rightAxis?.width ?? Number.POSITIVE_INFINITY,
       overlayGap: (overlayOptions?.right ?? 0) - (overlayLast?.right ?? Number.NEGATIVE_INFINITY),
-      investorGap: (investorOptions?.right ?? 0) - (investorLast?.right ?? Number.NEGATIVE_INFINITY),
+      investorRows,
     };
   });
   expect(Math.abs(legendLayout.stageWidth - legendLayout.surfaceWidth)).toBeLessThanOrEqual(1);
   expect(legendLayout.rightAxisWidth).toBeLessThanOrEqual(70);
   expect(Math.abs(legendLayout.overlayGap)).toBeLessThanOrEqual(1);
-  expect(Math.abs(legendLayout.investorGap)).toBeLessThanOrEqual(1);
+  expect(legendLayout.investorRows).toHaveLength(2);
+  expect(legendLayout.investorRows.every(row => row.display === "flex" && row.justifyContent === "flex-start")).toBe(true);
+  expect(legendLayout.investorRows.every(row => Math.abs(row.startGap) <= 1)).toBe(true);
+  expect(legendLayout.investorRows.every(row => row.gaps.every(gap => Math.abs(gap - 12) <= 1))).toBe(true);
 });
 
 test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭제한다", async ({ page }) => {
