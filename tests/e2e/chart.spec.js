@@ -305,6 +305,8 @@ test("검색 결과의 기본 4열과 창 설정 모달을 제공한다", async 
   await expect(table.locator(".alert-status-warning")).toHaveText("U-20%");
   await expect(table.locator(".alert-status-caution")).toHaveText("U-12%");
   await expect(table.locator(".alert-status-low")).toHaveText("-50%");
+  await page.getByRole("button", { name: "전종목 보기", exact: true }).click();
+  await expect(page.locator(".workspace-message")).toHaveCount(0);
 
   await page.getByRole("button", { name: "창 설정", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "검색창 설정 하기" });
@@ -357,16 +359,22 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await page.locator(".result-table tbody tr").filter({ hasText: "SK하이닉스" }).click();
   await expect(page.locator(".chart-identity")).toContainText("000660");
   await expect(settings).toHaveCount(1);
-  await settings.getByRole("button", { name: "임시 검색" }).first().click();
-  const alert = page.getByRole("status");
-  await expect(alert).toContainText("검색기간을 선택해 주세요");
-  await alert.getByRole("button", { name: "알림 닫기" }).click();
+  await expect(settings.getByRole("radio", { name: "1주", exact: true })).toBeChecked();
+  await expect(settings.getByRole("radio", { name: "상위 20", exact: true })).toBeChecked();
+  await expect(settings.getByRole("radio", { name: "3달", exact: true })).toBeVisible();
+  await settings.getByRole("radio", { name: "3달", exact: true }).check();
+  await settings.getByRole("radio", { name: "상위 50", exact: true }).check();
+  await settings.getByRole("button", { name: "초기화", exact: true }).click();
+  await expect(settings.getByRole("radio", { name: "1주", exact: true })).toBeChecked();
+  await expect(settings.getByRole("radio", { name: "상위 20", exact: true })).toBeChecked();
   await settings.getByRole("button", { name: /^검색 1/ }).click();
-  await settings.getByText("1주", { exact: true }).click();
   await settings.getByLabel("검색 제목").fill("급등주 위주");
   await settings.getByRole("button", { name: "검색조건 저장" }).click();
-  await expect(settings).toHaveCount(0);
+  await expect(settings).toBeVisible();
+  await expect(page.locator(".workspace-message")).toHaveCount(0);
   await expect(launcher.locator(".preset-description")).toContainText("급등주 위주");
+  await launcher.getByRole("button", { name: "검색조건 접기" }).click();
+  await expect(settings).toHaveCount(0);
 });
 
 test("계정에서 마이페이지와 비밀번호 재설정 및 회원 탈퇴 모달을 연다", async ({ page }) => {
