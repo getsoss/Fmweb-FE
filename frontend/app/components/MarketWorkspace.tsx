@@ -7,7 +7,7 @@ type SearchPreset = { title: string; period: string; limit: number; perLimit: nu
 type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number };
 type NewsItem = [string, string, string];
 
-const emptyPreset: SearchPreset = { title: "", period: "", limit: 50, perLimit: 100, ant: false, antPriority: "모양 우선", holding: false, influence: false, rs: "any", ibd: "any", ma: "any", ma20: false, ma60: false, volume: "any", detailVolume: [], value: "any" };
+const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, antPriority: "모양 우선", holding: false, influence: false, rs: "any", ibd: "any", ma: "any", ma20: false, ma60: false, volume: "any", detailVolume: [], value: "any" };
 const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
 const sample: ResultRow[] = [
   { name: "삼성전자", ticker: "005930", price: 74200, change: 1.42, alertPrice: 1300, alertChange: -12, alertUp: true, value: 456700, average: 543000, ibd: 99, rank: 33 },
@@ -39,7 +39,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
   const [gather, setGather] = useState(false);
   const [sort, setSort] = useState<{ key: keyof ResultRow; asc: boolean }>({ key: "ibd", asc: false });
   const [hidden, setHidden] = useState<string[]>(["profit", "value", "average", "ibd", "rank"]);
-  const [message, setMessage] = useState("");
+  const [, setMessage] = useState("");
   const [investors, setInvestors] = useState<Record<string, string>>({});
   const [directTicker, setDirectTicker] = useState(ticker);
   const [directName, setDirectName] = useState(stocks.find(stock => stock.ticker === ticker)?.name ?? "");
@@ -103,7 +103,6 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
     setSlots(next);
     setActiveSlot(index);
     setMessage(`검색 ${index + 1}에 조건을 저장했습니다.`);
-    setSettingsOpen(false);
   }
   function runSearch() {
     if (!preset.period) return setMessage("필수 항목인 검색기간을 선택해 주세요.");
@@ -167,7 +166,6 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
 
   return <div className={`market-workspace-shell ${settingsOpen ? "settings-open" : ""}`}>
   <section className="market-workspace" style={workspaceStyle} aria-label="세력모니터 워크스페이스">
-    {message && <div className="workspace-message" role="status">{message}<button onClick={() => setMessage("")} aria-label="알림 닫기">×</button></div>}
     <div className="workspace-primary">
       <div className="workspace-chart-slot">{chart(setAlertPrice)}</div>
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="차트와 검색 영역 높이 조절" aria-orientation="horizontal" aria-valuemin={206} aria-valuemax={300} aria-valuenow={dockHeight} tabIndex={0} onPointerDown={capture} onPointerMove={resizeDock} onDoubleClick={() => setDockHeight(224)} onKeyDown={event => { if (event.key === "ArrowUp") setDockHeight(value => clamp(value + 8, 206, 300)); if (event.key === "ArrowDown") setDockHeight(value => clamp(value - 8, 206, 300)); }} />
@@ -232,7 +230,7 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
   return <section id="search-settings-panel" className="workspace-panel search-builder search-settings-panel search-settings-page" aria-label="검색 설정창">
     <aside><div className="settings-panel-heading"><span className="panel-kicker">저장 위치</span><button onClick={onClose} aria-label="검색 설정 접기">×</button></div><div className="preset-slots">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => onSelectSlot(index, slot)}><b>검색 {index + 1}</b><small>{slot?.title || "설정되지 않음"}</small></button>)}</div><label>검색 제목<input required value={preset.title} placeholder="예: 급등주 위주" onChange={event => setPreset({ ...preset, title: event.target.value })} /></label><button className="secondary-action" onClick={onSave}>검색조건 저장</button></aside>
     <div className="condition-scroll"><div className="condition-title"><div><span className="panel-kicker">검색 설정창</span><h2 id="search-settings-title">{activeSlot === null ? "새 검색 만들기" : `검색 ${activeSlot + 1}`}</h2><p>검색조건은 임시 검색으로 먼저 확인한 뒤 원하는 위치에 저장할 수 있습니다.</p></div><div className="builder-actions"><button onClick={() => { setPreset(emptyPreset); setActiveSlot(null); }}>초기화</button><button className="primary-action" onClick={onSearch}>임시 검색</button></div></div>
-      <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
+      <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달", "3달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
       <Condition title="최종 검색 결과 최대치 *" required><Radio values={[20, 50, 100, 200, 300]} value={preset.limit} set={limit => setPreset({ ...preset, limit: Number(limit) })} prefix="상위 " /></Condition>
       <Condition title="개별 검색결과 허용 종목수 *" required><Radio values={[100, 200, 400]} value={preset.perLimit} set={perLimit => setPreset({ ...preset, perLimit: Number(perLimit) })} prefix="상위 " /></Condition>
       <Condition title="개미 분석 필터"><Toggle checked={preset.ant} label="사용" onChange={ant => setPreset({ ...preset, ant })} /><Radio disabled={!preset.ant} values={["모양 우선", "크기차 우선"]} value={preset.antPriority} set={antPriority => setPreset({ ...preset, antPriority: String(antPriority) })} /></Condition>

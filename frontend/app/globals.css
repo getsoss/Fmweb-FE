@@ -170,6 +170,7 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .chart-indicator-controls .indicator-checks label:last-child{justify-self:end}
 .chart-indicator-controls .indicator-checks input{position:static;width:13px;height:13px;margin:0;opacity:1;accent-color:var(--primary)}
 .chart-indicator-controls .indicator-checks span{min-height:0;padding:0;border:0;border-radius:0;background:transparent!important;color:var(--body);font-size:10px;white-space:nowrap}
+.chart-overlay-controls .indicator-checks input:checked+span{color:var(--body)}
 .chart-power-controls .indicator-checks input:checked+span,.chart-power-controls .indicator-checks span{color:#000}
 .chart-holding-controls .chart-investor-options{grid-template-columns:repeat(16,minmax(max-content,1fr));max-height:34px;overflow-x:auto;overflow-y:hidden}
 .chart-power-controls .chart-investor-options{grid-template-columns:repeat(12,minmax(max-content,1fr));max-height:34px;overflow-x:auto;overflow-y:hidden}
