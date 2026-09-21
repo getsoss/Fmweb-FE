@@ -73,19 +73,19 @@ const holdingInvestorOptions = [
 type HoldingInvestorKey = (typeof holdingInvestorOptions)[number]["key"];
 
 const powerInvestorOptions = [
-  { key: 1, label: "개인" },
-  { key: 2, label: "외국인" },
-  { key: 3, label: "기관계" },
-  { key: 4, label: "금투" },
-  { key: 5, label: "보험" },
-  { key: 6, label: "투신" },
-  { key: 7, label: "기금" },
-  { key: 8, label: "은행" },
-  { key: 9, label: "연기" },
-  { key: 10, label: "사모" },
-  { key: 12, label: "기법" },
-  { key: 13, label: "내외국" },
-] as const satisfies readonly { key: InvestorIndex; label: string }[];
+  { key: 1, label: "개인", color: "#FF0000" },
+  { key: 2, label: "외국인", color: "#0000FF" },
+  { key: 3, label: "기관계", color: "#035703" },
+  { key: 4, label: "금투", color: "#FF991C" },
+  { key: 5, label: "보험", color: "#800080" },
+  { key: 6, label: "투신", color: "#36BF05" },
+  { key: 7, label: "기금", color: "#6C6922" },
+  { key: 8, label: "은행", color: "#8B4513" },
+  { key: 9, label: "연기", color: "#FD0BE4" },
+  { key: 10, label: "사모", color: "#000000" },
+  { key: 12, label: "기법", color: "#616868" },
+  { key: 13, label: "내외국", color: "#DC143C" },
+] as const satisfies readonly { key: InvestorIndex; label: string; color: string }[];
 type PaneKey = "price" | "ant" | "holding" | "power" | "rs";
 type SavedChartView = {
   key: string;
