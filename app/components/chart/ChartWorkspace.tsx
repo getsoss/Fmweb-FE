@@ -48,22 +48,22 @@ type Props = {
 type InvestorIndex = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
 
 const holdingInvestorOptions = [
-  { key: "personal", label: "개인", columns: [1], color: "#0000FF" },
-  { key: "foreign", label: "외국인", columns: [2], color: "#2EC03F" },
-  { key: "institution", label: "기관계", columns: [3], color: "#FF0000" },
-  { key: "finance", label: "금투", columns: [4], color: "#61CBF3" },
-  { key: "insurance", label: "보험", columns: [5], color: "#DAE9F8" },
-  { key: "trust", label: "투신", columns: [6], color: "#BE5014" },
-  { key: "other-finance", label: "기금", columns: [7], color: "#595959" },
-  { key: "bank", label: "은행", columns: [8], color: "#CC9900" },
-  { key: "pension", label: "연기", columns: [9], color: "#FFFF00" },
-  { key: "private-fund", label: "사모", columns: [10], color: "#CC00FF" },
-  { key: "other-corporation", label: "기법", columns: [12], color: "#BFBFBF" },
-  { key: "domestic-foreign", label: "내외국", columns: [13], color: "#00FF99" },
-  { key: "private-pension", label: "사연", columns: [10, 9], color: "#B5E6A2" },
-  { key: "private-trust", label: "사투", columns: [10, 6], color: "#F7C7AC" },
-  { key: "trust-pension", label: "투연", columns: [6, 9], color: "#FFC000" },
-  { key: "private-trust-pension", label: "사투연", columns: [10, 6, 9], color: "#FF66FF" },
+  { key: "personal", label: "개인", columns: [1], color: "#FF0000" },
+  { key: "foreign", label: "외국인", columns: [2], color: "#0000FF" },
+  { key: "institution", label: "기관계", columns: [3], color: "#035703" },
+  { key: "finance", label: "금투", columns: [4], color: "#FF991C" },
+  { key: "insurance", label: "보험", columns: [5], color: "#800080" },
+  { key: "trust", label: "투신", columns: [6], color: "#36BF05" },
+  { key: "other-finance", label: "기금", columns: [7], color: "#6C6922" },
+  { key: "bank", label: "은행", columns: [8], color: "#8B4513" },
+  { key: "pension", label: "연기", columns: [9], color: "#FD0BE4" },
+  { key: "private-fund", label: "사모", columns: [10], color: "#000000" },
+  { key: "other-corporation", label: "기법", columns: [12], color: "#616868" },
+  { key: "domestic-foreign", label: "내외국", columns: [13], color: "#DC143C" },
+  { key: "private-pension", label: "사연", columns: [10, 9], color: "#9932CC" },
+  { key: "private-trust", label: "사투", columns: [10, 6], color: "#20B2AA" },
+  { key: "trust-pension", label: "투연", columns: [6, 9], color: "#FF4500" },
+  { key: "private-trust-pension", label: "사투연", columns: [10, 6, 9], color: "#104F83" },
 ] as const satisfies readonly {
   key: string;
   label: string;

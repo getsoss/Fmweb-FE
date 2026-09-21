@@ -100,6 +100,9 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(indicators.getByText("평균매수단가", { exact: true })).toBeVisible();
   await expect(indicators.getByText("20 이평선", { exact: true })).toBeVisible();
   await expect(indicators.getByText("60 이평선", { exact: true })).toBeVisible();
+  expect(await page.locator(".chart-overlay-controls input:checked + span").evaluateAll(elements =>
+    elements.every(element => getComputedStyle(element).color === "rgb(91, 97, 110)"),
+  )).toBe(true);
   await expect(page.getByLabel("항상 표시 지표")).toHaveCount(0);
   await expect(page.getByLabel("차트 종류")).toBeVisible();
   await expect(page.getByLabel("가격 스케일")).toBeVisible();
@@ -113,10 +116,10 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   expect(await holdingControls.locator("label span").evaluateAll(elements =>
     elements.map(element => getComputedStyle(element).color),
   )).toEqual([
-    "rgb(0, 0, 255)", "rgb(46, 192, 63)", "rgb(255, 0, 0)", "rgb(97, 203, 243)",
-    "rgb(218, 233, 248)", "rgb(190, 80, 20)", "rgb(89, 89, 89)", "rgb(204, 153, 0)",
-    "rgb(255, 255, 0)", "rgb(204, 0, 255)", "rgb(191, 191, 191)", "rgb(0, 255, 153)",
-    "rgb(181, 230, 162)", "rgb(247, 199, 172)", "rgb(255, 192, 0)", "rgb(255, 102, 255)",
+    "rgb(255, 0, 0)", "rgb(0, 0, 255)", "rgb(3, 87, 3)", "rgb(255, 153, 28)",
+    "rgb(128, 0, 128)", "rgb(54, 191, 5)", "rgb(108, 105, 34)", "rgb(139, 69, 19)",
+    "rgb(253, 11, 228)", "rgb(0, 0, 0)", "rgb(97, 104, 104)", "rgb(220, 20, 60)",
+    "rgb(153, 50, 204)", "rgb(32, 178, 170)", "rgb(255, 69, 0)", "rgb(16, 79, 131)",
   ]);
   const powerControls = page.locator(".chart-power-controls");
   expect(await powerControls.locator("label span").allTextContents()).toEqual([
