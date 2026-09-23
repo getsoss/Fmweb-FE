@@ -231,14 +231,17 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .workspace-secondary .result-table-alerts{min-width:100%}
 .result-table-alerts{border-collapse:separate;border-spacing:2px;background:#fff}
 .result-table-alerts th{height:48px;background:#c5534f;color:#fff;font-size:13px;text-align:center}
-.result-table-alerts th:nth-child(2),.result-table-alerts td:nth-child(2){text-align:center}
+.result-table-alerts th:nth-child(2),.result-table-alerts td:nth-child(2),.result-table-alerts th:nth-child(3),.result-table-alerts td:nth-child(3){text-align:center}
 .result-table-alerts th button{color:#fff}
-.result-table-alerts td{height:54px;border:0;background:#f1e4e4;color:#111;font-size:13px;text-align:center}
-.result-table-alerts tr:hover td,.result-table-alerts tr.selected td{background:#ead6d6}
+.result-table-alerts td{height:54px;border:0;background:#fff;color:#111;font-size:13px;text-align:center}
+.result-table-alerts tbody tr:nth-child(odd) td{background:#dce6f1}
+.result-table-alerts tbody tr:hover td,.result-table-alerts tbody tr.selected td{background:#a7e0e3}
+.result-table-alerts .bookmark-star{padding:0;border:0;background:transparent;color:#59606d;font-size:21px;line-height:1}
+.result-table-alerts tr.bookmarked .bookmark-star{color:#ffc000}
 .result-table-alerts td.alert-status{min-width:92px;font-size:16px}
-.result-table-alerts td.alert-status-warning,.result-table-alerts tr:hover td.alert-status-warning,.result-table-alerts tr.selected td.alert-status-warning{background:#ffc000}
-.result-table-alerts td.alert-status-caution,.result-table-alerts tr:hover td.alert-status-caution,.result-table-alerts tr.selected td.alert-status-caution{background:#ffff00}
-.result-table-alerts td.alert-status-low,.result-table-alerts tr:hover td.alert-status-low,.result-table-alerts tr.selected td.alert-status-low{background:#10a9da}
+.result-table-alerts tbody tr td.alert-status-warning,.result-table-alerts tr:hover td.alert-status-warning,.result-table-alerts tr.selected td.alert-status-warning{background:#ffc000}
+.result-table-alerts tbody tr td.alert-status-caution,.result-table-alerts tr:hover td.alert-status-caution,.result-table-alerts tr.selected td.alert-status-caution{background:#ff0000;color:#fff}
+.result-table-alerts tbody tr td.alert-status-low,.result-table-alerts tr:hover td.alert-status-low,.result-table-alerts tr.selected td.alert-status-low{background:#10a9da}
 
 @media(max-width:720px){.account-dialog dl>div{grid-template-columns:120px minmax(0,1fr)}.account-password-dialog>label{grid-template-columns:1fr;gap:4px}.account-password-dialog .reset-actions{width:100%;margin:4px 0 72px}.account-password-dialog>.primary-button{width:100%}.column-modal>div{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 10px}.column-modal h2{font-size:23px}}
 

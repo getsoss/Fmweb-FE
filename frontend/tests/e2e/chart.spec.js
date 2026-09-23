@@ -282,7 +282,7 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
   const pricePaneBox = await pricePane.boundingBox();
   expect(pricePaneBox).not.toBeNull();
   const samsungRow = page.locator(".result-table-alerts tbody tr").filter({ hasText: "삼성전자" });
-  const alertPriceCell = samsungRow.locator("td").nth(3);
+  const alertPriceCell = samsungRow.locator("td").nth(4);
   await expect(alertPriceCell).toHaveText("1,300");
 
   await page.mouse.click(
@@ -316,32 +316,52 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
   await expect(alertMenu).toHaveCount(0);
 });
 
-test("검색 결과의 기본 4열과 창 설정 모달을 제공한다", async ({ page }) => {
+test("검색 결과 행 상태, 북마크, 창 설정을 유지한다", async ({ page }) => {
   await mockStockData(page);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
 
   const table = page.locator(".result-table-alerts");
-  await expect(table.locator("thead th")).toHaveCount(4);
+  await expect(table.locator("thead th")).toHaveCount(5);
   await expect(table.locator("thead")).toContainText("번호");
+  await expect(table.locator("thead")).toContainText("북마크");
   await expect(table.locator("thead")).toContainText("종목");
   await expect(table.locator("thead")).toContainText("상태");
   await expect(table.locator("thead")).toContainText("알람 가격");
   await expect(table.locator(".alert-status-warning")).toHaveText("U-20%");
   await expect(table.locator(".alert-status-caution")).toHaveText("U-12%");
   await expect(table.locator(".alert-status-low")).toHaveText("-50%");
+  expect(await table.locator(".alert-status-warning").evaluate(element => getComputedStyle(element).backgroundColor)).toBe("rgb(255, 192, 0)");
+  expect(await table.locator(".alert-status-caution").evaluate(element => getComputedStyle(element).backgroundColor)).toBe("rgb(255, 0, 0)");
+  expect(await table.locator(".alert-status-low").evaluate(element => getComputedStyle(element).backgroundColor)).toBe("rgb(16, 169, 218)");
+  const skRow = table.locator("tbody tr").filter({ hasText: "SK하이닉스" });
+  expect(await skRow.locator("td").first().evaluate(element => getComputedStyle(element).backgroundColor)).toBe("rgb(255, 255, 255)");
+  await skRow.hover();
+  expect(await skRow.locator("td").first().evaluate(element => getComputedStyle(element).backgroundColor)).toBe("rgb(167, 224, 227)");
+  await skRow.click();
+  await page.locator(".panel-toolbar").hover();
+  expect(await skRow.locator("td").first().evaluate(element => getComputedStyle(element).backgroundColor)).toBe("rgb(167, 224, 227)");
+  const bookmark = table.getByRole("button", { name: "삼성전자 북마크 추가" });
+  await bookmark.click();
+  await expect(table.getByRole("button", { name: "삼성전자 북마크 해제" })).toHaveAttribute("aria-pressed", "true");
+  expect(await table.getByRole("button", { name: "삼성전자 북마크 해제" }).evaluate(element => getComputedStyle(element).color)).toBe("rgb(255, 192, 0)");
   await page.getByRole("button", { name: "전종목 보기", exact: true }).click();
   await expect(page.locator(".workspace-message")).toHaveCount(0);
 
   await page.getByRole("button", { name: "창 설정", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "검색창 설정 하기" });
   await expect(dialog).toBeVisible();
-  for (const label of ["알람가격", "현재상황", "계좌수익률", "거래액(백만)", "5일평균 거래액", "IBD RS", "고수 계좌"]) {
+  for (const label of ["알람가격", "상태", "계좌수익률", "거래액(백만)", "5일평균 거래액", "IBD RS", "고수 계좌"]) {
     await expect(dialog.getByRole("checkbox", { name: label, exact: true })).toBeVisible();
   }
   await expect(dialog.getByRole("checkbox")).toHaveCount(7);
   await dialog.getByRole("checkbox", { name: "계좌수익률", exact: true }).check();
   await expect(table.locator("thead")).toContainText("계좌 수익률");
+  await page.reload();
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  const restoredTable = page.locator(".result-table-alerts");
+  await expect(restoredTable.locator("thead")).toContainText("계좌 수익률");
+  await expect(restoredTable.getByRole("button", { name: "삼성전자 북마크 해제" })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영역을 연다", async ({ page }) => {
