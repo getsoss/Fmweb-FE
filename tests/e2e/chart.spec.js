@@ -1,6 +1,15 @@
 const { expect, test } = require("@playwright/test");
 
 async function mockStockData(page) {
+  const user = { userId: 1, name: "테스트 사용자", email: "test@example.com", grade: "4", certYn: "Y", joinDate: "2026-01-01", loginDate: "2026-09-24", withdraw: "N" };
+  await page.route("**/api/auth/me", route => route.fulfill({ json: { status: 200, user } }));
+  await page.route("**/api/conditional-search*", route => {
+    const method = route.request().method();
+    if (method === "GET") return route.fulfill({ json: { result: [] } });
+    if (method === "DELETE") return route.fulfill({ status: 204 });
+    if (method === "PUT") return route.fulfill({ json: { slot: route.request().postDataJSON().slot, last_updated: 1789531886 } });
+    return route.fulfill({ json: { errno: 0, elapsed_milliseconds: 1, count: 4, result: [["005930", 99], ["000660", 98], ["005380", 97], ["010140", 95]] } });
+  });
   await page.route("**/api/stocks/*", route => {
     const ticker = new URL(route.request().url()).pathname.split("/").at(-1);
     const investors = (date, base) => [date, ...Array.from({ length: 13 }, (_, index) => base + index)];
@@ -389,6 +398,9 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await expect(settings).toBeVisible();
   await expect(page.locator(".workspace-message")).toHaveCount(0);
   await expect(launcher.locator(".preset-description")).toContainText("급등주 위주");
+  await expect(settings.getByRole("button", { name: "저장조건 삭제" })).toBeEnabled();
+  await settings.getByRole("button", { name: "저장조건 삭제" }).click();
+  await expect(settings.getByRole("button", { name: "저장조건 삭제" })).toBeDisabled();
   await launcher.getByRole("button", { name: "검색조건 접기" }).click();
   await expect(settings).toHaveCount(0);
 });
@@ -441,7 +453,6 @@ test("로그인 옵션과 오류 상태를 제공한다", async ({ page }) => {
   });
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
-  await page.getByRole("button", { name: "계정", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "세력모니터 입장" });
   await dialog.getByRole("textbox", { name: "ID", exact: true }).fill("abc");
   await dialog.getByLabel("PW", { exact: true }).fill("12345678");
@@ -459,7 +470,6 @@ test("비밀번호 재설정 인증 흐름을 제공한다", async ({ page }) =>
   await page.route("**/api/auth/password", route => route.fulfill({ json: { status: 200 } }));
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
-  await page.getByRole("button", { name: "계정", exact: true }).click();
   await page.getByRole("button", { name: "비밀번호 찾기" }).click();
   const dialog = page.getByRole("dialog", { name: "비밀번호 찾기" });
   await dialog.getByLabel("이메일").fill("member@example.com");

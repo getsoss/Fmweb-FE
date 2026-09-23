@@ -6,9 +6,11 @@ type Stock = { name: string; ticker: string };
 type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; antPriority: string; holding: boolean; influence: boolean; rs: string; ibd: string; ma: string; ma20: boolean; ma60: boolean; volume: string; detailVolume: string[]; value: string };
 type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number };
 type NewsItem = [string, string, string];
+type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
 
 const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, antPriority: "모양 우선", holding: false, influence: false, rs: "any", ibd: "any", ma: "any", ma20: false, ma60: false, volume: "any", detailVolume: [], value: "any" };
 const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
+const investorKeys = ["individual", "foreigner", "othercorp", "inout", "organization", "finance", "insurance", "investtrust", "otherfinance", "bank", "pension", "privatefund", "privatefund_investtrust", "privatefund_pension", "investtrust_pension", "investtrust_privatefund_pension"];
 const sample: ResultRow[] = [
   { name: "삼성전자", ticker: "005930", price: 74200, change: 1.42, alertPrice: 1300, alertChange: -12, alertUp: true, value: 456700, average: 543000, ibd: 99, rank: 33 },
   { name: "SK하이닉스", ticker: "000660", price: 186300, change: -0.31, alertPrice: 111222, alertChange: -50, alertUp: false, value: 345300, average: 363400, ibd: 98, rank: 27 },
@@ -16,6 +18,75 @@ const sample: ResultRow[] = [
   { name: "삼성중공업", ticker: "010140", price: 12680, change: 0.48, alertPrice: null, alertChange: null, alertUp: false, value: 97800, average: 88400, ibd: 95, rank: 45 },
 ];
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const periodToTime: Record<string, number> = { "1주": 5, "2주": 10, "1달": 20, "2달": 40, "3달": 60 };
+const timeToPeriod: Record<number, string> = { 5: "1주", 10: "2주", 20: "1달", 40: "2달", 60: "3달" };
+const volumeToTime: Record<string, number> = { any: 0, "3m": 60, "6m": 120, "1y": 240 };
+const timeToVolume: Record<number, string> = { 0: "any", 60: "3m", 120: "6m", 240: "1y" };
+const valueToApi: Record<string, string> = { any: "0", "10": ">=1b", "50": ">=5b", "100": ">=10b", "500": ">=50b" };
+const valueFromApi: Record<string, string> = { "0": "any", ">=1b": "10", ">=5b": "50", ">=10b": "100", ">=50b": "500" };
+
+function investorObject(mode: "holding" | "power", enabled: boolean, selections: Record<string, string>) {
+  return Object.fromEntries([["disabled", enabled ? 0 : 1], ...investorGroups.map((name, index) => {
+    const selected = selections[`${mode}-${name}`];
+    return [investorKeys[index], selected === (mode === "holding" ? "증가" : "매수력") ? 1 : selected === (mode === "holding" ? "감소" : "매도력") ? 2 : 0];
+  })]);
+}
+
+function toCondition(preset: SearchPreset, selections: Record<string, string>): ConditionalSearch {
+  const movingAverage = preset.ma20 ? "u20" : preset.ma60 ? "u60" : preset.ma === "regular" ? "20>60" : "0";
+  const detail = Object.fromEntries([["time", volumeToTime[preset.volume] ?? 0], ...investorGroups.map((name, index) => [investorKeys[index], preset.detailVolume.includes(name) ? 1 : 0])]);
+  return {
+    time: periodToTime[preset.period] ?? 5,
+    result_max: preset.limit,
+    each_result_max: preset.perLimit,
+    ant_analysis_filter: { disabled: preset.ant ? 0 : 1, [preset.antPriority === "크기차 우선" ? "ant_index_size_first" : "ant_index_shape_first"]: preset.ant ? 1 : 0 },
+    have: investorObject("holding", preset.holding, selections),
+    power: investorObject("power", preset.influence, selections),
+    moving_average: movingAverage,
+    rs: preset.rs === "상승" ? 1 : preset.rs === "하락" ? 2 : 0,
+    ibdrs: preset.ibd === "80" ? ">80" : preset.ibd === "90" ? ">90" : "0",
+    all_special_volume: volumeToTime[preset.volume] ?? 0,
+    specific_special_volume: detail,
+    recent_five_days_average_trading_value: valueToApi[preset.value] ?? "0",
+    result_sort: 0,
+  };
+}
+
+function fromCondition(condition: ConditionalSearch, index: number, title?: string): SearchPreset {
+  const ant = condition.ant_analysis_filter ?? {};
+  const detail = condition.specific_special_volume ?? {};
+  const moving = condition.moving_average ?? "0";
+  return {
+    ...emptyPreset,
+    title: title || `검색 ${index + 1}`,
+    period: timeToPeriod[condition.time ?? 5] ?? "1주",
+    limit: condition.result_max ?? 20,
+    perLimit: condition.each_result_max ?? 100,
+    ant: ant.disabled !== 1,
+    antPriority: (ant.ant_index_size_first ?? 0) ? "크기차 우선" : "모양 우선",
+    holding: condition.have?.disabled !== 1,
+    influence: condition.power?.disabled !== 1,
+    rs: condition.rs === 1 ? "상승" : condition.rs === 2 ? "하락" : "any",
+    ibd: condition.ibdrs === ">80" ? "80" : condition.ibdrs === ">90" ? "90" : "any",
+    ma: moving === "20>60" ? "regular" : "any",
+    ma20: moving === "u20",
+    ma60: moving === "u60",
+    volume: timeToVolume[condition.all_special_volume ?? 0] ?? "any",
+    detailVolume: investorGroups.filter((_, investorIndex) => detail[investorKeys[investorIndex]] === 1),
+    value: valueFromApi[condition.recent_five_days_average_trading_value ?? "0"] ?? "any",
+  };
+}
+
+function selectionsFromCondition(condition: ConditionalSearch) {
+  const selections: Record<string, string> = {};
+  investorGroups.forEach((name, index) => {
+    const holding = condition.have?.[investorKeys[index]];
+    const power = condition.power?.[investorKeys[index]];
+    if (holding === 1 || holding === 2) selections[`holding-${name}`] = holding === 1 ? "증가" : "감소";
+    if (power === 1 || power === 2) selections[`power-${name}`] = power === 1 ? "매수력" : "매도력";
+  });
+  return selections;
+}
 
 function describePreset(preset: SearchPreset) {
   const filters = [preset.period, `최대 ${preset.limit}개`];
@@ -31,6 +102,7 @@ function describePreset(preset: SearchPreset) {
 export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu }: { stocks: Stock[]; ticker: string; onSelect: (ticker: string) => void; chart: (onAlertPriceChange: (price: number) => void) => React.ReactNode; menu: React.ReactNode }) {
   const [preset, setPreset] = useState<SearchPreset>(emptyPreset);
   const [slots, setSlots] = useState<(SearchPreset | null)[]>([null, null, null, null, null]);
+  const [slotInvestors, setSlotInvestors] = useState<Record<string, string>[]>([{},{},{},{},{}]);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [results, setResults] = useState<ResultRow[]>(sample);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
@@ -39,7 +111,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
   const [gather, setGather] = useState(false);
   const [sort, setSort] = useState<{ key: keyof ResultRow; asc: boolean }>({ key: "ibd", asc: false });
   const [hidden, setHidden] = useState<string[]>(["profit", "value", "average", "ibd", "rank"]);
-  const [, setMessage] = useState("");
+  const [message, setMessage] = useState("");
   const [investors, setInvestors] = useState<Record<string, string>>({});
   const [directTicker, setDirectTicker] = useState(ticker);
   const [directName, setDirectName] = useState(stocks.find(stock => stock.ticker === ticker)?.name ?? "");
@@ -52,19 +124,31 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
   useEffect(() => {
     try {
       const saved = localStorage.getItem("forcemonitor:workspace");
-      if (!saved) return;
-      const value = JSON.parse(saved);
-      if (value.slots) setSlots(value.slots);
+      const value = saved ? JSON.parse(saved) : {};
       if (value.bookmarks) setBookmarks(value.bookmarks);
       if (value.watchlists) setWatchlists(value.watchlists);
       if (Number.isFinite(value.columnSplit)) setColumnSplit(value.columnSplit);
       if (Number.isFinite(value.dockHeight)) setDockHeight(value.dockHeight);
       if (Number.isFinite(value.rightTop)) setRightTop(value.rightTop);
       if (Number.isFinite(value.rightMiddle)) setRightMiddle(value.rightMiddle);
-    } catch { /* Ignore damaged local preferences. */ }
+      const titles = Array.isArray(value.searchTitles) ? value.searchTitles : [];
+      fetch("/api/conditional-search").then(async response => {
+        const responseBody = await response.json();
+        if (!response.ok) throw new Error(responseBody.message);
+        const nextSlots: (SearchPreset | null)[] = [null, null, null, null, null];
+        const nextInvestors: Record<string, string>[] = [{},{},{},{},{}];
+        for (const savedSearch of responseBody.result ?? []) {
+          if (!Number.isInteger(savedSearch.slot) || savedSearch.slot < 0 || savedSearch.slot > 4) continue;
+          nextSlots[savedSearch.slot] = fromCondition(savedSearch.condition ?? {}, savedSearch.slot, titles[savedSearch.slot]);
+          nextInvestors[savedSearch.slot] = selectionsFromCondition(savedSearch.condition ?? {});
+        }
+        setSlots(nextSlots);
+        setSlotInvestors(nextInvestors);
+      }).catch(error => setMessage(error instanceof Error ? error.message : "저장된 검색조건을 불러오지 못했습니다."));
+    } catch { setMessage("저장된 화면 설정을 불러오지 못했습니다."); }
   }, []);
   useEffect(() => {
-    localStorage.setItem("forcemonitor:workspace", JSON.stringify({ slots, bookmarks, watchlists, columnSplit, dockHeight, rightTop, rightMiddle }));
+    localStorage.setItem("forcemonitor:workspace", JSON.stringify({ searchTitles: slots.map(slot => slot?.title ?? ""), bookmarks, watchlists, columnSplit, dockHeight, rightTop, rightMiddle }));
   }, [slots, bookmarks, watchlists, columnSplit, dockHeight, rightTop, rightMiddle]);
   useEffect(() => {
     setDirectTicker(ticker);
@@ -88,27 +172,46 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
     setActiveSlot(index);
     const saved = slots[index];
     setPreset(saved ? { ...emptyPreset, ...saved } : emptyPreset);
+    setInvestors(slotInvestors[index] ?? {});
     if (!saved) return setMessage(`검색 ${index + 1}에는 저장된 조건이 없습니다.`);
-    const next = sample.slice(0, Math.min(saved.limit, saved.perLimit, sample.length));
-    setResults(next);
-    setMessage(`검색 ${index + 1} · ${saved.title} 결과 ${next.length}개 종목`);
+    void runSearch(saved, slotInvestors[index] ?? {}, `검색 ${index + 1}`);
   }
-  function savePreset() {
+  async function savePreset() {
     if (!preset.period) return setMessage("필수 항목인 검색기간을 선택해 주세요.");
     if (!preset.title.trim()) return setMessage("검색 제목을 입력해 주세요.");
     if (activeSlot === null) return setMessage("저장 위치(검색1~검색5)를 먼저 선택해 주세요.");
     const index = activeSlot;
-    const next = [...slots];
-    next[index] = { ...preset, title: preset.title || `검색 ${index + 1}` };
-    setSlots(next);
-    setActiveSlot(index);
-    setMessage(`검색 ${index + 1}에 조건을 저장했습니다.`);
+    try {
+      const response = await fetch("/api/conditional-search", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot: index, condition: toCondition(preset, investors) }) });
+      const responseBody = await response.json();
+      if (!response.ok) throw new Error(responseBody.message);
+      const next = [...slots]; next[index] = { ...preset, title: preset.title || `검색 ${index + 1}` }; setSlots(next);
+      const nextInvestors = [...slotInvestors]; nextInvestors[index] = { ...investors }; setSlotInvestors(nextInvestors);
+      setMessage(`검색 ${index + 1}에 조건을 저장했습니다.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "검색조건을 저장하지 못했습니다."); }
   }
-  function runSearch() {
-    if (!preset.period) return setMessage("필수 항목인 검색기간을 선택해 주세요.");
-    const next = sample.slice(0, Math.min(preset.limit, preset.perLimit, sample.length));
-    setResults(next);
-    setMessage(`임시 검색 결과 · ${next.length}개 종목`);
+  async function deletePreset() {
+    if (activeSlot === null || !slots[activeSlot]) return setMessage("삭제할 저장 검색을 선택해 주세요.");
+    try {
+      const response = await fetch(`/api/conditional-search?slot=${activeSlot}`, { method: "DELETE" });
+      if (!response.ok) { const responseBody = await response.json(); throw new Error(responseBody.message); }
+      const next = [...slots]; next[activeSlot] = null; setSlots(next);
+      const nextInvestors = [...slotInvestors]; nextInvestors[activeSlot] = {}; setSlotInvestors(nextInvestors);
+      setPreset(emptyPreset); setInvestors({}); setMessage(`검색 ${activeSlot + 1}의 저장 조건을 삭제했습니다.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "검색조건을 삭제하지 못했습니다."); }
+  }
+  async function runSearch(nextPreset = preset, nextInvestors = investors, label = "임시 검색") {
+    if (!nextPreset.period) return setMessage("필수 항목인 검색기간을 선택해 주세요.");
+    try {
+      const response = await fetch("/api/conditional-search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(toCondition(nextPreset, nextInvestors)) });
+      const responseBody = await response.json();
+      if (!response.ok || responseBody.errno !== 0) throw new Error(responseBody.message ?? "검색 결과를 반환하지 못했습니다.");
+      const nextRows = (responseBody.result as [string, number][]).map(([code, score], index) => {
+        const known = sample.find(row => row.ticker === code);
+        return known ?? { name: stocks.find(stock => stock.ticker === code)?.name ?? code, ticker: code, price: 0, change: score, alertPrice: null, alertChange: null, alertUp: false, value: 0, average: 0, ibd: 0, rank: index + 1 };
+      });
+      setResults(nextRows); setMessage(`${label} 결과 · ${nextRows.length}개 종목`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "조건검색을 실행하지 못했습니다."); }
   }
   function showDirectStock() {
     const stock = directTicker.trim()
@@ -176,7 +279,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
           <button onClick={showDirectStock}>차트보기</button>
         </div>
         <div className="quick-presets" aria-label="저장 검색">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => chooseSlot(index)}>검색{index + 1}</button>)}</div>
-        <p className="preset-description"><span>검색조건</span>{activeDescription}</p>
+        <p className="preset-description"><span>검색조건</span>{activeDescription}</p>{message && <p className="search-api-message" role="status">{message}</p>}
         <div className="search-settings-entry"><button className="open-search-settings" aria-expanded={settingsOpen} aria-controls="search-settings-panel" onClick={() => setSettingsOpen(value => !value)}>{settingsOpen ? "검색조건 접기" : "검색조건 만들기"}</button></div>
       </section>
     </div>
@@ -192,7 +295,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
       <NewsPanel name={stocks.find(row => row.ticker === ticker)?.name ?? ticker}/>
     </aside>
   </section>
-  {settingsOpen && <SearchSettingsPanel slots={slots} activeSlot={activeSlot} preset={preset} investors={investors} onClose={() => setSettingsOpen(false)} onSelectSlot={(index, slot) => { setActiveSlot(index); setPreset(slot ? { ...emptyPreset, ...slot } : emptyPreset); }} setPreset={setPreset} setActiveSlot={setActiveSlot} setInvestors={setInvestors} onSave={savePreset} onSearch={runSearch} />}
+  {settingsOpen && <SearchSettingsPanel slots={slots} activeSlot={activeSlot} preset={preset} investors={investors} onClose={() => setSettingsOpen(false)} onSelectSlot={(index, slot) => { setActiveSlot(index); setPreset(slot ? { ...emptyPreset, ...slot } : emptyPreset); setInvestors(slotInvestors[index] ?? {}); }} setPreset={setPreset} setActiveSlot={setActiveSlot} setInvestors={setInvestors} onSave={savePreset} onDelete={deletePreset} onSearch={() => void runSearch()} />}
   </div>;
 }
 
@@ -226,9 +329,9 @@ function NewsPanel({ name }: { name: string }) {
   </div>;
 }
 
-function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, onSelectSlot, setPreset, setActiveSlot, setInvestors, onSave, onSearch }: { slots: (SearchPreset | null)[]; activeSlot: number | null; preset: SearchPreset; investors: Record<string, string>; onClose: () => void; onSelectSlot: (index: number, slot: SearchPreset | null) => void; setPreset: (value: SearchPreset) => void; setActiveSlot: (value: number | null) => void; setInvestors: (value: Record<string, string>) => void; onSave: () => void; onSearch: () => void }) {
+function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, onSelectSlot, setPreset, setActiveSlot, setInvestors, onSave, onDelete, onSearch }: { slots: (SearchPreset | null)[]; activeSlot: number | null; preset: SearchPreset; investors: Record<string, string>; onClose: () => void; onSelectSlot: (index: number, slot: SearchPreset | null) => void; setPreset: (value: SearchPreset) => void; setActiveSlot: (value: number | null) => void; setInvestors: (value: Record<string, string>) => void; onSave: () => void; onDelete: () => void; onSearch: () => void }) {
   return <section id="search-settings-panel" className="workspace-panel search-builder search-settings-panel search-settings-page" aria-label="검색 설정창">
-    <aside><div className="settings-panel-heading"><span className="panel-kicker">저장 위치</span><button onClick={onClose} aria-label="검색 설정 접기">×</button></div><div className="preset-slots">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => onSelectSlot(index, slot)}><b>검색 {index + 1}</b><small>{slot?.title || "설정되지 않음"}</small></button>)}</div><label>검색 제목<input required value={preset.title} placeholder="예: 급등주 위주" onChange={event => setPreset({ ...preset, title: event.target.value })} /></label><button className="secondary-action" onClick={onSave}>검색조건 저장</button></aside>
+    <aside><div className="settings-panel-heading"><span className="panel-kicker">저장 위치</span><button onClick={onClose} aria-label="검색 설정 접기">×</button></div><div className="preset-slots">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => onSelectSlot(index, slot)}><b>검색 {index + 1}</b><small>{slot?.title || "설정되지 않음"}</small></button>)}</div><label>검색 제목<input required value={preset.title} placeholder="예: 급등주 위주" onChange={event => setPreset({ ...preset, title: event.target.value })} /></label><button className="secondary-action" onClick={onSave}>검색조건 저장</button><button className="secondary-action delete-search" disabled={activeSlot === null || !slots[activeSlot]} onClick={onDelete}>저장조건 삭제</button></aside>
     <div className="condition-scroll"><div className="condition-title"><div><span className="panel-kicker">검색 설정창</span><h2 id="search-settings-title">{activeSlot === null ? "새 검색 만들기" : `검색 ${activeSlot + 1}`}</h2><p>검색조건은 임시 검색으로 먼저 확인한 뒤 원하는 위치에 저장할 수 있습니다.</p></div><div className="builder-actions"><button onClick={() => { setPreset(emptyPreset); setActiveSlot(null); }}>초기화</button><button className="primary-action" onClick={onSearch}>임시 검색</button></div></div>
       <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달", "3달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
       <Condition title="최종 검색 결과 최대치 *" required><Radio values={[20, 50, 100, 200, 300]} value={preset.limit} set={limit => setPreset({ ...preset, limit: Number(limit) })} prefix="상위 " /></Condition>

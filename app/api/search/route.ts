@@ -1,27 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { get } from "node:https";
-import { rootCertificates } from "node:tls";
-import { LETS_ENCRYPT_YR_CHAIN } from "../auth/letsencrypt-yr-chain";
-
-const API_BASE_URL = process.env.API_BASE_URL;
-
-function request(path: string): Promise<{ errno: number; result: [string, number][] }> {
-  return new Promise((resolve, reject) => {
-    if (!API_BASE_URL) return reject(new Error("API_BASE_URL 환경변수가 설정되지 않았습니다."));
-    const url = new URL(path.replace(/^\/+/, ""), `${API_BASE_URL.replace(/\/+$/, "")}/`);
-    const call = get(url, { rejectUnauthorized: true, ca: [...rootCertificates, LETS_ENCRYPT_YR_CHAIN], headers: { Accept: "application/json", "User-Agent": "ForceMonitor-Web/1.0" } }, (response) => {
-      let body = "";
-      response.setEncoding("utf8");
-      response.on("data", (chunk) => { body += chunk; });
-      response.on("end", () => {
-        if (response.statusCode !== 200) return reject(new Error(`외부 API 오류 (${response.statusCode})`));
-        try { resolve(JSON.parse(body)); } catch { reject(new Error("외부 API 응답을 해석하지 못했습니다.")); }
-      });
-    });
-    call.setTimeout(10_000, () => call.destroy(new Error("외부 API 요청 시간이 초과되었습니다.")));
-    call.on("error", reject);
-  });
-}
+import { createBackendSession, parseJson } from "../backend";
 
 export async function GET(requestUrl: NextRequest) {
   const type = requestUrl.nextUrl.searchParams.get("type") ?? "price";
@@ -51,9 +29,13 @@ export async function GET(requestUrl: NextRequest) {
   }
 
   try {
-    const response = await request(upstreamPath);
+    const session = await createBackendSession(requestUrl);
+    const upstream = await session.call(upstreamPath);
+    if (upstream.status === 401) return session.finish(NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 }));
+    if (upstream.status !== 200) throw new Error(`외부 API 오류 (${upstream.status})`);
+    const response = parseJson<{ errno: number; result: [string, number][] }>(upstream);
     if (response.errno !== 0) throw new Error("검색 결과를 반환하지 못했습니다.");
-    return NextResponse.json({ result: response.result });
+    return session.finish(NextResponse.json({ result: response.result }));
   } catch (error) {
     return NextResponse.json({ message: error instanceof Error ? error.message : "검색에 실패했습니다." }, { status: 502 });
   }
