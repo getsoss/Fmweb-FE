@@ -3,12 +3,21 @@
 import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 
 type Stock = { name: string; ticker: string };
-type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; antPriority: string; holding: boolean; influence: boolean; rs: string; ibd: string; ma: string; ma20: boolean; ma60: boolean; volume: string; detailVolume: string[]; value: string };
+type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: string; ma20: boolean; ma60: boolean; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
 type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number };
 type NewsItem = [string, string, string];
 type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
 
-const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, antPriority: "모양 우선", holding: false, influence: false, rs: "any", ibd: "any", ma: "any", ma20: false, ma60: false, volume: "any", detailVolume: [], value: "any" };
+const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: "any", ma20: false, ma60: false, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any" };
+const antFilterGroups = [
+  ["주가", "price"],
+  ["개미지수(모양 우선)", "ant_index_shape_first"],
+  ["개미지수(크기 우선)", "ant_index_size_first"],
+  ["평균매입단가(모양 우선)", "average_buy_price_shape_first"],
+  ["평균매입단가(크기 우선)", "average_buy_price_size_first"],
+  ["수익률", "profit_rate"],
+  ["고수관심도", "n_top_account"],
+] as const;
 const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
 const investorKeys = ["individual", "foreigner", "othercorp", "inout", "organization", "finance", "insurance", "investtrust", "otherfinance", "bank", "pension", "privatefund", "privatefund_investtrust", "privatefund_pension", "investtrust_pension", "investtrust_privatefund_pension"];
 const sample: ResultRow[] = [
@@ -34,12 +43,16 @@ function investorObject(mode: "holding" | "power", enabled: boolean, selections:
 
 function toCondition(preset: SearchPreset, selections: Record<string, string>): ConditionalSearch {
   const movingAverage = preset.ma20 ? "u20" : preset.ma60 ? "u60" : preset.ma === "regular" ? "20>60" : "0";
-  const detail = Object.fromEntries([["time", volumeToTime[preset.volume] ?? 0], ...investorGroups.map((name, index) => [investorKeys[index], preset.detailVolume.includes(name) ? 1 : 0])]);
+  const ant = Object.fromEntries([["disabled", preset.ant ? 0 : 1], ...antFilterGroups.map(([name, key]) => {
+    const selected = selections[`ant-${name}`];
+    return [key, selected === "증가" ? 1 : selected === "감소" ? 2 : 0];
+  })]);
+  const detail = Object.fromEntries([["time", preset.detailVolumeEnabled ? volumeToTime[preset.detailVolumePeriod] ?? 0 : 0], ...investorGroups.map((name, index) => [investorKeys[index], preset.detailVolumeEnabled && preset.detailVolume.includes(name) ? 1 : 0])]);
   return {
     time: periodToTime[preset.period] ?? 5,
     result_max: preset.limit,
     each_result_max: preset.perLimit,
-    ant_analysis_filter: { disabled: preset.ant ? 0 : 1, [preset.antPriority === "크기차 우선" ? "ant_index_size_first" : "ant_index_shape_first"]: preset.ant ? 1 : 0 },
+    ant_analysis_filter: ant,
     have: investorObject("holding", preset.holding, selections),
     power: investorObject("power", preset.influence, selections),
     moving_average: movingAverage,
@@ -63,7 +76,6 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
     limit: condition.result_max ?? 20,
     perLimit: condition.each_result_max ?? 100,
     ant: ant.disabled !== 1,
-    antPriority: (ant.ant_index_size_first ?? 0) ? "크기차 우선" : "모양 우선",
     holding: condition.have?.disabled !== 1,
     influence: condition.power?.disabled !== 1,
     rs: condition.rs === 1 ? "상승" : condition.rs === 2 ? "하락" : "any",
@@ -72,6 +84,8 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
     ma20: moving === "u20",
     ma60: moving === "u60",
     volume: timeToVolume[condition.all_special_volume ?? 0] ?? "any",
+    detailVolumeEnabled: (detail.time ?? 0) !== 0 || investorKeys.some(key => detail[key] === 1),
+    detailVolumePeriod: timeToVolume[detail.time ?? 0] ?? "any",
     detailVolume: investorGroups.filter((_, investorIndex) => detail[investorKeys[investorIndex]] === 1),
     value: valueFromApi[condition.recent_five_days_average_trading_value ?? "0"] ?? "any",
   };
@@ -79,6 +93,10 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
 
 function selectionsFromCondition(condition: ConditionalSearch) {
   const selections: Record<string, string> = {};
+  antFilterGroups.forEach(([name, key]) => {
+    const selected = condition.ant_analysis_filter?.[key];
+    if (selected === 1 || selected === 2) selections[`ant-${name}`] = selected === 1 ? "증가" : "감소";
+  });
   investorGroups.forEach((name, index) => {
     const holding = condition.have?.[investorKeys[index]];
     const power = condition.power?.[investorKeys[index]];
@@ -341,13 +359,13 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
       <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달", "3달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
       <Condition title="최종 검색 결과 최대치 *" required><Radio values={[20, 50, 100, 200, 300]} value={preset.limit} set={limit => setPreset({ ...preset, limit: Number(limit) })} prefix="상위 " /></Condition>
       <Condition title="개별 검색결과 허용 종목수 *" required><Radio values={[100, 200, 400]} value={preset.perLimit} set={perLimit => setPreset({ ...preset, perLimit: Number(perLimit) })} prefix="상위 " /></Condition>
-      <Condition title="개미 분석 필터"><Toggle checked={preset.ant} label="사용" onChange={ant => setPreset({ ...preset, ant })} /><Radio disabled={!preset.ant} values={["모양 우선", "크기차 우선"]} value={preset.antPriority} set={antPriority => setPreset({ ...preset, antPriority: String(antPriority) })} /></Condition>
+      <Condition title="개미 분석 필터"><Toggle checked={preset.ant} label="사용" onChange={ant => setPreset({ ...preset, ant })} />{preset.ant && <AntFilterMatrix value={investors} set={setInvestors} />}</Condition>
       <Condition title="보유비중 증감"><Toggle checked={preset.holding} label="사용" onChange={holding => setPreset({ ...preset, holding })} />{preset.holding && <InvestorMatrix mode="holding" value={investors} set={setInvestors} />}</Condition>
       <Condition title="영향력"><Toggle checked={preset.influence} label="사용" onChange={influence => setPreset({ ...preset, influence })} />{preset.influence && <InvestorMatrix mode="power" value={investors} set={setInvestors} />}</Condition>
       <div className="condition-columns"><Condition title="RS 증감"><Radio values={["any", "상승", "하락"]} labels={["무관", "상승", "하락"]} value={preset.rs} set={rs => setPreset({ ...preset, rs: String(rs) })} /></Condition><Condition title="IBD RS"><Radio values={["any", "80", "90"]} labels={["무관", ">80점", ">90점"]} value={preset.ibd} set={ibd => setPreset({ ...preset, ibd: String(ibd) })} /></Condition></div>
       <Condition title="이동평균선"><Radio values={["any", "regular"]} labels={["무관", "정배열 (20이평 > 60이평)"]} value={preset.ma} set={ma => setPreset({ ...preset, ma: String(ma) })} /><Toggle checked={preset.ma20} label="20이평 상승" onChange={ma20 => setPreset({ ...preset, ma20 })} /><Toggle checked={preset.ma60} label="60이평 상승" onChange={ma60 => setPreset({ ...preset, ma60 })} /></Condition>
       <div className="condition-columns"><Condition title="전체 특이 거래량"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.volume} set={volume => setPreset({ ...preset, volume: String(volume) })} /></Condition><Condition title="최근 5일 평균 거래대금"><Radio values={["any", "10", "50", "100", "500"]} labels={["무관", "10억 이상", "50억 이상", "100억 이상", "500억 이상"]} value={preset.value} set={value => setPreset({ ...preset, value: String(value) })} /></Condition></div>
-      <Condition title="세부 특이 거래량"><div className="detail-volume-options">{investorGroups.slice(1).map(name => <Toggle key={name} checked={preset.detailVolume.includes(name)} label={name} onChange={checked => setPreset({ ...preset, detailVolume: checked ? [...preset.detailVolume, name] : preset.detailVolume.filter(item => item !== name) })} />)}</div></Condition>
+      <Condition title="세부 특이 거래량"><Toggle checked={preset.detailVolumeEnabled} label="사용" onChange={detailVolumeEnabled => setPreset({ ...preset, detailVolumeEnabled })} />{preset.detailVolumeEnabled && <div className="specific-volume-controls"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.detailVolumePeriod} set={detailVolumePeriod => setPreset({ ...preset, detailVolumePeriod: String(detailVolumePeriod) })} /><div className="detail-volume-options">{investorGroups.slice(1).map(name => <Toggle key={name} checked={preset.detailVolume.includes(name)} label={name} onChange={checked => setPreset({ ...preset, detailVolume: checked ? [...preset.detailVolume, name] : preset.detailVolume.filter(item => item !== name) })} />)}</div></div>}</Condition>
       <div className="temporary-search"><div><b>저장하지 않고 결과 확인</b><p>위에서 설정한 조건으로 검색 결과를 먼저 확인합니다.</p></div><button onClick={onSearch}>임시 검색</button></div>
     </div>
   </section>;
@@ -378,5 +396,6 @@ function WatchPanel({ watchlists, watchTab, selectedWatch, ticker, onTab, onSele
 function Condition({ title, required, children }: { title: string; required?: boolean; children: React.ReactNode }) { return <fieldset className="condition-card"><legend className={required ? "required" : ""}>{title}</legend><div>{children}</div></fieldset>; }
 function Toggle({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) { return <label className="check-control"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} /><span>{label}</span></label>; }
 function Radio({ values, labels, value, set, prefix = "", disabled = false }: { values: (string | number)[]; labels?: string[]; value: string | number; set: (value: string | number) => void; prefix?: string; disabled?: boolean }) { return <div className="radio-row">{values.map((item, index) => <label key={item} className={disabled ? "disabled" : ""}><input type="radio" disabled={disabled} checked={value === item} onChange={() => set(item)} /><span>{prefix}{labels?.[index] ?? item}</span></label>)}</div>; }
-function InvestorMatrix({ mode, value, set }: { mode: "holding" | "power"; value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix">{investorGroups.map(name => <div key={name}><span>{name}</span>{(mode === "holding" ? ["증가", "감소"] : ["매수력", "매도력"]).map(option => <label key={option}><input type="radio" name={`${mode}-${name}`} checked={value[`${mode}-${name}`] === option} onChange={() => set({ ...value, [`${mode}-${name}`]: option })} />{option}</label>)}</div>)}</div>; }
+function AntFilterMatrix({ value, set }: { value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix ant-filter-matrix">{antFilterGroups.map(([name]) => <div key={name}><span>{name}</span>{["증가", "감소"].map(option => <label key={option}><input type="radio" name={`ant-${name}`} aria-label={`${name} ${option}`} checked={value[`ant-${name}`] === option} onChange={() => set({ ...value, [`ant-${name}`]: option })} />{option}</label>)}</div>)}</div>; }
+function InvestorMatrix({ mode, value, set }: { mode: "holding" | "power"; value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix">{investorGroups.map(name => <div key={name}><span>{name}</span>{(mode === "holding" ? ["증가", "감소"] : ["매수력", "매도력"]).map(option => <label key={option}><input type="radio" name={`${mode}-${name}`} aria-label={`${name} ${option}`} checked={value[`${mode}-${name}`] === option} onChange={() => set({ ...value, [`${mode}-${name}`]: option })} />{option}</label>)}</div>)}</div>; }
 function Sortable({ label, field, sort, onClick }: { label: string; field: keyof ResultRow; sort: { key: keyof ResultRow; asc: boolean }; onClick: (key: keyof ResultRow) => void }) { return <th><button onClick={() => onClick(field)}>{label} {sort.key === field ? (sort.asc ? "↑" : "↓") : "↕"}</button></th>; }

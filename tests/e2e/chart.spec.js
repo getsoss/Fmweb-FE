@@ -435,12 +435,70 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await expect(settings).toHaveCount(0);
 });
 
+test("개미분석, 보유비중, 영향력, 세부 특이 거래량 조건을 API 형식으로 전송한다", async ({ page }) => {
+  await mockStockData(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  await page.getByRole("button", { name: "검색조건 만들기" }).click();
+
+  const settings = page.getByLabel("검색 설정창");
+  const ant = settings.getByRole("group", { name: "개미 분석 필터" });
+  await ant.getByRole("checkbox", { name: "사용", exact: true }).check();
+  await expect(ant.locator(".ant-filter-matrix > div")).toHaveCount(7);
+  await ant.getByRole("radio", { name: "주가 증가", exact: true }).check();
+  await ant.getByRole("radio", { name: "주가 감소", exact: true }).check();
+  await expect(ant.getByRole("radio", { name: "주가 증가", exact: true })).not.toBeChecked();
+  await ant.getByRole("radio", { name: "개미지수(모양 우선) 증가", exact: true }).check();
+  await ant.getByRole("radio", { name: "평균매입단가(크기 우선) 감소", exact: true }).check();
+  await ant.getByRole("radio", { name: "고수관심도 증가", exact: true }).check();
+
+  const holding = settings.getByRole("group", { name: "보유비중 증감" });
+  await holding.getByRole("checkbox", { name: "사용", exact: true }).check();
+  await expect(holding.locator(".investor-matrix > div")).toHaveCount(16);
+  await holding.getByRole("radio", { name: "외국인 증가", exact: true }).check();
+  await holding.getByRole("radio", { name: "외국인 감소", exact: true }).check();
+  await expect(holding.getByRole("radio", { name: "외국인 증가", exact: true })).not.toBeChecked();
+
+  const power = settings.getByRole("group", { name: "영향력" });
+  await power.getByRole("checkbox", { name: "사용", exact: true }).check();
+  await expect(power.locator(".investor-matrix > div")).toHaveCount(16);
+  await power.getByRole("radio", { name: "기관계 매수력", exact: true }).check();
+
+  const detailVolume = settings.getByRole("group", { name: "세부 특이 거래량" });
+  await detailVolume.getByRole("checkbox", { name: "사용", exact: true }).check();
+  await detailVolume.getByRole("radio", { name: "6개월", exact: true }).check();
+  await detailVolume.getByRole("checkbox", { name: "외국인", exact: true }).check();
+
+  const searchRequest = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "POST");
+  await settings.locator(".builder-actions").getByRole("button", { name: "임시 검색", exact: true }).click();
+  const condition = (await searchRequest).postDataJSON();
+  expect(condition.ant_analysis_filter).toMatchObject({
+    disabled: 0,
+    price: 2,
+    ant_index_shape_first: 1,
+    average_buy_price_size_first: 2,
+    n_top_account: 1,
+  });
+  expect(condition.have).toMatchObject({ disabled: 0, foreigner: 2 });
+  expect(condition.power).toMatchObject({ disabled: 0, organization: 1 });
+  expect(condition.all_special_volume).toBe(0);
+  expect(condition.specific_special_volume).toMatchObject({ time: 120, foreigner: 1 });
+});
+
 test("v11.5.0 저장 검색 제목을 서버 응답에서 불러온다", async ({ page }) => {
   await mockStockData(page, [{
     slot: 0,
     last_updated: 1789531886,
     title: "서버 저장 제목",
-    condition: { time: 60, result_max: 50, each_result_max: 100 },
+    condition: {
+      time: 60,
+      result_max: 50,
+      each_result_max: 100,
+      ant_analysis_filter: { disabled: 0, price: 1 },
+      have: { disabled: 0, foreigner: 2 },
+      power: { disabled: 0, organization: 1 },
+      specific_special_volume: { time: 120, foreigner: 1 },
+    },
   }]);
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
@@ -453,6 +511,12 @@ test("v11.5.0 저장 검색 제목을 서버 응답에서 불러온다", async (
   await expect(settings.getByLabel("검색 제목")).toHaveValue("서버 저장 제목");
   await expect(settings.getByRole("radio", { name: "3달", exact: true })).toBeChecked();
   await expect(settings.getByRole("radio", { name: "상위 50", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "개미 분석 필터" }).getByRole("radio", { name: "주가 증가", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "보유비중 증감" }).getByRole("radio", { name: "외국인 감소", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "영향력" }).getByRole("radio", { name: "기관계 매수력", exact: true })).toBeChecked();
+  const detailVolume = settings.getByRole("group", { name: "세부 특이 거래량" });
+  await expect(detailVolume.getByRole("radio", { name: "6개월", exact: true })).toBeChecked();
+  await expect(detailVolume.getByRole("checkbox", { name: "외국인", exact: true })).toBeChecked();
 });
 
 test("로그아웃하면 워크스페이스를 닫고 랜딩 초기 화면으로 돌아간다", async ({ page }) => {
