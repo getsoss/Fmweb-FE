@@ -141,7 +141,8 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
         const nextInvestors: Record<string, string>[] = [{},{},{},{},{}];
         for (const savedSearch of responseBody.result ?? []) {
           if (!Number.isInteger(savedSearch.slot) || savedSearch.slot < 0 || savedSearch.slot > 4) continue;
-          nextSlots[savedSearch.slot] = fromCondition(savedSearch.condition ?? {}, savedSearch.slot, titles[savedSearch.slot]);
+          const savedTitle = typeof savedSearch.title === "string" ? savedSearch.title : titles[savedSearch.slot];
+          nextSlots[savedSearch.slot] = fromCondition(savedSearch.condition ?? {}, savedSearch.slot, savedTitle);
           nextInvestors[savedSearch.slot] = selectionsFromCondition(savedSearch.condition ?? {});
         }
         setSlots(nextSlots);
@@ -186,7 +187,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
     if (activeSlot === null) return setMessage("저장 위치(검색1~검색5)를 먼저 선택해 주세요.");
     const index = activeSlot;
     try {
-      const response = await fetch("/api/conditional-search", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot: index, condition: toCondition(preset, investors) }) });
+      const response = await fetch("/api/conditional-search", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot: index, condition: toCondition(preset, investors), title: preset.title.trim() }) });
       const responseBody = await response.json();
       if (!response.ok) throw new Error(responseBody.message);
       const next = [...slots]; next[index] = { ...preset, title: preset.title || `검색 ${index + 1}` }; setSlots(next);
