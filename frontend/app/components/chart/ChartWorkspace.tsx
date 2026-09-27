@@ -88,7 +88,6 @@ const powerInvestorOptions = [
 ] as const satisfies readonly { key: InvestorIndex; label: string; color: string }[];
 type PaneKey = "price" | "ant" | "holding" | "power" | "rs";
 type SavedChartView = {
-  key: string;
   paneStretch: Partial<Record<PaneKey, number>>;
   visibleLogicalRange: LogicalRange | null;
 };
@@ -260,7 +259,6 @@ export default function ChartWorkspace({
     [rows],
   );
   const data = useMemo(() => aggregate(base, interval), [base, interval]);
-  const viewKey = `${ticker}:${interval}:${rows.length}:${rows[0]?.[0] ?? ""}`;
   const latest = hovered ?? data.at(-1) ?? null;
   const previous = latest
     ? data[Math.max(0, data.findIndex((row) => row.time === latest.time) - 1)]
@@ -530,7 +528,7 @@ export default function ChartWorkspace({
     paneKeys.push("rs");
     stretchFactors.push(1.5);
 
-    const savedView = savedViewRef.current?.key === viewKey ? savedViewRef.current : null;
+    const savedView = savedViewRef.current;
     chart.panes().forEach((pane, index) => {
       pane.setStretchFactor(
         savedView?.paneStretch[paneKeys[index]] ?? stretchFactors[index] ?? 1,
@@ -548,7 +546,6 @@ export default function ChartWorkspace({
 
     return () => {
       savedViewRef.current = {
-        key: viewKey,
         visibleLogicalRange: chart.timeScale().getVisibleLogicalRange(),
         paneStretch: Object.fromEntries(
           chart
