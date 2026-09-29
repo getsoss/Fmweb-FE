@@ -445,24 +445,32 @@ test("개미분석, 보유비중, 영향력, 세부 특이 거래량 조건을 A
   const ant = settings.getByRole("group", { name: "개미 분석 필터" });
   await ant.getByRole("checkbox", { name: "사용", exact: true }).check();
   await expect(ant.locator(".ant-filter-matrix > div")).toHaveCount(7);
-  await ant.getByRole("radio", { name: "주가 증가", exact: true }).check();
-  await ant.getByRole("radio", { name: "주가 감소", exact: true }).check();
-  await expect(ant.getByRole("radio", { name: "주가 증가", exact: true })).not.toBeChecked();
-  await ant.getByRole("radio", { name: "개미지수(모양 우선) 증가", exact: true }).check();
-  await ant.getByRole("radio", { name: "평균매입단가(크기 우선) 감소", exact: true }).check();
-  await ant.getByRole("radio", { name: "고수관심도 증가", exact: true }).check();
+  const antPriceUp = ant.getByRole("checkbox", { name: "주가 증가", exact: true });
+  const antPriceDown = ant.getByRole("checkbox", { name: "주가 감소", exact: true });
+  await antPriceUp.check();
+  await antPriceDown.check();
+  await expect(antPriceUp).not.toBeChecked();
+  await antPriceDown.uncheck();
+  await expect(antPriceUp).not.toBeChecked();
+  await expect(antPriceDown).not.toBeChecked();
+  await antPriceDown.check();
+  await ant.getByRole("checkbox", { name: "개미지수(모양 우선) 증가", exact: true }).check();
+  await ant.getByRole("checkbox", { name: "평균매입단가(크기 우선) 감소", exact: true }).check();
+  await ant.getByRole("checkbox", { name: "고수관심도 증가", exact: true }).check();
 
   const holding = settings.getByRole("group", { name: "보유비중 증감" });
   await holding.getByRole("checkbox", { name: "사용", exact: true }).check();
   await expect(holding.locator(".investor-matrix > div")).toHaveCount(16);
-  await holding.getByRole("radio", { name: "외국인 증가", exact: true }).check();
-  await holding.getByRole("radio", { name: "외국인 감소", exact: true }).check();
-  await expect(holding.getByRole("radio", { name: "외국인 증가", exact: true })).not.toBeChecked();
+  const holdingForeignerUp = holding.getByRole("checkbox", { name: "외국인 증가", exact: true });
+  const holdingForeignerDown = holding.getByRole("checkbox", { name: "외국인 감소", exact: true });
+  await holdingForeignerUp.check();
+  await holdingForeignerDown.check();
+  await expect(holdingForeignerUp).not.toBeChecked();
 
   const power = settings.getByRole("group", { name: "영향력" });
   await power.getByRole("checkbox", { name: "사용", exact: true }).check();
   await expect(power.locator(".investor-matrix > div")).toHaveCount(16);
-  await power.getByRole("radio", { name: "기관계 매수력", exact: true }).check();
+  await power.getByRole("checkbox", { name: "기관계 매수력", exact: true }).check();
 
   const detailVolume = settings.getByRole("group", { name: "세부 특이 거래량" });
   await detailVolume.getByRole("checkbox", { name: "사용", exact: true }).check();
@@ -511,9 +519,9 @@ test("v11.5.0 저장 검색 제목을 서버 응답에서 불러온다", async (
   await expect(settings.getByLabel("검색 제목")).toHaveValue("서버 저장 제목");
   await expect(settings.getByRole("radio", { name: "3달", exact: true })).toBeChecked();
   await expect(settings.getByRole("radio", { name: "상위 50", exact: true })).toBeChecked();
-  await expect(settings.getByRole("group", { name: "개미 분석 필터" }).getByRole("radio", { name: "주가 증가", exact: true })).toBeChecked();
-  await expect(settings.getByRole("group", { name: "보유비중 증감" }).getByRole("radio", { name: "외국인 감소", exact: true })).toBeChecked();
-  await expect(settings.getByRole("group", { name: "영향력" }).getByRole("radio", { name: "기관계 매수력", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "개미 분석 필터" }).getByRole("checkbox", { name: "주가 증가", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "보유비중 증감" }).getByRole("checkbox", { name: "외국인 감소", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "영향력" }).getByRole("checkbox", { name: "기관계 매수력", exact: true })).toBeChecked();
   const detailVolume = settings.getByRole("group", { name: "세부 특이 거래량" });
   await expect(detailVolume.getByRole("radio", { name: "6개월", exact: true })).toBeChecked();
   await expect(detailVolume.getByRole("checkbox", { name: "외국인", exact: true })).toBeChecked();
