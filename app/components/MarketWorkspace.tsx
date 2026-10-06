@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 
 type Stock = { name: string; ticker: string };
-type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: string; ma20: boolean; ma60: boolean; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
-type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number };
+export type StockInfo = { name: string; ma20_up: boolean; bojong_profit_rate: number; trading_value: number; _5d_avg_trading_value: number; ibdrs: number; n_top_acc: number };
+export type StockInfoMap = Record<string, StockInfo>;
+type SearchPreset = { title: string; period: string; limit: number; perLimit: number; resultSort: string; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: string; ma20: boolean; ma60: boolean; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
+type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number; ma20Up?: boolean; score?: number };
 type NewsItem = [string, string, string];
 type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
 
-const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: "any", ma20: false, ma60: false, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any" };
+const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, resultSort: "random", ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: "any", ma20: false, ma60: false, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any" };
 const antFilterGroups = [
   ["주가", "price"],
   ["개미지수(모양 우선)", "ant_index_shape_first"],
@@ -18,14 +20,32 @@ const antFilterGroups = [
   ["수익률", "profit_rate"],
   ["고수관심도", "n_top_account"],
 ] as const;
-const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
-const investorKeys = ["individual", "foreigner", "othercorp", "inout", "organization", "finance", "insurance", "investtrust", "otherfinance", "bank", "pension", "privatefund", "privatefund_investtrust", "privatefund_pension", "investtrust_pension", "investtrust_privatefund_pension"];
+const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "국가", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
+const investorKeys = ["individual", "foreigner", "othercorp", "inout", "organization", "finance", "insurance", "investtrust", "otherfinance", "bank", "pension", "privatefund", "nation", "privatefund_investtrust", "privatefund_pension", "investtrust_pension", "investtrust_privatefund_pension"];
 const sample: ResultRow[] = [
   { name: "삼성전자", ticker: "005930", price: 74200, change: 1.42, alertPrice: 1300, alertChange: -12, alertUp: true, value: 456700, average: 543000, ibd: 99, rank: 33 },
   { name: "SK하이닉스", ticker: "000660", price: 186300, change: -0.31, alertPrice: 111222, alertChange: -50, alertUp: false, value: 345300, average: 363400, ibd: 98, rank: 27 },
   { name: "현대차", ticker: "005380", price: 247500, change: 2.16, alertPrice: 34000, alertChange: -20, alertUp: true, value: 212300, average: 197400, ibd: 97, rank: 14 },
   { name: "삼성중공업", ticker: "010140", price: 12680, change: 0.48, alertPrice: null, alertChange: null, alertUp: false, value: 97800, average: 88400, ibd: 95, rank: 45 },
 ];
+
+function stockInfoRow(ticker: string, info: StockInfo): ResultRow {
+  const existing = sample.find(row => row.ticker === ticker);
+  return {
+    name: info.name,
+    ticker,
+    price: existing?.price ?? 0,
+    change: info.bojong_profit_rate,
+    alertPrice: existing?.alertPrice ?? null,
+    alertChange: existing?.alertChange ?? null,
+    alertUp: existing?.alertUp ?? false,
+    value: info.trading_value,
+    average: info._5d_avg_trading_value,
+    ibd: info.ibdrs,
+    rank: info.n_top_acc,
+    ma20Up: info.ma20_up,
+  };
+}
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const periodToTime: Record<string, number> = { "1주": 5, "2주": 10, "1달": 20, "2달": 40, "3달": 60 };
 const timeToPeriod: Record<number, string> = { 5: "1주", 10: "2주", 20: "1달", 40: "2달", 60: "3달" };
@@ -61,7 +81,7 @@ function toCondition(preset: SearchPreset, selections: Record<string, string>): 
     all_special_volume: volumeToTime[preset.volume] ?? 0,
     specific_special_volume: detail,
     recent_five_days_average_trading_value: valueToApi[preset.value] ?? "0",
-    result_sort: 0,
+    result_sort: preset.resultSort === "asc" ? 1 : preset.resultSort === "desc" ? 2 : 0,
   };
 }
 
@@ -75,6 +95,7 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
     period: timeToPeriod[condition.time ?? 5] ?? "1주",
     limit: condition.result_max ?? 20,
     perLimit: condition.each_result_max ?? 100,
+    resultSort: condition.result_sort === 1 ? "asc" : condition.result_sort === 2 ? "desc" : "random",
     ant: ant.disabled !== 1,
     holding: condition.have?.disabled !== 1,
     influence: condition.power?.disabled !== 1,
@@ -111,18 +132,24 @@ function describePreset(preset: SearchPreset) {
   if (preset.ant) filters.push("개미 분석");
   if (preset.holding) filters.push("보유비중 증감");
   if (preset.influence) filters.push("영향력");
+  if (preset.resultSort !== "random") filters.push(preset.resultSort === "asc" ? "점수 오름차순" : "점수 내림차순");
   if (preset.rs !== "any") filters.push(`RS ${preset.rs}`);
   if (preset.ma !== "any" || preset.ma20 || preset.ma60) filters.push("이동평균선");
   if (preset.value !== "any") filters.push(`거래대금 ${preset.value}억 이상`);
   return `${preset.title} · ${filters.join(" · ")}`;
 }
 
-export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu }: { stocks: Stock[]; ticker: string; onSelect: (ticker: string) => void; chart: (onAlertPriceChange: (price: number) => void) => React.ReactNode; menu: React.ReactNode }) {
+export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, chart, menu }: { stocks: Stock[]; stockInfo: StockInfoMap; ticker: string; onSelect: (ticker: string) => void; chart: (onAlertPriceChange: (price: number) => void) => React.ReactNode; menu: React.ReactNode }) {
+  const marketRows = useMemo(() => {
+    const rows = Object.entries(stockInfo).map(([code, info]) => stockInfoRow(code, info));
+    return rows.length ? rows : sample;
+  }, [stockInfo]);
+  const marketByTicker = useMemo(() => new Map(marketRows.map(row => [row.ticker, row])), [marketRows]);
   const [preset, setPreset] = useState<SearchPreset>(emptyPreset);
   const [slots, setSlots] = useState<(SearchPreset | null)[]>([null, null, null, null, null]);
   const [slotInvestors, setSlotInvestors] = useState<Record<string, string>[]>([{},{},{},{},{}]);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
-  const [results, setResults] = useState<ResultRow[]>(sample);
+  const [results, setResults] = useState<ResultRow[]>(marketRows);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [watchTab, setWatchTab] = useState(0);
   const [watchlists, setWatchlists] = useState<string[][]>([["005930"], ["000660"], [], [], []]);
@@ -188,7 +215,7 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
     const sorted = sort.asc ? direction : -direction;
     return gather ? (Number(bookmarks.includes(b.ticker)) - Number(bookmarks.includes(a.ticker)) || sorted) : sorted;
   }), [results, sort, gather, bookmarks]);
-  const selectedWatch = watchlists[watchTab].map(code => sample.find(row => row.ticker === code) ?? stocks.find(stock => stock.ticker === code)).filter(Boolean) as Stock[];
+  const selectedWatch = watchlists[watchTab].map(code => marketByTicker.get(code) ?? stocks.find(stock => stock.ticker === code)).filter(Boolean) as Stock[];
   const activeDescription = activeSlot === null ? "검색조건을 선택하거나 새 조건을 만들어 주세요." : slots[activeSlot] ? describePreset(slots[activeSlot]) : "검색조건이 설정되지 않았습니다.";
 
   function chooseSlot(index: number) {
@@ -230,8 +257,8 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
       const responseBody = await response.json();
       if (!response.ok || responseBody.errno !== 0) throw new Error(responseBody.message ?? "검색 결과를 반환하지 못했습니다.");
       const nextRows = (responseBody.result as [string, number][]).map(([code, score], index) => {
-        const known = sample.find(row => row.ticker === code);
-        return known ?? { name: stocks.find(stock => stock.ticker === code)?.name ?? code, ticker: code, price: 0, change: score, alertPrice: null, alertChange: null, alertUp: false, value: 0, average: 0, ibd: 0, rank: index + 1 };
+        const known = marketByTicker.get(code);
+        return known ? { ...known, score } : { name: stocks.find(stock => stock.ticker === code)?.name ?? code, ticker: code, price: 0, change: 0, alertPrice: null, alertChange: null, alertUp: false, value: 0, average: 0, ibd: 0, rank: index + 1, score };
       });
       setResults(nextRows); setMessage(`${label} 결과 · ${nextRows.length}개 종목`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "조건검색을 실행하지 못했습니다."); }
@@ -311,9 +338,9 @@ export default function MarketWorkspace({ stocks, ticker, onSelect, chart, menu 
 
     <aside className="workspace-secondary" style={rightStyle}>
       <div className="workspace-menu">{menu}</div>
-      <ResultsPanel ordered={ordered} ticker={ticker} sort={sort} hidden={hidden} bookmarks={bookmarks} gather={gather} onSelect={onSelect} onSort={setSortKey} onToggleBookmark={toggleBookmark} onShowAll={() => { setResults(sample); setMessage("전체 종목을 표시합니다."); }} onClearBookmarks={() => setBookmarks([])} onToggleGather={() => setGather(!gather)} onToggleColumn={key => setHidden(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])} onAiCopy={aiCopy} />
+      <ResultsPanel ordered={ordered} ticker={ticker} sort={sort} hidden={hidden} bookmarks={bookmarks} gather={gather} onSelect={onSelect} onSort={setSortKey} onToggleBookmark={toggleBookmark} onShowAll={() => { setResults(marketRows); setMessage("전체 종목을 표시합니다."); }} onClearBookmarks={() => setBookmarks([])} onToggleGather={() => setGather(!gather)} onToggleColumn={key => setHidden(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])} onAiCopy={aiCopy} />
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="검색 결과와 관심종목 높이 조절" aria-orientation="horizontal" aria-valuemin={30} aria-valuemax={82 - rightMiddle} aria-valuenow={rightTop} tabIndex={0} onPointerDown={capture} onPointerMove={resizeRightTop} onDoubleClick={() => setRightTop(47)} onKeyDown={event => { if (event.key === "ArrowUp") setRightTop(value => clamp(value - 2, 30, 82 - rightMiddle)); if (event.key === "ArrowDown") setRightTop(value => clamp(value + 2, 30, 82 - rightMiddle)); }} />
-      <WatchPanel watchlists={watchlists} watchTab={watchTab} selectedWatch={selectedWatch} ticker={ticker} onTab={setWatchTab} onSelect={onSelect} onAdd={addWatch} onClear={() => setWatchlists(current => current.map((list, index) => index === watchTab ? [] : list))} onRemove={code => setWatchlists(current => current.map((list, index) => index === watchTab ? list.filter(item => item !== code) : list))} onMoveToResults={() => { const codes = new Set(selectedWatch.map(item => item.ticker)); setResults(sample.filter(row => codes.has(row.ticker))); setMessage(`관심 ${watchTab + 1} 종목을 검색 결과로 옮겼습니다.`); }} />
+      <WatchPanel watchlists={watchlists} watchTab={watchTab} selectedWatch={selectedWatch} ticker={ticker} onTab={setWatchTab} onSelect={onSelect} onAdd={addWatch} onClear={() => setWatchlists(current => current.map((list, index) => index === watchTab ? [] : list))} onRemove={code => setWatchlists(current => current.map((list, index) => index === watchTab ? list.filter(item => item !== code) : list))} onMoveToResults={() => { const codes = new Set(selectedWatch.map(item => item.ticker)); setResults(marketRows.filter(row => codes.has(row.ticker))); setMessage(`관심 ${watchTab + 1} 종목을 검색 결과로 옮겼습니다.`); }} />
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="관심종목과 뉴스 높이 조절" aria-orientation="horizontal" aria-valuemin={18} aria-valuemax={82 - rightTop} aria-valuenow={rightMiddle} tabIndex={0} onPointerDown={capture} onPointerMove={resizeRightMiddle} onDoubleClick={() => setRightMiddle(28)} onKeyDown={event => { if (event.key === "ArrowUp") setRightMiddle(value => clamp(value - 2, 18, 82 - rightTop)); if (event.key === "ArrowDown") setRightMiddle(value => clamp(value + 2, 18, 82 - rightTop)); }} />
       <NewsPanel name={stocks.find(row => row.ticker === ticker)?.name ?? ticker}/>
     </aside>
@@ -359,6 +386,7 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
       <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달", "3달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
       <Condition title="최종 검색 결과 최대치 *" required><Radio values={[20, 50, 100, 200, 300]} value={preset.limit} set={limit => setPreset({ ...preset, limit: Number(limit) })} prefix="상위 " /></Condition>
       <Condition title="개별 검색결과 허용 종목수 *" required><Radio values={[100, 200, 400]} value={preset.perLimit} set={perLimit => setPreset({ ...preset, perLimit: Number(perLimit) })} prefix="상위 " /></Condition>
+      <Condition title="최종 검색 결과 정렬"><Radio values={["random", "asc", "desc"]} labels={["임의", "점수 오름차순", "점수 내림차순"]} value={preset.resultSort} set={resultSort => setPreset({ ...preset, resultSort: String(resultSort) })} /></Condition>
       <Condition title="개미 분석 필터"><Toggle checked={preset.ant} label="사용" onChange={ant => setPreset({ ...preset, ant })} />{preset.ant && <AntFilterMatrix value={investors} set={setInvestors} />}</Condition>
       <Condition title="보유비중 증감"><Toggle checked={preset.holding} label="사용" onChange={holding => setPreset({ ...preset, holding })} />{preset.holding && <InvestorMatrix mode="holding" value={investors} set={setInvestors} />}</Condition>
       <Condition title="영향력"><Toggle checked={preset.influence} label="사용" onChange={influence => setPreset({ ...preset, influence })} />{preset.influence && <InvestorMatrix mode="power" value={investors} set={setInvestors} />}</Condition>
@@ -396,6 +424,6 @@ function WatchPanel({ watchlists, watchTab, selectedWatch, ticker, onTab, onSele
 function Condition({ title, required, children }: { title: string; required?: boolean; children: React.ReactNode }) { return <fieldset className="condition-card"><legend className={required ? "required" : ""}>{title}</legend><div>{children}</div></fieldset>; }
 function Toggle({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) { return <label className="check-control"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} /><span>{label}</span></label>; }
 function Radio({ values, labels, value, set, prefix = "", disabled = false }: { values: (string | number)[]; labels?: string[]; value: string | number; set: (value: string | number) => void; prefix?: string; disabled?: boolean }) { return <div className="radio-row">{values.map((item, index) => <label key={item} className={disabled ? "disabled" : ""}><input type="radio" disabled={disabled} checked={value === item} onChange={() => set(item)} /><span>{prefix}{labels?.[index] ?? item}</span></label>)}</div>; }
-function AntFilterMatrix({ value, set }: { value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix ant-filter-matrix">{antFilterGroups.map(([name]) => <div key={name}><span>{name}</span>{["증가", "감소"].map(option => <label key={option}><input type="radio" name={`ant-${name}`} aria-label={`${name} ${option}`} checked={value[`ant-${name}`] === option} onChange={() => set({ ...value, [`ant-${name}`]: option })} />{option}</label>)}</div>)}</div>; }
-function InvestorMatrix({ mode, value, set }: { mode: "holding" | "power"; value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix">{investorGroups.map(name => <div key={name}><span>{name}</span>{(mode === "holding" ? ["증가", "감소"] : ["매수력", "매도력"]).map(option => <label key={option}><input type="radio" name={`${mode}-${name}`} aria-label={`${name} ${option}`} checked={value[`${mode}-${name}`] === option} onChange={() => set({ ...value, [`${mode}-${name}`]: option })} />{option}</label>)}</div>)}</div>; }
+function AntFilterMatrix({ value, set }: { value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix ant-filter-matrix">{antFilterGroups.map(([name]) => <div key={name}><span>{name}</span>{["증가", "감소"].map(option => { const key = `ant-${name}`; return <label key={option}><input type="checkbox" aria-label={`${name} ${option}`} checked={value[key] === option} onChange={event => { const next = { ...value }; if (event.target.checked) next[key] = option; else delete next[key]; set(next); }} />{option}</label>; })}</div>)}</div>; }
+function InvestorMatrix({ mode, value, set }: { mode: "holding" | "power"; value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix">{investorGroups.map(name => <div key={name}><span>{name}</span>{(mode === "holding" ? ["증가", "감소"] : ["매수력", "매도력"]).map(option => { const key = `${mode}-${name}`; return <label key={option}><input type="checkbox" aria-label={`${name} ${option}`} checked={value[key] === option} onChange={event => { const next = { ...value }; if (event.target.checked) next[key] = option; else delete next[key]; set(next); }} />{option}</label>; })}</div>)}</div>; }
 function Sortable({ label, field, sort, onClick }: { label: string; field: keyof ResultRow; sort: { key: keyof ResultRow; asc: boolean }; onClick: (key: keyof ResultRow) => void }) { return <th><button onClick={() => onClick(field)}>{label} {sort.key === field ? (sort.asc ? "↑" : "↓") : "↕"}</button></th>; }
