@@ -14,6 +14,7 @@ import {
   CrosshairMode,
   HistogramSeries,
   LineSeries,
+  LineStyle,
   PriceScaleMode,
   createChart,
   type IChartApi,
@@ -36,6 +37,7 @@ type OHLC = {
 type Props = {
   rows: number[][];
   holdings: number[][];
+  averageTradePrices: number[][];
   holdingChanges: number[][];
   power: number[][];
   direction: number[][];
@@ -86,6 +88,25 @@ const powerInvestorOptions = [
   { key: 12, label: "기법", color: "#616868" },
   { key: 13, label: "내외국", color: "#DC143C" },
 ] as const satisfies readonly { key: InvestorIndex; label: string; color: string }[];
+const averageTradePriceInvestors = [
+  { label: "개인", color: "#FF0000" },
+  { label: "외국인", color: "#0000FF" },
+  { label: "기관계", color: "#035703" },
+  { label: "금투", color: "#FF991C" },
+  { label: "보험", color: "#800080" },
+  { label: "투신", color: "#36BF05" },
+  { label: "기금", color: "#6C6922" },
+  { label: "은행", color: "#8B4513" },
+  { label: "연기", color: "#FD0BE4" },
+  { label: "사모", color: "#000000" },
+  { label: "국가", color: "#64748b" },
+  { label: "기법", color: "#616868" },
+  { label: "내외국", color: "#DC143C" },
+] as const;
+const averageTradePriceOptions = averageTradePriceInvestors.flatMap((investor, index) => [
+  { key: index * 2 + 1, label: `${investor.label}B`, color: investor.color, lineStyle: LineStyle.Solid },
+  { key: index * 2 + 2, label: `${investor.label}S`, color: investor.color, lineStyle: LineStyle.Dashed },
+]);
 type PaneKey = "price" | "ant" | "holding" | "power" | "rs";
 type SavedChartView = {
   paneStretch: Partial<Record<PaneKey, number>>;
@@ -182,6 +203,10 @@ function lineData(rows: number[][], column: number) {
     );
 }
 
+function tradePriceLineData(rows: number[][], column: number) {
+  return lineData(rows, column).filter(row => row.value > 0);
+}
+
 function combinedLineData(rows: number[][], columns: readonly InvestorIndex[]) {
   return rows
     .slice()
@@ -214,6 +239,7 @@ function scaleMode(scale: "normal" | "log" | "percent") {
 export default function ChartWorkspace({
   rows,
   holdings,
+  averageTradePrices,
   holdingChanges,
   power,
   direction,
@@ -231,6 +257,7 @@ export default function ChartWorkspace({
   const [chartType, setChartType] = useState<ChartKind>("candles");
   const [scale, setScale] = useState<"normal" | "log" | "percent">("normal");
   const [averagePrice, setAveragePrice] = useState(true);
+  const [averageTradePriceColumns, setAverageTradePriceColumns] = useState<number[]>([]);
   const [ma20, setMa20] = useState(true);
   const [ma60, setMa60] = useState(true);
   const [holdingInvestors, setHoldingInvestors] = useState<HoldingInvestorKey[]>([]);
@@ -391,6 +418,20 @@ export default function ChartWorkspace({
       });
       series.setData(lineData(holdings, 3));
     }
+    averageTradePriceColumns.forEach((column) => {
+      const option = averageTradePriceOptions.find(item => item.key === column);
+      if (!option) return;
+      const series = chart.addSeries(LineSeries, {
+        color: option.color,
+        lineWidth: 1,
+        lineStyle: option.lineStyle,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        title: "",
+        priceFormat: compactPriceFormat,
+      });
+      series.setData(tradePriceLineData(averageTradePrices, column));
+    });
     if (ma20) {
       const series = chart.addSeries(LineSeries, {
         color: "#f4b000",
@@ -562,11 +603,13 @@ export default function ChartWorkspace({
     chartType,
     scale,
     averagePrice,
+    averageTradePriceColumns,
     ma20,
     ma60,
     holdingInvestors,
     powerInvestors,
     holdings,
+    averageTradePrices,
     holdingChanges,
     power,
     direction,
@@ -699,6 +742,13 @@ export default function ChartWorkspace({
           </div>
         </div>
 
+        <InvestorControls
+          className="chart-average-trade-controls"
+          label="평균거래단가"
+          options={averageTradePriceOptions}
+          selected={averageTradePriceColumns}
+          setSelected={setAverageTradePriceColumns}
+        />
         <InvestorControls
           className="chart-holding-controls"
           label="보유비중"

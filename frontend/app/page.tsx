@@ -1,12 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import ChartWorkspace from "./components/chart/ChartWorkspace";
-import MarketWorkspace from "./components/MarketWorkspace";
+import MarketWorkspace, { type StockInfoMap } from "./components/MarketWorkspace";
 import LandingPage from "./components/LandingPage";
 
-type StockData = { ticker: string; candles: number[][]; holdings: number[][]; holdingChanges: number[][]; power: number[][]; direction: number[][]; rs: number[][] };
+type StockData = { ticker: string; candles: number[][]; holdings: number[][]; averageTradePrices: number[][]; holdingChanges: number[][]; power: number[][]; direction: number[][]; rs: number[][] };
 type AuthUser = { userId:number; name:string; email:string; grade:string; certYn:string; joinDate:string; loginDate:string; withdraw:string };
 type Subscription = { strStartDate:string; strEndDate:string; strPayExpectDate:string|null };
 const format = new Intl.NumberFormat("ko-KR");
@@ -16,11 +16,14 @@ export default function Home() {
   const [entered, setEntered] = useState(false);
   const [input, setInput] = useState("005930"); const [ticker, setTicker] = useState("005930"); const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [showScreener, setShowScreener] = useState(false);
+  const [stockInfo, setStockInfo] = useState<StockInfoMap | null>(null); const [stockInfoLoading, setStockInfoLoading] = useState(false); const [stockInfoError, setStockInfoError] = useState("");
   const [showLogin, setShowLogin] = useState(false); const [accountOpen, setAccountOpen] = useState(false); const [passwordOpen,setPasswordOpen]=useState(false); const [withdrawOpen,setWithdrawOpen]=useState(false); const [memberId, setMemberId] = useState(""); const [signedIn, setSignedIn] = useState(false); const [authUser,setAuthUser]=useState<AuthUser|null>(null); const [subscription,setSubscription]=useState<Subscription|null>(null); const [accountMessage,setAccountMessage]=useState("");
   useEffect(() => { setMemberId(localStorage.getItem("forcemonitor:member-id") ?? ""); }, []);
   useEffect(()=>{if(!accountOpen||!signedIn)return;Promise.all([fetch("/api/auth/me"),fetch("/api/auth/subscription")]).then(async responses=>Promise.all(responses.map(response=>response.json()))).then(([userBody,subscribeBody])=>{if(userBody.status===200)setAuthUser(userBody.user);if(subscribeBody.status===200)setSubscription(subscribeBody.subscribe);}).catch(()=>setAccountMessage("계정 정보를 불러오지 못했습니다."));},[accountOpen,signedIn]);
   useEffect(() => { if (!entered) return; const controller = new AbortController(); setLoading(true); setError(""); fetch(`/api/stocks/${ticker}`, { signal: controller.signal }).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.message); return body as StockData; }).then(setData).catch(reason => { if (reason.name !== "AbortError") setError(reason.message); }).finally(() => setLoading(false)); return () => controller.abort(); }, [ticker, entered]);
-  const name = stocks.find(stock => stock.ticker === ticker)?.name ?? ticker;
+  useEffect(() => { if (!entered) { setStockInfo(null); return; } const controller = new AbortController(); setStockInfoLoading(true); setStockInfoError(""); fetch("/api/stock-info", { signal: controller.signal }).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.message); return body.result as StockInfoMap; }).then(setStockInfo).catch(reason => { if (reason.name !== "AbortError") { setStockInfo({}); setStockInfoError(reason instanceof Error ? reason.message : "종목 정보를 불러오지 못했습니다."); } }).finally(() => { if (!controller.signal.aborted) setStockInfoLoading(false); }); return () => controller.abort(); }, [entered]);
+  const availableStocks = useMemo(() => { const rows = Object.entries(stockInfo ?? {}).map(([stockTicker, info]) => ({ ticker: stockTicker, name: info.name })); return rows.length ? rows : stocks; }, [stockInfo]);
+  const name = availableStocks.find(stock => stock.ticker === ticker)?.name ?? ticker;
   function search(event: FormEvent) { event.preventDefault(); if (!/^\d{6}$/.test(input)) return setError("종목코드를 숫자 6자리로 입력해 주세요."); setTicker(input); }
   function selectTicker(next: string) { setInput(next); setTicker(next); }
   async function login(email:string,password:string,remember:boolean){try{const response=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});const body=await response.json();if(!response.ok)throw new Error(body.message);const errors:Record<number,string>={201:"이메일 인증이 완료되지 않았습니다.",202:"아이디 혹은 비밀번호가 올바르지 않습니다.",203:"구독 기간이 만료되었습니다.",204:"존재하지 않는 아이디입니다. 회원가입을 진행해 주세요."};if(body.status!==200)return errors[body.status]??"로그인하지 못했습니다.";const meResponse=await fetch("/api/auth/me");const meBody=await meResponse.json();if(meBody.status!==200)throw new Error(meBody.message??"회원 정보를 확인하지 못했습니다.");setMemberId(email);setAuthUser(meBody.user);setSignedIn(true);if(remember)localStorage.setItem("forcemonitor:member-id",email);else localStorage.removeItem("forcemonitor:member-id");return null;}catch(error){return error instanceof Error?error.message:"로그인하지 못했습니다.";}}
@@ -33,14 +36,27 @@ export default function Home() {
   return <main className="app-shell">
     <div className="workspace-page">
       {error && <div className="workspace-error" role="alert">{error} 종목코드를 확인하고 다시 조회해 주세요.</div>}
-      {loading && !data && <div className="loading-card"><span/><span/><span/><p>시장 데이터를 가져오고 있어요</p></div>}
-      {data && (
+      {stockInfoError && <div className="workspace-error" role="alert">{stockInfoError}</div>}
+      {(loading && !data || stockInfoLoading && stockInfo === null) && <div className="loading-card"><span/><span/><span/><p>시장 데이터를 가져오고 있어요</p></div>}
+      {data && stockInfo !== null && (
         <MarketWorkspace
-          stocks={stocks}
+          stocks={availableStocks}
+          stockInfo={stockInfo}
           ticker={ticker}
           onSelect={selectTicker}
           menu={<nav className="workspace-service-links" aria-label="서비스 링크"><a href="https://cafe.naver.com/motrader" target="_blank" rel="noreferrer" aria-label="모트레이더 네이버카페 새 창에서 열기">네이버카페</a><a href="https://gemini.google.com" target="_blank" rel="noreferrer">제미나이</a><a href="https://chatgpt.com" target="_blank" rel="noreferrer">ChatGPT</a><button className="account-button" onClick={() => signedIn ? setAccountOpen(true) : setShowLogin(true)}>계정</button></nav>}
-          chart={onAlertPriceChange => <ChartWorkspace rows={data.candles} holdings={data.holdings} holdingChanges={data.holdingChanges} power={data.power} direction={data.direction} rs={data.rs} ticker={ticker} name={name} onAlertPriceChange={onAlertPriceChange}/>}
+          chart={onAlertPriceChange => <ChartWorkspace
+            rows={data.candles}
+            holdings={data.holdings}
+            averageTradePrices={data.averageTradePrices}
+            holdingChanges={data.holdingChanges}
+            power={data.power}
+            direction={data.direction}
+            rs={data.rs}
+            ticker={ticker}
+            name={name}
+            onAlertPriceChange={onAlertPriceChange}
+          />}
         />
       )}
     </div>
