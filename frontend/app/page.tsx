@@ -6,7 +6,7 @@ import ChartWorkspace from "./components/chart/ChartWorkspace";
 import MarketWorkspace, { type StockInfoMap } from "./components/MarketWorkspace";
 import LandingPage from "./components/LandingPage";
 
-type StockData = { ticker: string; candles: number[][]; holdings: number[][]; averageTradePrices: number[][]; holdingChanges: number[][]; power: number[][]; direction: number[][]; rs: number[][] };
+type StockData = { ticker: string; candles: number[][]; holdings: number[][]; holdingChanges: number[][]; power: number[][]; direction: number[][]; rs: number[][] };
 type AuthUser = { userId:number; name:string; email:string; grade:string; certYn:string; joinDate:string; loginDate:string; withdraw:string };
 type Subscription = { strStartDate:string; strEndDate:string; strPayExpectDate:string|null };
 const format = new Intl.NumberFormat("ko-KR");
@@ -48,7 +48,6 @@ export default function Home() {
           chart={onAlertPriceChange => <ChartWorkspace
             rows={data.candles}
             holdings={data.holdings}
-            averageTradePrices={data.averageTradePrices}
             holdingChanges={data.holdingChanges}
             power={data.power}
             direction={data.direction}

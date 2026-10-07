@@ -20,8 +20,8 @@ const antFilterGroups = [
   ["수익률", "profit_rate"],
   ["고수관심도", "n_top_account"],
 ] as const;
-const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "국가", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
-const investorKeys = ["individual", "foreigner", "othercorp", "inout", "organization", "finance", "insurance", "investtrust", "otherfinance", "bank", "pension", "privatefund", "nation", "privatefund_investtrust", "privatefund_pension", "investtrust_pension", "investtrust_privatefund_pension"];
+const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
+const investorKeys = ["individual", "foreigner", "othercorp", "inout", "organization", "finance", "insurance", "investtrust", "otherfinance", "bank", "pension", "privatefund", "privatefund_investtrust", "privatefund_pension", "investtrust_pension", "investtrust_privatefund_pension"];
 const sample: ResultRow[] = [
   { name: "삼성전자", ticker: "005930", price: 74200, change: 1.42, alertPrice: 1300, alertChange: -12, alertUp: true, value: 456700, average: 543000, ibd: 99, rank: 33 },
   { name: "SK하이닉스", ticker: "000660", price: 186300, change: -0.31, alertPrice: 111222, alertChange: -50, alertUp: false, value: 345300, average: 363400, ibd: 98, rank: 27 },
@@ -47,6 +47,13 @@ function stockInfoRow(ticker: string, info: StockInfo): ResultRow {
   };
 }
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const oneDecimal = (value: number) => value.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const integer = (value: number) => Math.round(value).toLocaleString("ko-KR");
+function alertStatusClass(row: ResultRow) {
+  if (row.alertChange === null) return "";
+  if (!row.alertUp) return "alert-status-low";
+  return row.alertChange <= -20 ? "alert-status-warning" : "alert-status-caution";
+}
 const periodToTime: Record<string, number> = { "1주": 5, "2주": 10, "1달": 20, "2달": 40, "3달": 60 };
 const timeToPeriod: Record<number, string> = { 5: "1주", 10: "2주", 20: "1달", 40: "2달", 60: "3달" };
 const volumeToTime: Record<string, number> = { any: 0, "3m": 60, "6m": 120, "1y": 240 };
@@ -139,7 +146,7 @@ function describePreset(preset: SearchPreset) {
   return `${preset.title} · ${filters.join(" · ")}`;
 }
 
-export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, chart, menu }: { stocks: Stock[]; stockInfo: StockInfoMap; ticker: string; onSelect: (ticker: string) => void; chart: (onAlertPriceChange: (price: number) => void) => React.ReactNode; menu: React.ReactNode }) {
+export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, chart, menu }: { stocks: Stock[]; stockInfo: StockInfoMap; ticker: string; onSelect: (ticker: string) => void; chart: (onAlertPriceChange: (price: number, currentPrice: number) => void) => React.ReactNode; menu: React.ReactNode }) {
   const marketRows = useMemo(() => {
     const rows = Object.entries(stockInfo).map(([code, info]) => stockInfoRow(code, info));
     return rows.length ? rows : sample;
@@ -274,7 +281,15 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
     setMessage(`${stock.name} 차트를 표시했습니다.`);
   }
   function setSortKey(key: keyof ResultRow) { setSort(current => ({ key, asc: current.key === key ? !current.asc : true })); }
-  function setAlertPrice(price: number) { setResults(current => current.map(row => row.ticker === ticker ? { ...row, alertPrice: price } : row)); }
+  function setAlertPrice(price: number, currentPrice: number) {
+    setResults(current => current.map(row => {
+      if (row.ticker !== ticker) return row;
+      if (price <= 0 || currentPrice <= 0) return { ...row, alertPrice: price, alertChange: null, alertUp: false };
+      const alertUp = price >= currentPrice;
+      const distanceRatio = alertUp ? currentPrice / price : price / currentPrice;
+      return { ...row, price: currentPrice, alertPrice: price, alertChange: Math.round((distanceRatio - 1) * 100), alertUp };
+    }));
+  }
   function toggleBookmark(code: string) { setBookmarks(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]); }
   function addWatch(code: string) {
     setWatchlists(current => {
@@ -412,13 +427,13 @@ function ResultsPanel({ ordered, ticker, sort, hidden, bookmarks, gather, onSele
   ] as const;
   return <div className="workspace-panel results-panel">
     <div className="panel-toolbar"><div><span className="panel-kicker">검색 결과</span><b>{ordered.length}개 종목</b></div><div><button onClick={onShowAll}>전종목 보기</button><button onClick={onClearBookmarks}>북마크 전체 삭제</button><button className={gather ? "active" : ""} onClick={onToggleGather}>★ 모아보기</button><button onClick={() => setColumnsOpen(true)}>창 설정</button><button className="ai-copy" onClick={onAiCopy}>AI 복사</button></div></div>
-    <div className="result-table-wrap"><table className="result-table result-table-alerts"><thead><tr><th>번호</th><th>북마크</th><Sortable label="종목" field="name" sort={sort} onClick={onSort}/>{!hidden.includes("alertChange")&&<Sortable label="상태" field="alertChange" sort={sort} onClick={onSort}/>}{!hidden.includes("alertPrice")&&<Sortable label="알람 가격" field="alertPrice" sort={sort} onClick={onSort}/>}{!hidden.includes("profit")&&<Sortable label="계좌 수익률" field="change" sort={sort} onClick={onSort}/>}{!hidden.includes("value")&&<Sortable label="거래액(백만)" field="value" sort={sort} onClick={onSort}/>}{!hidden.includes("average")&&<Sortable label="5일평균 거래액" field="average" sort={sort} onClick={onSort}/>}{!hidden.includes("ibd")&&<Sortable label="IBD RS" field="ibd" sort={sort} onClick={onSort}/>}{!hidden.includes("rank")&&<Sortable label="고수 계좌" field="rank" sort={sort} onClick={onSort}/>}</tr></thead><tbody>{ordered.map((row, index) => { const bookmarked = bookmarks.includes(row.ticker); return <tr key={row.ticker} className={`${ticker === row.ticker ? "selected" : ""} ${bookmarked ? "bookmarked" : ""}`} onClick={() => onSelect(row.ticker)}><td>{index + 1}</td><td><button type="button" className="bookmark-star" aria-label={`${row.name} 북마크 ${bookmarked ? "해제" : "추가"}`} aria-pressed={bookmarked} onClick={event => { event.stopPropagation(); onToggleBookmark(row.ticker); }}>{bookmarked ? "★" : "☆"}</button></td><td><b>{row.name}</b></td>{!hidden.includes("alertChange")&&<td className={`alert-status ${row.alertChange === -50 ? "alert-status-low" : row.alertChange === -20 ? "alert-status-warning" : row.alertChange === -12 ? "alert-status-caution" : ""}`}>{row.alertChange === null ? "" : `${row.alertUp ? "U" : ""}${row.alertChange}%`}</td>}{!hidden.includes("alertPrice")&&<td>{row.alertPrice?.toLocaleString() ?? ""}</td>}{!hidden.includes("profit")&&<td>{row.change}%</td>}{!hidden.includes("value")&&<td>{row.value.toLocaleString()}</td>}{!hidden.includes("average")&&<td>{row.average.toLocaleString()}</td>}{!hidden.includes("ibd")&&<td>{row.ibd}</td>}{!hidden.includes("rank")&&<td>{row.rank}</td>}</tr>; })}</tbody></table></div>
+    <div className="result-table-wrap"><table className="result-table result-table-alerts"><thead><tr><th>번호</th><th>북마크</th><Sortable label="종목" field="name" sort={sort} onClick={onSort}/>{!hidden.includes("alertChange")&&<Sortable label="상태" field="alertChange" sort={sort} onClick={onSort}/>}{!hidden.includes("alertPrice")&&<Sortable label="알람 가격" field="alertPrice" sort={sort} onClick={onSort}/>}{!hidden.includes("profit")&&<Sortable label="계좌 수익률" field="change" sort={sort} onClick={onSort}/>}{!hidden.includes("value")&&<Sortable label="거래액(백만)" field="value" sort={sort} onClick={onSort}/>}{!hidden.includes("average")&&<Sortable label="5일평균 거래액" field="average" sort={sort} onClick={onSort}/>}{!hidden.includes("ibd")&&<Sortable label="IBD RS" field="ibd" sort={sort} onClick={onSort}/>}{!hidden.includes("rank")&&<Sortable label="고수 계좌" field="rank" sort={sort} onClick={onSort}/>}</tr></thead><tbody>{ordered.map((row, index) => { const bookmarked = bookmarks.includes(row.ticker); return <tr key={row.ticker} className={`${ticker === row.ticker ? "selected" : ""} ${bookmarked ? "bookmarked" : ""}`} onClick={() => onSelect(row.ticker)}><td>{index + 1}</td><td><button type="button" className="bookmark-star" aria-label={`${row.name} 북마크 ${bookmarked ? "해제" : "추가"}`} aria-pressed={bookmarked} onClick={event => { event.stopPropagation(); onToggleBookmark(row.ticker); }}>{bookmarked ? "★" : "☆"}</button></td><td><b>{row.name}</b></td>{!hidden.includes("alertChange")&&<td className={`alert-status ${alertStatusClass(row)}`}>{row.alertChange === null ? "" : `${row.alertUp ? "U" : ""}${row.alertChange}%`}</td>}{!hidden.includes("alertPrice")&&<td>{row.alertPrice?.toLocaleString() ?? ""}</td>}{!hidden.includes("profit")&&<td>{oneDecimal(row.change)}%</td>}{!hidden.includes("value")&&<td>{integer(row.value)}</td>}{!hidden.includes("average")&&<td>{integer(row.average)}</td>}{!hidden.includes("ibd")&&<td>{oneDecimal(row.ibd)}</td>}{!hidden.includes("rank")&&<td>{row.rank}</td>}</tr>; })}</tbody></table></div>
     {columnsOpen && <div className="column-modal-backdrop" onMouseDown={() => setColumnsOpen(false)}><section className="column-modal" role="dialog" aria-modal="true" aria-label="검색창 설정 하기" onMouseDown={event => event.stopPropagation()}><header><h2>검색창 설정 하기</h2><button onClick={() => setColumnsOpen(false)} aria-label="닫기">×</button></header><div>{columns.map(([key, label]) => <label key={key}><input type="checkbox" checked={!hidden.includes(key)} onChange={() => onToggleColumn(key)}/><span>{label}</span></label>)}</div></section></div>}
   </div>;
 }
 
 function WatchPanel({ watchlists, watchTab, selectedWatch, ticker, onTab, onSelect, onAdd, onClear, onRemove, onMoveToResults }: { watchlists: string[][]; watchTab: number; selectedWatch: Stock[]; ticker: string; onTab: (index: number) => void; onSelect: (ticker: string) => void; onAdd: (ticker: string) => void; onClear: () => void; onRemove: (ticker: string) => void; onMoveToResults: () => void }) {
-  return <div className="workspace-panel watch-panel"><div className="watch-tabs">{watchlists.map((list, index) => <button className={watchTab === index ? "active" : ""} key={index} onClick={() => onTab(index)}>관심 {index + 1}<span>{list.length}/50</span></button>)}</div><div className="watch-actions"><button onClick={onClear}>전체 삭제</button><button onClick={() => onAdd(ticker)}>현재 종목 추가</button><button className="watch-to-results" disabled={!selectedWatch.length} onClick={onMoveToResults}>검색창에서 보기</button></div>{selectedWatch.length ? <ol className="watch-list">{selectedWatch.sort((a, b) => a.name.localeCompare(b.name, "ko")).map(stock => <li key={stock.ticker}><button onClick={() => onSelect(stock.ticker)}><span><b>{stock.name}</b><small>{stock.ticker}</small></span></button><button aria-label={`${stock.name} 관심종목 제외`} onClick={() => onRemove(stock.ticker)}>×</button></li>)}</ol> : <div className="panel-empty">관심종목이 없습니다. 검색 결과에서 종목을 추가해 보세요.</div>}</div>;
+  return <div className="workspace-panel watch-panel"><div className="watch-toolbar"><div className="watch-tabs">{watchlists.map((list, index) => <button className={watchTab === index ? "active" : ""} key={index} onClick={() => onTab(index)}>관심 {index + 1}<span>{list.length}/50</span></button>)}</div><div className="watch-actions"><button onClick={onClear}>전체 삭제</button><button onClick={() => onAdd(ticker)}>현재 종목 추가</button><button className="watch-to-results" disabled={!selectedWatch.length} onClick={onMoveToResults}>검색창에서 보기</button></div></div>{selectedWatch.length ? <ol className="watch-list">{selectedWatch.sort((a, b) => a.name.localeCompare(b.name, "ko")).map(stock => <li key={stock.ticker}><button onClick={() => onSelect(stock.ticker)}><span><b>{stock.name}</b><small>{stock.ticker}</small></span></button><button aria-label={`${stock.name} 관심종목 제외`} onClick={() => onRemove(stock.ticker)}>×</button></li>)}</ol> : <div className="panel-empty">관심종목이 없습니다. 검색 결과에서 종목을 추가해 보세요.</div>}</div>;
 }
 
 function Condition({ title, required, children }: { title: string; required?: boolean; children: React.ReactNode }) { return <fieldset className="condition-card"><legend className={required ? "required" : ""}>{title}</legend><div>{children}</div></fieldset>; }
