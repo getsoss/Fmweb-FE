@@ -34,7 +34,6 @@ async function mockStockData(page, savedSearches = []) {
         ticker,
         candles,
         holdings: [[20260831, 0, 1413177, 69800], [20260830, 0, 1400000, 69400]],
-        averageTradePrices: [[20260831, ...Array.from({ length: 26 }, (_, index) => 70000 + index * 100)], [20260830, ...Array.from({ length: 26 }, (_, index) => 69500 + index * 100)]],
         holdingChanges: [investors(20260831, 1), investors(20260830, 0)],
         power: [investors(20260831, 2), investors(20260830, 1)],
         direction: [investors(20260831, 1), investors(20260830, -1)],
@@ -75,9 +74,9 @@ test("v11.6.0 종목 정보로 전종목 검색결과와 종목명 조회를 제
   }
   await columns.getByRole("button", { name: "닫기" }).click();
   const dongwha = results.locator("tbody tr").filter({ hasText: "동화약품" });
-  await expect(dongwha).toContainText("-48.95%");
-  await expect(dongwha).toContainText("352.6");
-  await expect(dongwha).toContainText("37.73953852170512");
+  await expect(dongwha).toContainText("-49.0%");
+  await expect(dongwha).toContainText("353");
+  await expect(dongwha).toContainText("37.7");
 
   const launcher = page.getByLabel("종목 및 저장 검색");
   await launcher.getByLabel("종목이름").fill("동화약품");
@@ -128,6 +127,12 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(page.locator(".search-dock")).toBeVisible();
   await expect(page.locator(".results-panel")).toBeVisible();
   await expect(page.locator(".watch-panel")).toBeVisible();
+  const watchLayout = await page.locator(".watch-toolbar").evaluate(element => {
+    const tabs = element.querySelector(".watch-tabs")?.getBoundingClientRect();
+    const actions = element.querySelector(".watch-actions")?.getBoundingClientRect();
+    return { tabsCenter: (tabs?.top ?? 0) + (tabs?.height ?? 0) / 2, actionsCenter: (actions?.top ?? 0) + (actions?.height ?? 0) / 2 };
+  });
+  expect(Math.abs(watchLayout.tabsCenter - watchLayout.actionsCenter)).toBeLessThanOrEqual(1);
   await expect(page.locator(".news-panel")).toBeVisible();
   await expect(page.locator(".news-panel").getByRole("link", { name: "삼성전자 뉴스 제목 3일 전" })).toHaveAttribute("href", "https://example.com/news");
   await expect(page.getByRole("separator")).toHaveCount(4);
@@ -145,9 +150,7 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
   await expect(page.getByRole("button", { name: "홈", exact: true })).toHaveCount(0);
   const indicators = page.getByLabel("차트 표시 지표");
   await expect(indicators.getByText("평균매수단가", { exact: true })).toBeVisible();
-  await expect(indicators.getByText("평균거래단가", { exact: true })).toBeVisible();
-  await expect(page.locator(".chart-average-trade-controls").getByRole("checkbox")).toHaveCount(26);
-  await page.locator(".chart-average-trade-controls").getByRole("checkbox", { name: "개인B", exact: true }).check();
+  await expect(indicators.getByText("평균거래단가", { exact: true })).toHaveCount(0);
   await expect(indicators.getByText("20 이평선", { exact: true })).toBeVisible();
   await expect(indicators.getByText("60 이평선", { exact: true })).toBeVisible();
   expect(await page.locator(".chart-overlay-controls input:checked + span").evaluateAll(elements =>
@@ -314,7 +317,7 @@ test("지표 변경 뒤에도 차트 크기와 시간축을 유지하고 불필�
   expect(Math.abs(legendLayout.stageWidth - legendLayout.surfaceWidth)).toBeLessThanOrEqual(1);
   expect(legendLayout.rightAxisWidth).toBeLessThanOrEqual(70);
   expect(Math.abs(legendLayout.overlayGap)).toBeLessThanOrEqual(1);
-  expect(legendLayout.investorRows).toHaveLength(3);
+  expect(legendLayout.investorRows).toHaveLength(2);
   expect(legendLayout.investorRows.every(row => row.display === "flex" && row.justifyContent === "flex-start")).toBe(true);
   expect(legendLayout.investorRows.every(row => Math.abs(row.startGap) <= 1)).toBe(true);
   expect(legendLayout.investorRows.every(row => row.gaps.every(gap => Math.abs(gap - 12) <= 1))).toBe(true);
@@ -326,13 +329,19 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   await page.locator(".chart-engine canvas").first().waitFor();
 
+  const dongwhaRow = page.locator(".result-table-alerts tbody tr").filter({ hasText: "동화약품" });
+  const statusCell = dongwhaRow.locator("td").nth(3);
+  const alertPriceCell = dongwhaRow.locator("td").nth(4);
+  await expect(statusCell).toHaveText("");
+  await expect(alertPriceCell).toHaveText("");
+  await dongwhaRow.click();
+  await expect(page.locator(".chart-identity")).toContainText("000020");
+  await page.locator(".chart-engine canvas").first().waitFor();
+
   const chartRows = page.locator(".chart-engine table tr");
   const pricePane = chartRows.nth(0);
   const pricePaneBox = await pricePane.boundingBox();
   expect(pricePaneBox).not.toBeNull();
-  const samsungRow = page.locator(".result-table-alerts tbody tr").filter({ hasText: "삼성전자" });
-  const alertPriceCell = samsungRow.locator("td").nth(4);
-  await expect(alertPriceCell).toHaveText("1,300");
 
   await page.mouse.click(
     pricePaneBox.x + pricePaneBox.width * 0.6,
@@ -344,8 +353,9 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
   await expect(alertMenu.getByRole("menuitem", { name: "알람가격 넣기" })).toBeVisible();
   await expect(alertMenu.getByRole("menuitem", { name: "알람가격 삭제" })).toBeVisible();
   await alertMenu.getByRole("menuitem", { name: "알람가격 넣기" }).click();
-  await expect(alertPriceCell).not.toHaveText("1,300");
   expect(Number((await alertPriceCell.textContent()).replaceAll(",", ""))).toBeGreaterThan(0);
+  await expect(statusCell).toHaveText(/^(U)?-\d+%$/);
+  expect(await statusCell.evaluate(element => ["alert-status-low", "alert-status-warning", "alert-status-caution"].some(className => element.classList.contains(className)))).toBe(true);
 
   await page.mouse.click(
     pricePaneBox.x + pricePaneBox.width * 0.6,
@@ -354,6 +364,7 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
   );
   await alertMenu.getByRole("menuitem", { name: "알람가격 삭제" }).click();
   await expect(alertPriceCell).toHaveText("0");
+  await expect(statusCell).toHaveText("");
 
   const antPaneBox = await chartRows.nth(2).boundingBox();
   expect(antPaneBox).not.toBeNull();
@@ -501,25 +512,25 @@ test("개미분석, 보유비중, 영향력, 세부 특이 거래량 조건을 A
 
   const holding = settings.getByRole("group", { name: "보유비중 증감" });
   await holding.getByRole("checkbox", { name: "사용", exact: true }).check();
-  await expect(holding.locator(".investor-matrix > div")).toHaveCount(17);
+  await expect(holding.locator(".investor-matrix > div")).toHaveCount(16);
   const holdingForeignerUp = holding.getByRole("checkbox", { name: "외국인 증가", exact: true });
   const holdingForeignerDown = holding.getByRole("checkbox", { name: "외국인 감소", exact: true });
   await holdingForeignerUp.check();
   await holdingForeignerDown.check();
   await expect(holdingForeignerUp).not.toBeChecked();
-  await holding.getByRole("checkbox", { name: "국가 증가", exact: true }).check();
+  await expect(holding.getByText("국가", { exact: true })).toHaveCount(0);
 
   const power = settings.getByRole("group", { name: "영향력" });
   await power.getByRole("checkbox", { name: "사용", exact: true }).check();
-  await expect(power.locator(".investor-matrix > div")).toHaveCount(17);
+  await expect(power.locator(".investor-matrix > div")).toHaveCount(16);
   await power.getByRole("checkbox", { name: "기관계 매수력", exact: true }).check();
-  await power.getByRole("checkbox", { name: "국가 매도력", exact: true }).check();
+  await expect(power.getByText("국가", { exact: true })).toHaveCount(0);
 
   const detailVolume = settings.getByRole("group", { name: "세부 특이 거래량" });
   await detailVolume.getByRole("checkbox", { name: "사용", exact: true }).check();
   await detailVolume.getByRole("radio", { name: "6개월", exact: true }).check();
   await detailVolume.getByRole("checkbox", { name: "외국인", exact: true }).check();
-  await detailVolume.getByRole("checkbox", { name: "국가", exact: true }).check();
+  await expect(detailVolume.getByText("국가", { exact: true })).toHaveCount(0);
   await settings.getByRole("group", { name: "최종 검색 결과 정렬" }).getByRole("radio", { name: "점수 내림차순", exact: true }).check();
 
   const searchRequest = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "POST");
@@ -532,10 +543,13 @@ test("개미분석, 보유비중, 영향력, 세부 특이 거래량 조건을 A
     average_buy_price_size_first: 2,
     n_top_account: 1,
   });
-  expect(condition.have).toMatchObject({ disabled: 0, foreigner: 2, nation: 1 });
-  expect(condition.power).toMatchObject({ disabled: 0, organization: 1, nation: 2 });
+  expect(condition.have).toMatchObject({ disabled: 0, foreigner: 2 });
+  expect(condition.have).not.toHaveProperty("nation");
+  expect(condition.power).toMatchObject({ disabled: 0, organization: 1 });
+  expect(condition.power).not.toHaveProperty("nation");
   expect(condition.all_special_volume).toBe(0);
-  expect(condition.specific_special_volume).toMatchObject({ time: 120, foreigner: 1, nation: 1 });
+  expect(condition.specific_special_volume).toMatchObject({ time: 120, foreigner: 1 });
+  expect(condition.specific_special_volume).not.toHaveProperty("nation");
   expect(condition.result_sort).toBe(2);
 });
 
@@ -569,13 +583,13 @@ test("v11.5.0 저장 검색 제목을 서버 응답에서 불러온다", async (
   await expect(settings.getByRole("group", { name: "최종 검색 결과 정렬" }).getByRole("radio", { name: "점수 오름차순", exact: true })).toBeChecked();
   await expect(settings.getByRole("group", { name: "개미 분석 필터" }).getByRole("checkbox", { name: "주가 증가", exact: true })).toBeChecked();
   await expect(settings.getByRole("group", { name: "보유비중 증감" }).getByRole("checkbox", { name: "외국인 감소", exact: true })).toBeChecked();
-  await expect(settings.getByRole("group", { name: "보유비중 증감" }).getByRole("checkbox", { name: "국가 증가", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "보유비중 증감" }).getByText("국가", { exact: true })).toHaveCount(0);
   await expect(settings.getByRole("group", { name: "영향력" }).getByRole("checkbox", { name: "기관계 매수력", exact: true })).toBeChecked();
-  await expect(settings.getByRole("group", { name: "영향력" }).getByRole("checkbox", { name: "국가 매도력", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "영향력" }).getByText("국가", { exact: true })).toHaveCount(0);
   const detailVolume = settings.getByRole("group", { name: "세부 특이 거래량" });
   await expect(detailVolume.getByRole("radio", { name: "6개월", exact: true })).toBeChecked();
   await expect(detailVolume.getByRole("checkbox", { name: "외국인", exact: true })).toBeChecked();
-  await expect(detailVolume.getByRole("checkbox", { name: "국가", exact: true })).toBeChecked();
+  await expect(detailVolume.getByText("국가", { exact: true })).toHaveCount(0);
 });
 
 test("로그아웃하면 워크스페이스를 닫고 랜딩 초기 화면으로 돌아간다", async ({ page }) => {
