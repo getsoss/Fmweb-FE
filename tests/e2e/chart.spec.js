@@ -399,7 +399,8 @@ test("지표 변경 뒤에도 차트 크기와 시간축을 유지하고 불필�
   await expect(page.locator(".chart-identity")).toContainText("000660");
   await expect.poll(() => previousTable.evaluate(element => element.isConnected)).toBe(false);
   await expect.poll(() => chartRows.nth(0).evaluate(element => element.getBoundingClientRect().height)).toBe(holdingHeight);
-  expect((await chartRows.last().screenshot()).equals(adjustedTimeAxis)).toBe(true);
+  // A different stock retains zoom and pane sizes, but returns to its latest candle.
+  expect((await chartRows.last().screenshot()).equals(fittedTimeAxis)).toBe(true);
   await expect(holdingControls.locator("input:checked")).toHaveCount(2);
 
   await expect(page.getByLabel("선택 세력 차트 레전드")).toHaveCount(0);
@@ -454,6 +455,114 @@ test("지표 변경 뒤에도 차트 크기와 시간축을 유지하고 불필�
   expect(legendLayout.investorRows.every(row => row.display === "flex" && row.justifyContent === "flex-start")).toBe(true);
   expect(legendLayout.investorRows.every(row => Math.abs(row.startGap) <= 1)).toBe(true);
   expect(legendLayout.investorRows.every(row => row.gaps.every(gap => Math.abs(gap - 12) <= 1))).toBe(true);
+});
+
+test("신규상장주와 영문 코드 조회 뒤에도 최신 캔들과 시간축을 우측에 표시한다", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__candleRects = [];
+    const fillRect = CanvasRenderingContext2D.prototype.fillRect;
+    CanvasRenderingContext2D.prototype.fillRect = function (x, y, width, height) {
+      if (x === 0 && y === 0 && width >= this.canvas.width && height >= this.canvas.height) {
+        window.__candleRects = window.__candleRects.filter(rect => rect.canvas !== this.canvas && rect.canvas.isConnected);
+      }
+      if (["#cf202f", "#2563eb"].includes(this.fillStyle) && width > 1 && height > 1) {
+        window.__candleRects.push({ canvas: this.canvas, x, y, width, height });
+      }
+      return fillRect.call(this, x, y, width, height);
+    };
+  });
+  await mockStockData(page);
+  await page.route("**/api/stock-info", route => route.fulfill({ json: { count: 4, result: Object.fromEntries([
+    ["005930", "삼성전자"], ["00AB12", "신규상장주"], ["00CD34", "다른 기간 종목"], ["00EF56", "첫 거래 종목"],
+  ].map(([ticker, name]) => [ticker, { name, ma20_up: true, bojong_profit_rate: 0, trading_value: 1, _5d_avg_trading_value: 1, ibdrs: 1, n_top_acc: 0 }])) } }));
+  let releaseShort;
+  const shortReady = new Promise(resolve => { releaseShort = resolve; });
+  await page.route("**/api/stocks/*", async route => {
+    const ticker = new URL(route.request().url()).pathname.split("/").at(-1);
+    if (ticker === "00AB12") await shortReady;
+    const count = ticker === "00AB12" ? 5 : ticker === "00CD34" ? 12 : ticker === "00EF56" ? 1 : 160;
+    const month = ticker === "00CD34" ? 2 : 9;
+    const candles = Array.from({ length: count }, (_, index) => {
+      const date = Number(new Date(Date.UTC(2026, month, 12 - index)).toISOString().slice(0, 10).replaceAll("-", ""));
+      const close = 74200 - index * 50;
+      return [date, close, 1000000, 0, close - 500, close + 1000, close - 1000];
+    });
+    const holdings = candles.map(([date], index) => [date, 0, 1000000 + index, 69000 + index]);
+    const investors = candles.map(([date]) => [date, ...Array.from({ length: 13 }, () => 1)]);
+    // Indicator-only dates must not expand the candle period or change alignment.
+    holdings.push([20200101, 0, 1, 60000]);
+    holdings.unshift([20271231, 0, 1, 80000]);
+    return route.fulfill({ json: {
+      ticker, candles, holdings, holdingChanges: investors, power: investors, direction: investors,
+      rs: candles.map(([date]) => [date, 95]),
+    } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  const identity = page.locator(".chart-identity");
+  const launcher = page.getByLabel("종목 및 저장 검색");
+  const code = launcher.getByLabel("종목코드");
+  async function rightmostCandle() {
+    return page.evaluate(() => {
+      const pane = document.querySelector(".chart-engine table tr:first-child td:nth-child(2)");
+      const rectangles = window.__candleRects.filter(rect => rect.canvas.isConnected && pane?.contains(rect.canvas));
+      const last = rectangles.sort((a, b) => b.x - a.x)[0];
+      if (!last) return null;
+      const bounds = last.canvas.getBoundingClientRect();
+      return {
+        rightGap: last.canvas.width - last.x - last.width, barWidth: last.width,
+        x: bounds.left + (last.x + last.width / 2) * bounds.width / last.canvas.width,
+        y: bounds.top + (last.y + last.height / 2) * bounds.height / last.canvas.height,
+      };
+    });
+  }
+  async function expectLatest(date) {
+    // Range changes paint asynchronously on the same canvas; read the new frame.
+    await page.evaluate(async () => {
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+    });
+    await expect.poll(async () => {
+      const last = await rightmostCandle();
+      return last !== null && last.rightGap <= Math.max(5, last.barWidth);
+    }).toBe(true);
+    const last = await rightmostCandle();
+    await page.mouse.move(last.x, last.y);
+    await expect(page.locator(".ohlcv-values > span").first()).toHaveText(date);
+  }
+  await expectLatest("2026. 10. 12.");
+  const originalWidth = (await rightmostCandle()).barWidth;
+  const shortRequest = page.waitForRequest("**/api/stocks/00AB12");
+  await code.fill("00ab12");
+  await launcher.getByRole("button", { name: "차트보기", exact: true }).click();
+  await shortRequest;
+  // Pending data keeps the previous chart's identity and period together.
+  await expect(identity).toContainText("005930");
+  releaseShort();
+  await expect(identity).toContainText("00AB12");
+  await expectLatest("2026. 10. 12.");
+  expect(Math.abs((await rightmostCandle()).barWidth - originalWidth)).toBeLessThanOrEqual(1);
+
+  const oldTable = await page.locator(".chart-engine table").elementHandle();
+  await page.getByLabel("차트 표시 지표").getByRole("checkbox", { name: "60 이평선", exact: true }).uncheck();
+  await expect.poll(() => oldTable.evaluate(element => element.isConnected)).toBe(false);
+  await expectLatest("2026. 10. 12.");
+  await page.getByRole("button", { name: "전체 구간", exact: true }).click();
+  await expectLatest("2026. 10. 12.");
+  for (const [ticker, date] of [["00EF56", "2026. 10. 12."], ["00CD34", "2026. 3. 12."], ["005930", "2026. 10. 12."]]) {
+    await code.fill(ticker);
+    await launcher.getByRole("button", { name: "차트보기", exact: true }).click();
+    await expect(identity).toContainText(ticker);
+    await expectLatest(date);
+  }
+  await page.getByRole("button", { name: "전체 구간", exact: true }).click();
+  await expectLatest("2026. 10. 12.");
+  for (const [interval, date] of [["월", "2026. 10. 1."], ["주", "2026. 10. 12."], ["일", "2026. 10. 12."]]) {
+    const previous = await page.locator(".chart-engine table").elementHandle();
+    await page.getByRole("button", { name: interval, exact: true }).click();
+    await expect.poll(() => previous.evaluate(element => element.isConnected)).toBe(false);
+    await expectLatest(date);
+  }
 });
 
 test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭제한다", async ({ page }) => {

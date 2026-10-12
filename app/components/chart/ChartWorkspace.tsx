@@ -90,7 +90,19 @@ type PaneKey = "price" | "ant" | "holding" | "power" | "rs";
 type SavedChartView = {
   paneStretch: Partial<Record<PaneKey, number>>;
   visibleLogicalRange: LogicalRange | null;
+  viewKey: string;
+  lastPriceIndex: number | null;
 };
+
+// Fit the candle period rather than dates contributed by auxiliary series.
+function fitPriceRange(chart: IChartApi, data: OHLC[], minimumBars = 0) {
+  const timeScale = chart.timeScale();
+  const first = data[0] && timeScale.timeToIndex(data[0].time);
+  const last = data.at(-1) && timeScale.timeToIndex(data.at(-1)!.time);
+  if (first == null || last == null) return;
+  const span = Math.max(last - first, minimumBars - 1, 1);
+  timeScale.setVisibleLogicalRange({ from: last - span, to: last });
+}
 
 function trimChartDecimals(value: number) {
   const rounded = Number(value.toFixed(2));
@@ -259,7 +271,19 @@ export default function ChartWorkspace({
     [rows],
   );
   const data = useMemo(() => aggregate(base, interval), [base, interval]);
-  const latest = hovered ?? data.at(-1) ?? null;
+  const viewKey = `${ticker}:${interval}:${base[0]?.time}:${base.at(-1)?.time}:${base.length}`;
+  const indicatorRows = useMemo(() => {
+    const candleTimes = new Set(base.map(row => row.time));
+    const withinCandles = (source: number[][]) => source.filter(row => candleTimes.has(timestamp(row[0])));
+    return {
+      holdings: withinCandles(holdings),
+      holdingChanges: withinCandles(holdingChanges),
+      power: withinCandles(power),
+      direction: withinCandles(direction),
+      rs: withinCandles(rs),
+    };
+  }, [base, holdings, holdingChanges, power, direction, rs]);
+  const latest = data.find(row => row.time === hovered?.time) ?? data.at(-1) ?? null;
   const previous = latest
     ? data[Math.max(0, data.findIndex((row) => row.time === latest.time) - 1)]
     : null;
@@ -283,7 +307,10 @@ export default function ChartWorkspace({
     };
   }, [alertMenu]);
 
-  useEffect(() => setAlertMenu(null), [ticker]);
+  useEffect(() => {
+    setAlertMenu(null);
+    setHovered(null);
+  }, [viewKey]);
 
   function openAlertMenu(event: ReactMouseEvent<HTMLDivElement>) {
     const chart = chartRef.current;
@@ -389,7 +416,7 @@ export default function ChartWorkspace({
         title: "",
         priceFormat: compactPriceFormat,
       });
-      series.setData(lineData(holdings, 3));
+      series.setData(lineData(indicatorRows.holdings, 3));
     }
     if (ma20) {
       const series = chart.addSeries(LineSeries, {
@@ -443,7 +470,7 @@ export default function ChartWorkspace({
       title: "",
       priceFormat: compactPriceFormat,
     });
-    antIndex.setData(lineData(holdings, 2));
+    antIndex.setData(lineData(indicatorRows.holdings, 2));
     antIndex.moveToPane(paneIndex++);
     antIndex.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
     paneKeys.push("ant");
@@ -463,7 +490,7 @@ export default function ChartWorkspace({
           lastValueVisible: false,
           title: "",
         });
-        series.setData(combinedLineData(holdingChanges, investor.columns));
+        series.setData(combinedLineData(indicatorRows.holdingChanges, investor.columns));
         series.moveToPane(holdingPane);
         series.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
       });
@@ -476,7 +503,7 @@ export default function ChartWorkspace({
       powerInvestors.forEach((investor) => {
         const label = powerInvestorOptions.find((option) => option.key === investor)?.label ?? "";
         const directions = new Map(
-          direction.map((row) => [row[0], Number(row[investor])]),
+          indicatorRows.direction.map((row) => [row[0], Number(row[investor])]),
         );
         const series = chart.addSeries(HistogramSeries, {
           priceScaleId: "right",
@@ -489,7 +516,7 @@ export default function ChartWorkspace({
           }),
         });
         series.setData(
-          power
+          indicatorRows.power
             .slice()
             .reverse()
             .flatMap((row) => {
@@ -522,7 +549,7 @@ export default function ChartWorkspace({
       priceLineVisible: false,
       title: "RS",
     });
-    rsSeries.setData(lineData(rs, 1));
+    rsSeries.setData(lineData(indicatorRows.rs, 1));
     rsSeries.moveToPane(paneIndex);
     rsSeries.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
     paneKeys.push("rs");
@@ -538,15 +565,26 @@ export default function ChartWorkspace({
     chart.subscribeCrosshairMove((param) =>
       setHovered(param.time ? data.find((row) => row.time === param.time) ?? null : null),
     );
-    if (savedView?.visibleLogicalRange) {
-      chart.timeScale().setVisibleLogicalRange(savedView.visibleLogicalRange);
+    const timeScale = chart.timeScale();
+    const lastPriceIndex = timeScale.timeToIndex(data.at(-1)!.time);
+    if (savedView?.visibleLogicalRange && lastPriceIndex !== null) {
+      const savedRange = savedView.visibleLogicalRange;
+      const span = savedRange.to - savedRange.from;
+      // Indicators retain the current scroll position. A new stock, period, or
+      // candle history retains zoom but anchors its latest candle to the right.
+      const to = savedView.viewKey === viewKey && savedView.lastPriceIndex !== null
+        ? savedRange.to + lastPriceIndex - savedView.lastPriceIndex
+        : lastPriceIndex;
+      timeScale.setVisibleLogicalRange({ from: to - span, to });
     } else {
-      chart.timeScale().fitContent();
+      fitPriceRange(chart, data, timeScale.width() / 8);
     }
 
     return () => {
       savedViewRef.current = {
-        visibleLogicalRange: chart.timeScale().getVisibleLogicalRange(),
+        visibleLogicalRange: timeScale.getVisibleLogicalRange(),
+        viewKey,
+        lastPriceIndex,
         paneStretch: Object.fromEntries(
           chart
             .panes()
@@ -566,11 +604,8 @@ export default function ChartWorkspace({
     ma60,
     holdingInvestors,
     powerInvestors,
-    holdings,
-    holdingChanges,
-    power,
-    direction,
-    rs,
+    indicatorRows,
+    viewKey,
   ]);
 
   useEffect(() => {
@@ -613,7 +648,7 @@ export default function ChartWorkspace({
           <option value="log">로그</option>
           <option value="percent">%</option>
         </select>
-        <button onClick={() => chartRef.current?.timeScale().fitContent()}>전체 구간</button>
+        <button onClick={() => { if (chartRef.current) fitPriceRange(chartRef.current, data); }}>전체 구간</button>
       </header>
 
       <div className="ohlcv-strip">
