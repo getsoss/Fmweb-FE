@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 
 type Stock = { name: string; ticker: string };
 export type StockInfo = { name: string; ma20_up: boolean; bojong_profit_rate: number; trading_value: number; _5d_avg_trading_value: number; ibdrs: number; n_top_acc: number };
 export type StockInfoMap = Record<string, StockInfo>;
 type SearchPreset = { title: string; period: string; limit: number; perLimit: number; resultSort: string; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: string; ma20: boolean; ma60: boolean; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
 type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number; ma20Up?: boolean; score?: number };
+type ResultSort = { key: keyof ResultRow; asc: boolean } | null;
 type NewsItem = [string, string, string];
 type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
 
@@ -161,7 +162,7 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   const [watchTab, setWatchTab] = useState(0);
   const [watchlists, setWatchlists] = useState<string[][]>([["005930"], ["000660"], [], [], []]);
   const [gather, setGather] = useState(false);
-  const [sort, setSort] = useState<{ key: keyof ResultRow; asc: boolean }>({ key: "ibd", asc: false });
+  const [sort, setSort] = useState<ResultSort>({ key: "ibd", asc: false });
   const [hidden, setHidden] = useState<string[]>(["profit", "value", "average", "ibd", "rank"]);
   const [message, setMessage] = useState("");
   const [investors, setInvestors] = useState<Record<string, string>>({});
@@ -216,12 +217,17 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
     requestAnimationFrame(() => document.getElementById("search-settings-panel")?.scrollIntoView({ block: "start" }));
   }, [settingsOpen]);
 
-  const ordered = useMemo(() => [...results].sort((a, b) => {
-    const av = a[sort.key], bv = b[sort.key];
-    const direction = typeof av === "string" ? av.localeCompare(String(bv), "ko") : Number(av) - Number(bv);
-    const sorted = sort.asc ? direction : -direction;
-    return gather ? (Number(bookmarks.includes(b.ticker)) - Number(bookmarks.includes(a.ticker)) || sorted) : sorted;
-  }), [results, sort, gather, bookmarks]);
+  const ordered = useMemo(() => {
+    if (!sort && !gather) return results;
+    const bookmarked = new Set(bookmarks);
+    return [...results].sort((a, b) => {
+      const bookmarkOrder = gather ? Number(bookmarked.has(b.ticker)) - Number(bookmarked.has(a.ticker)) : 0;
+      if (bookmarkOrder || !sort) return bookmarkOrder;
+      const av = a[sort.key], bv = b[sort.key];
+      const direction = typeof av === "string" ? av.localeCompare(String(bv), "ko") : Number(av) - Number(bv);
+      return sort.asc ? direction : -direction;
+    });
+  }, [results, sort, gather, bookmarks]);
   const selectedWatch = watchlists[watchTab].map(code => marketByTicker.get(code) ?? stocks.find(stock => stock.ticker === code)).filter(Boolean) as Stock[];
   const activeDescription = activeSlot === null ? "검색조건을 선택하거나 새 조건을 만들어 주세요." : slots[activeSlot] ? describePreset(slots[activeSlot]) : "검색조건이 설정되지 않았습니다.";
 
@@ -233,29 +239,31 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
     if (!saved) return setMessage(`검색 ${index + 1}에는 저장된 조건이 없습니다.`);
     void runSearch(saved, slotInvestors[index] ?? {}, `검색 ${index + 1}`);
   }
-  async function savePreset() {
+  async function savePreset(title = preset.title) {
+    const savedPreset = { ...preset, title: title.trim() };
     if (!preset.period) return setMessage("필수 항목인 검색기간을 선택해 주세요.");
-    if (!preset.title.trim()) return setMessage("검색 제목을 입력해 주세요.");
+    if (!savedPreset.title) return setMessage("검색 제목을 입력해 주세요.");
     if (activeSlot === null) return setMessage("저장 위치(검색1~검색5)를 먼저 선택해 주세요.");
     const index = activeSlot;
     try {
-      const response = await fetch("/api/conditional-search", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot: index, condition: toCondition(preset, investors), title: preset.title.trim() }) });
+      const response = await fetch("/api/conditional-search", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot: index, condition: toCondition(savedPreset, investors), title: savedPreset.title }) });
       const responseBody = await response.json();
       if (!response.ok) throw new Error(responseBody.message);
-      const next = [...slots]; next[index] = { ...preset, title: preset.title || `검색 ${index + 1}` }; setSlots(next);
+      const next = [...slots]; next[index] = savedPreset; setSlots(next);
       const nextInvestors = [...slotInvestors]; nextInvestors[index] = { ...investors }; setSlotInvestors(nextInvestors);
       setMessage(`검색 ${index + 1}에 조건을 저장했습니다.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "검색조건을 저장하지 못했습니다."); }
   }
   async function deletePreset() {
-    if (activeSlot === null || !slots[activeSlot]) return setMessage("삭제할 저장 검색을 선택해 주세요.");
+    if (activeSlot === null || !slots[activeSlot]) { setMessage("삭제할 저장 검색을 선택해 주세요."); return false; }
     try {
       const response = await fetch(`/api/conditional-search?slot=${activeSlot}`, { method: "DELETE" });
       if (!response.ok) { const responseBody = await response.json(); throw new Error(responseBody.message); }
       const next = [...slots]; next[activeSlot] = null; setSlots(next);
       const nextInvestors = [...slotInvestors]; nextInvestors[activeSlot] = {}; setSlotInvestors(nextInvestors);
       setPreset(emptyPreset); setInvestors({}); setMessage(`검색 ${activeSlot + 1}의 저장 조건을 삭제했습니다.`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "검색조건을 삭제하지 못했습니다."); }
+      return true;
+    } catch (error) { setMessage(error instanceof Error ? error.message : "검색조건을 삭제하지 못했습니다."); return false; }
   }
   async function runSearch(nextPreset = preset, nextInvestors = investors, label = "임시 검색") {
     if (!nextPreset.period) return setMessage("필수 항목인 검색기간을 선택해 주세요.");
@@ -267,21 +275,21 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
         const known = marketByTicker.get(code);
         return known ? { ...known, score } : { name: stocks.find(stock => stock.ticker === code)?.name ?? code, ticker: code, price: 0, change: 0, alertPrice: null, alertChange: null, alertUp: false, value: 0, average: 0, ibd: 0, rank: index + 1, score };
       });
-      setResults(nextRows); setMessage(`${label} 결과 · ${nextRows.length}개 종목`);
+      setSort(null); setGather(false); setResults(nextRows); setMessage(`${label} 결과 · ${nextRows.length}개 종목`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "조건검색을 실행하지 못했습니다."); }
   }
   function showDirectStock() {
     const stock = directTicker.trim()
-      ? stocks.find(item => item.ticker === directTicker.trim())
+      ? stocks.find(item => item.ticker.toUpperCase() === directTicker.trim().toUpperCase())
       : stocks.find(item => item.name === directName.trim());
-    if (!stock) return setMessage("종목명 또는 6자리 종목코드를 확인해 주세요.");
+    if (!stock) return setMessage("종목명 또는 영문·숫자 6자리 종목코드를 확인해 주세요.");
     setDirectTicker(stock.ticker);
     setDirectName(stock.name);
     onSelect(stock.ticker);
     setMessage(`${stock.name} 차트를 표시했습니다.`);
   }
-  function setSortKey(key: keyof ResultRow) { setSort(current => ({ key, asc: current.key === key ? !current.asc : true })); }
-  function setAlertPrice(price: number, currentPrice: number) {
+  const setSortKey = useCallback((key: keyof ResultRow) => { setSort(current => ({ key, asc: current?.key === key ? !current.asc : true })); }, []);
+  const setAlertPrice = useCallback((price: number, currentPrice: number) => {
     setResults(current => current.map(row => {
       if (row.ticker !== ticker) return row;
       if (price <= 0 || currentPrice <= 0) return { ...row, alertPrice: price, alertChange: null, alertUp: false };
@@ -289,8 +297,8 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
       const distanceRatio = alertUp ? currentPrice / price : price / currentPrice;
       return { ...row, price: currentPrice, alertPrice: price, alertChange: Math.round((distanceRatio - 1) * 100), alertUp };
     }));
-  }
-  function toggleBookmark(code: string) { setBookmarks(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]); }
+  }, [ticker]);
+  const toggleBookmark = useCallback((code: string) => { setBookmarks(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]); }, []);
   function addWatch(code: string) {
     setWatchlists(current => {
       const next = current.map(list => [...list]);
@@ -335,12 +343,12 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   return <div className={`market-workspace-shell ${settingsOpen ? "settings-open" : ""}`}>
   <section className="market-workspace" style={workspaceStyle} aria-label="세력모니터 워크스페이스">
     <div className="workspace-primary">
-      <div className="workspace-chart-slot">{chart(setAlertPrice)}</div>
+      <div className="workspace-chart-slot"><WorkspaceChart chart={chart} onAlertPriceChange={setAlertPrice} /></div>
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="차트와 검색 영역 높이 조절" aria-orientation="horizontal" aria-valuemin={206} aria-valuemax={300} aria-valuenow={dockHeight} tabIndex={0} onPointerDown={capture} onPointerMove={resizeDock} onDoubleClick={() => setDockHeight(224)} onKeyDown={event => { if (event.key === "ArrowUp") setDockHeight(value => clamp(value + 8, 206, 300)); if (event.key === "ArrowDown") setDockHeight(value => clamp(value - 8, 206, 300)); }} />
       <section className="workspace-panel search-dock" style={{ flexBasis: dockHeight }} aria-label="종목 및 저장 검색">
         <div className="stock-lookup">
           <label>종목이름<input value={directName} onChange={event => { setDirectName(event.target.value); setDirectTicker(""); }} placeholder="삼성전자" /></label>
-          <label>종목코드<input inputMode="numeric" maxLength={6} value={directTicker} onChange={event => { setDirectTicker(event.target.value.replace(/\D/g, "")); setDirectName(""); }} placeholder="005930" /></label>
+          <label>종목코드<input inputMode="text" maxLength={6} value={directTicker} onChange={event => { setDirectTicker(event.target.value.replace(/[^a-zA-Z0-9]/g, "")); setDirectName(""); }} placeholder="005930" /></label>
           <button onClick={showDirectStock}>차트보기</button>
         </div>
         <div className="quick-presets" aria-label="저장 검색">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => chooseSlot(index)}>검색{index + 1}</button>)}</div>
@@ -363,6 +371,10 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   {settingsOpen && <SearchSettingsPanel slots={slots} activeSlot={activeSlot} preset={preset} investors={investors} onClose={() => setSettingsOpen(false)} onSelectSlot={(index, slot) => { setActiveSlot(index); setPreset(slot ? { ...emptyPreset, ...slot } : emptyPreset); setInvestors(slotInvestors[index] ?? {}); }} setPreset={setPreset} setActiveSlot={setActiveSlot} setInvestors={setInvestors} onSave={savePreset} onDelete={deletePreset} onSearch={() => void runSearch()} />}
   </div>;
 }
+
+const WorkspaceChart = memo(function WorkspaceChart({ chart, onAlertPriceChange }: { chart: (onAlertPriceChange: (price: number, currentPrice: number) => void) => React.ReactNode; onAlertPriceChange: (price: number, currentPrice: number) => void }) {
+  return chart(onAlertPriceChange);
+});
 
 function NewsPanel({ name }: { name: string }) {
   const [items, setItems] = useState<NewsItem[]>([]);
@@ -394,10 +406,19 @@ function NewsPanel({ name }: { name: string }) {
   </div>;
 }
 
-function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, onSelectSlot, setPreset, setActiveSlot, setInvestors, onSave, onDelete, onSearch }: { slots: (SearchPreset | null)[]; activeSlot: number | null; preset: SearchPreset; investors: Record<string, string>; onClose: () => void; onSelectSlot: (index: number, slot: SearchPreset | null) => void; setPreset: (value: SearchPreset) => void; setActiveSlot: (value: number | null) => void; setInvestors: (value: Record<string, string>) => void; onSave: () => void; onDelete: () => void; onSearch: () => void }) {
-  return <section id="search-settings-panel" className="workspace-panel search-builder search-settings-panel search-settings-page" aria-label="검색 설정창">
-    <aside><div className="settings-panel-heading"><span className="panel-kicker">저장 위치</span><button onClick={onClose} aria-label="검색 설정 접기">×</button></div><div className="preset-slots">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => onSelectSlot(index, slot)}><b>검색 {index + 1}</b><small>{slot?.title || "설정되지 않음"}</small></button>)}</div><label>검색 제목<input required value={preset.title} placeholder="예: 급등주 위주" onChange={event => setPreset({ ...preset, title: event.target.value })} /></label><button className="secondary-action" onClick={onSave}>검색조건 저장</button><button className="secondary-action delete-search" disabled={activeSlot === null || !slots[activeSlot]} onClick={onDelete}>저장조건 삭제</button></aside>
-    <div className="condition-scroll"><div className="condition-title"><div><span className="panel-kicker">검색 설정창</span><h2 id="search-settings-title">{activeSlot === null ? "새 검색 만들기" : `검색 ${activeSlot + 1}`}</h2><p>검색조건은 임시 검색으로 먼저 확인한 뒤 원하는 위치에 저장할 수 있습니다.</p></div><div className="builder-actions"><button onClick={() => { setPreset(emptyPreset); setActiveSlot(null); }}>초기화</button><button className="primary-action" onClick={onSearch}>임시 검색</button></div></div>
+function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, onSelectSlot, setPreset, setActiveSlot, setInvestors, onSave, onDelete, onSearch }: { slots: (SearchPreset | null)[]; activeSlot: number | null; preset: SearchPreset; investors: Record<string, string>; onClose: () => void; onSelectSlot: (index: number, slot: SearchPreset | null) => void; setPreset: (value: SearchPreset) => void; setActiveSlot: (value: number | null) => void; setInvestors: (value: Record<string, string>) => void; onSave: (title: string) => void; onDelete: () => Promise<boolean>; onSearch: () => void }) {
+  const [title, setTitle] = useState(preset.title);
+  const draft = useRef({ preset, title, setPreset });
+  draft.current = { preset, title, setPreset };
+  useEffect(() => setTitle(preset.title), [preset.title, activeSlot]);
+  // Keep unfinished titles when the settings panel closes, without updating
+  // the entire workspace on every keystroke.
+  useEffect(() => () => {
+    const current = draft.current;
+    current.setPreset({ ...current.preset, title: current.title });
+  }, []);
+  const conditions = useMemo(() => (
+    <div className="condition-scroll"><div className="condition-title"><div><span className="panel-kicker">검색 설정창</span><h2 id="search-settings-title">{activeSlot === null ? "새 검색 만들기" : `검색 ${activeSlot + 1}`}</h2><p>검색조건은 임시 검색으로 먼저 확인한 뒤 원하는 위치에 저장할 수 있습니다.</p></div><div className="builder-actions"><button onClick={() => { setTitle(""); setPreset(emptyPreset); setActiveSlot(null); }}>초기화</button><button className="primary-action" onClick={onSearch}>임시 검색</button></div></div>
       <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달", "3달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
       <Condition title="최종 검색 결과 최대치 *" required><Radio values={[20, 50, 100, 200, 300]} value={preset.limit} set={limit => setPreset({ ...preset, limit: Number(limit) })} prefix="상위 " /></Condition>
       <Condition title="개별 검색결과 허용 종목수 *" required><Radio values={[100, 200, 400]} value={preset.perLimit} set={perLimit => setPreset({ ...preset, perLimit: Number(perLimit) })} prefix="상위 " /></Condition>
@@ -411,10 +432,14 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
       <Condition title="세부 특이 거래량"><Toggle checked={preset.detailVolumeEnabled} label="사용" onChange={detailVolumeEnabled => setPreset({ ...preset, detailVolumeEnabled })} />{preset.detailVolumeEnabled && <div className="specific-volume-controls"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.detailVolumePeriod} set={detailVolumePeriod => setPreset({ ...preset, detailVolumePeriod: String(detailVolumePeriod) })} /><div className="detail-volume-options">{investorGroups.slice(1).map(name => <Toggle key={name} checked={preset.detailVolume.includes(name)} label={name} onChange={checked => setPreset({ ...preset, detailVolume: checked ? [...preset.detailVolume, name] : preset.detailVolume.filter(item => item !== name) })} />)}</div></div>}</Condition>
       <div className="temporary-search"><div><b>저장하지 않고 결과 확인</b><p>위에서 설정한 조건으로 검색 결과를 먼저 확인합니다.</p></div><button onClick={onSearch}>임시 검색</button></div>
     </div>
+  ), [preset, activeSlot, investors, setPreset, setActiveSlot, setInvestors, onSearch]);
+  return <section id="search-settings-panel" className="workspace-panel search-builder search-settings-panel search-settings-page" aria-label="검색 설정창">
+    <aside><div className="settings-panel-heading"><span className="panel-kicker">저장 위치</span><button onClick={onClose} aria-label="검색 설정 접기">×</button></div><div className="preset-slots">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => onSelectSlot(index, slot)}><b>검색 {index + 1}</b><small>{slot?.title || "설정되지 않음"}</small></button>)}</div><label>검색 제목<input required value={title} placeholder="예: 급등주 위주" onChange={event => setTitle(event.target.value)} /></label><button className="secondary-action" onClick={() => onSave(title)}>검색조건 저장</button><button className="secondary-action delete-search" disabled={activeSlot === null || !slots[activeSlot]} onClick={async () => { if (await onDelete()) setTitle(""); }}>저장조건 삭제</button></aside>
+    {conditions}
   </section>;
 }
 
-function ResultsPanel({ ordered, ticker, sort, hidden, bookmarks, gather, onSelect, onSort, onToggleBookmark, onShowAll, onClearBookmarks, onToggleGather, onToggleColumn, onAiCopy }: { ordered: ResultRow[]; ticker: string; sort: { key: keyof ResultRow; asc: boolean }; hidden: string[]; bookmarks: string[]; gather: boolean; onSelect: (ticker: string) => void; onSort: (key: keyof ResultRow) => void; onToggleBookmark: (ticker: string) => void; onShowAll: () => void; onClearBookmarks: () => void; onToggleGather: () => void; onToggleColumn: (key: string) => void; onAiCopy: () => void }) {
+function ResultsPanel({ ordered, ticker, sort, hidden, bookmarks, gather, onSelect, onSort, onToggleBookmark, onShowAll, onClearBookmarks, onToggleGather, onToggleColumn, onAiCopy }: { ordered: ResultRow[]; ticker: string; sort: ResultSort; hidden: string[]; bookmarks: string[]; gather: boolean; onSelect: (ticker: string) => void; onSort: (key: keyof ResultRow) => void; onToggleBookmark: (ticker: string) => void; onShowAll: () => void; onClearBookmarks: () => void; onToggleGather: () => void; onToggleColumn: (key: string) => void; onAiCopy: () => void }) {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const columns = [
     ["alertPrice", "알람가격"],
@@ -427,10 +452,71 @@ function ResultsPanel({ ordered, ticker, sort, hidden, bookmarks, gather, onSele
   ] as const;
   return <div className="workspace-panel results-panel">
     <div className="panel-toolbar"><div><span className="panel-kicker">검색 결과</span><b>{ordered.length}개 종목</b></div><div><button onClick={onShowAll}>전종목 보기</button><button onClick={onClearBookmarks}>북마크 전체 삭제</button><button className={gather ? "active" : ""} onClick={onToggleGather}>★ 모아보기</button><button onClick={() => setColumnsOpen(true)}>창 설정</button><button className="ai-copy" onClick={onAiCopy}>AI 복사</button></div></div>
-    <div className="result-table-wrap"><table className="result-table result-table-alerts"><thead><tr><th>번호</th><th>북마크</th><Sortable label="종목" field="name" sort={sort} onClick={onSort}/>{!hidden.includes("alertChange")&&<Sortable label="상태" field="alertChange" sort={sort} onClick={onSort}/>}{!hidden.includes("alertPrice")&&<Sortable label="알람 가격" field="alertPrice" sort={sort} onClick={onSort}/>}{!hidden.includes("profit")&&<Sortable label="계좌 수익률" field="change" sort={sort} onClick={onSort}/>}{!hidden.includes("value")&&<Sortable label="거래액(백만)" field="value" sort={sort} onClick={onSort}/>}{!hidden.includes("average")&&<Sortable label="5일평균 거래액" field="average" sort={sort} onClick={onSort}/>}{!hidden.includes("ibd")&&<Sortable label="IBD RS" field="ibd" sort={sort} onClick={onSort}/>}{!hidden.includes("rank")&&<Sortable label="고수 계좌" field="rank" sort={sort} onClick={onSort}/>}</tr></thead><tbody>{ordered.map((row, index) => { const bookmarked = bookmarks.includes(row.ticker); return <tr key={row.ticker} className={`${ticker === row.ticker ? "selected" : ""} ${bookmarked ? "bookmarked" : ""}`} onClick={() => onSelect(row.ticker)}><td>{index + 1}</td><td><button type="button" className="bookmark-star" aria-label={`${row.name} 북마크 ${bookmarked ? "해제" : "추가"}`} aria-pressed={bookmarked} onClick={event => { event.stopPropagation(); onToggleBookmark(row.ticker); }}>{bookmarked ? "★" : "☆"}</button></td><td><b>{row.name}</b></td>{!hidden.includes("alertChange")&&<td className={`alert-status ${alertStatusClass(row)}`}>{row.alertChange === null ? "" : `${row.alertUp ? "U" : ""}${row.alertChange}%`}</td>}{!hidden.includes("alertPrice")&&<td>{row.alertPrice?.toLocaleString() ?? ""}</td>}{!hidden.includes("profit")&&<td>{oneDecimal(row.change)}%</td>}{!hidden.includes("value")&&<td>{integer(row.value)}</td>}{!hidden.includes("average")&&<td>{integer(row.average)}</td>}{!hidden.includes("ibd")&&<td>{oneDecimal(row.ibd)}</td>}{!hidden.includes("rank")&&<td>{row.rank}</td>}</tr>; })}</tbody></table></div>
+    <ResultTable ordered={ordered} ticker={ticker} sort={sort} hidden={hidden} bookmarks={bookmarks} onSelect={onSelect} onSort={onSort} onToggleBookmark={onToggleBookmark} />
     {columnsOpen && <div className="column-modal-backdrop" onMouseDown={() => setColumnsOpen(false)}><section className="column-modal" role="dialog" aria-modal="true" aria-label="검색창 설정 하기" onMouseDown={event => event.stopPropagation()}><header><h2>검색창 설정 하기</h2><button onClick={() => setColumnsOpen(false)} aria-label="닫기">×</button></header><div>{columns.map(([key, label]) => <label key={key}><input type="checkbox" checked={!hidden.includes(key)} onChange={() => onToggleColumn(key)}/><span>{label}</span></label>)}</div></section></div>}
   </div>;
 }
+
+// Each result row is 54px high with 2px table spacing. Keep only the viewport
+// and a small scroll buffer mounted so input work stays independent of result count.
+const resultRowHeight = 56;
+const resultHeaderHeight = 52;
+const resultOverscan = 5;
+const ResultTable = memo(function ResultTable({ ordered, ticker, sort, hidden, bookmarks, onSelect, onSort, onToggleBookmark }: { ordered: ResultRow[]; ticker: string; sort: ResultSort; hidden: string[]; bookmarks: string[]; onSelect: (ticker: string) => void; onSort: (key: keyof ResultRow) => void; onToggleBookmark: (ticker: string) => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(400);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => setViewportHeight(element.clientHeight));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const bookmarkSet = useMemo(() => new Set(bookmarks), [bookmarks]);
+  const virtual = ordered.length > 100;
+  const firstVisible = Math.floor(Math.max(0, scrollTop - resultHeaderHeight) / resultRowHeight);
+  const start = virtual ? Math.max(0, Math.min(firstVisible - resultOverscan, ordered.length - Math.ceil(viewportHeight / resultRowHeight) - resultOverscan)) : 0;
+  const end = virtual ? Math.min(ordered.length, start + Math.ceil(viewportHeight / resultRowHeight) + resultOverscan * 2 + 1) : ordered.length;
+  const columnCount = 3 + ["alertChange", "alertPrice", "profit", "value", "average", "ibd", "rank"].filter(key => !hidden.includes(key)).length;
+  return (
+    <div className="result-table-wrap" ref={scrollRef} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}>
+      <table className="result-table result-table-alerts" aria-rowcount={ordered.length + 1}>
+        <thead><tr>
+          <th>번호</th><th>북마크</th>
+          <Sortable label="종목" field="name" sort={sort} onClick={onSort} />
+          {!hidden.includes("alertChange") && <Sortable label="상태" field="alertChange" sort={sort} onClick={onSort} />}
+          {!hidden.includes("alertPrice") && <Sortable label="알람 가격" field="alertPrice" sort={sort} onClick={onSort} />}
+          {!hidden.includes("profit") && <Sortable label="계좌 수익률" field="change" sort={sort} onClick={onSort} />}
+          {!hidden.includes("value") && <Sortable label="거래액(백만)" field="value" sort={sort} onClick={onSort} />}
+          {!hidden.includes("average") && <Sortable label="5일평균 거래액" field="average" sort={sort} onClick={onSort} />}
+          {!hidden.includes("ibd") && <Sortable label="IBD RS" field="ibd" sort={sort} onClick={onSort} />}
+          {!hidden.includes("rank") && <Sortable label="고수 계좌" field="rank" sort={sort} onClick={onSort} />}
+        </tr></thead>
+        <tbody>
+          {start > 0 && <tr aria-hidden="true" className="result-spacer"><td colSpan={columnCount} style={{ height: start * resultRowHeight - 2 }} /></tr>}
+          {ordered.slice(start, end).map((row, offset) => {
+            const index = start + offset;
+            const bookmarked = bookmarkSet.has(row.ticker);
+            return <tr key={row.ticker} aria-rowindex={index + 2} className={`${index % 2 === 0 ? "result-row-odd" : "result-row-even"} ${ticker === row.ticker ? "selected" : ""} ${bookmarked ? "bookmarked" : ""}`} onClick={() => onSelect(row.ticker)}>
+              <td>{index + 1}</td>
+              <td><button type="button" className="bookmark-star" aria-label={`${row.name} 북마크 ${bookmarked ? "해제" : "추가"}`} aria-pressed={bookmarked} onClick={event => { event.stopPropagation(); onToggleBookmark(row.ticker); }}>{bookmarked ? "★" : "☆"}</button></td>
+              <td><b>{row.name}</b></td>
+              {!hidden.includes("alertChange") && <td className={`alert-status ${alertStatusClass(row)}`}>{row.alertChange === null ? "" : `${row.alertUp ? "U" : ""}${row.alertChange}%`}</td>}
+              {!hidden.includes("alertPrice") && <td>{row.alertPrice?.toLocaleString() ?? ""}</td>}
+              {!hidden.includes("profit") && <td>{oneDecimal(row.change)}%</td>}
+              {!hidden.includes("value") && <td>{integer(row.value)}</td>}
+              {!hidden.includes("average") && <td>{integer(row.average)}</td>}
+              {!hidden.includes("ibd") && <td>{oneDecimal(row.ibd)}</td>}
+              {!hidden.includes("rank") && <td>{row.rank}</td>}
+            </tr>;
+          })}
+          {end < ordered.length && <tr aria-hidden="true" className="result-spacer"><td colSpan={columnCount} style={{ height: (ordered.length - end) * resultRowHeight - 2 }} /></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+});
 
 function WatchPanel({ watchlists, watchTab, selectedWatch, ticker, onTab, onSelect, onAdd, onClear, onRemove, onMoveToResults }: { watchlists: string[][]; watchTab: number; selectedWatch: Stock[]; ticker: string; onTab: (index: number) => void; onSelect: (ticker: string) => void; onAdd: (ticker: string) => void; onClear: () => void; onRemove: (ticker: string) => void; onMoveToResults: () => void }) {
   return <div className="workspace-panel watch-panel"><div className="watch-toolbar"><div className="watch-tabs">{watchlists.map((list, index) => <button className={watchTab === index ? "active" : ""} key={index} onClick={() => onTab(index)}>관심 {index + 1}<span>{list.length}/50</span></button>)}</div><div className="watch-actions"><button onClick={onClear}>전체 삭제</button><button onClick={() => onAdd(ticker)}>현재 종목 추가</button><button className="watch-to-results" disabled={!selectedWatch.length} onClick={onMoveToResults}>검색창에서 보기</button></div></div>{selectedWatch.length ? <ol className="watch-list">{selectedWatch.sort((a, b) => a.name.localeCompare(b.name, "ko")).map(stock => <li key={stock.ticker}><button onClick={() => onSelect(stock.ticker)}><span><b>{stock.name}</b><small>{stock.ticker}</small></span></button><button aria-label={`${stock.name} 관심종목 제외`} onClick={() => onRemove(stock.ticker)}>×</button></li>)}</ol> : <div className="panel-empty">관심종목이 없습니다. 검색 결과에서 종목을 추가해 보세요.</div>}</div>;
@@ -441,4 +527,4 @@ function Toggle({ checked, label, onChange }: { checked: boolean; label: string;
 function Radio({ values, labels, value, set, prefix = "", disabled = false }: { values: (string | number)[]; labels?: string[]; value: string | number; set: (value: string | number) => void; prefix?: string; disabled?: boolean }) { return <div className="radio-row">{values.map((item, index) => <label key={item} className={disabled ? "disabled" : ""}><input type="radio" disabled={disabled} checked={value === item} onChange={() => set(item)} /><span>{prefix}{labels?.[index] ?? item}</span></label>)}</div>; }
 function AntFilterMatrix({ value, set }: { value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix ant-filter-matrix">{antFilterGroups.map(([name]) => <div key={name}><span>{name}</span>{["증가", "감소"].map(option => { const key = `ant-${name}`; return <label key={option}><input type="checkbox" aria-label={`${name} ${option}`} checked={value[key] === option} onChange={event => { const next = { ...value }; if (event.target.checked) next[key] = option; else delete next[key]; set(next); }} />{option}</label>; })}</div>)}</div>; }
 function InvestorMatrix({ mode, value, set }: { mode: "holding" | "power"; value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix">{investorGroups.map(name => <div key={name}><span>{name}</span>{(mode === "holding" ? ["증가", "감소"] : ["매수력", "매도력"]).map(option => { const key = `${mode}-${name}`; return <label key={option}><input type="checkbox" aria-label={`${name} ${option}`} checked={value[key] === option} onChange={event => { const next = { ...value }; if (event.target.checked) next[key] = option; else delete next[key]; set(next); }} />{option}</label>; })}</div>)}</div>; }
-function Sortable({ label, field, sort, onClick }: { label: string; field: keyof ResultRow; sort: { key: keyof ResultRow; asc: boolean }; onClick: (key: keyof ResultRow) => void }) { return <th><button onClick={() => onClick(field)}>{label} {sort.key === field ? (sort.asc ? "↑" : "↓") : "↕"}</button></th>; }
+function Sortable({ label, field, sort, onClick }: { label: string; field: keyof ResultRow; sort: ResultSort; onClick: (key: keyof ResultRow) => void }) { return <th><button onClick={() => onClick(field)}>{label} {sort?.key === field ? (sort.asc ? "↑" : "↓") : "↕"}</button></th>; }

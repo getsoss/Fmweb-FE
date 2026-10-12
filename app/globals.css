@@ -239,6 +239,14 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .result-table-alerts tbody tr:hover td,.result-table-alerts tbody tr.selected td{background:#a7e0e3}
 .result-table-alerts .bookmark-star{padding:0;border:0;background:transparent;color:#59606d;font-size:21px;line-height:1}
 .result-table-alerts tr.bookmarked .bookmark-star{color:#ffc000}
+
+/* Virtual result rows retain their original striping and table scroll height. */
+.result-table-alerts tbody tr.result-row-odd td{background:#dce6f1}
+.result-table-alerts tbody tr.result-row-even td{background:#fff}
+.result-table-alerts tbody tr.result-row-odd:hover td,.result-table-alerts tbody tr.result-row-even:hover td,.result-table-alerts tbody tr.selected td{background:#a7e0e3}
+.result-table-alerts tbody tr.result-spacer{cursor:default}
+.result-table-alerts tbody tr.result-spacer td{padding:0;border:0;background:transparent;font-size:0;line-height:0}
+
 .result-table-alerts td.alert-status{min-width:92px;font-size:16px}
 .result-table-alerts tbody tr td.alert-status-warning,.result-table-alerts tr:hover td.alert-status-warning,.result-table-alerts tr.selected td.alert-status-warning{background:#ffc000}
 .result-table-alerts tbody tr td.alert-status-caution,.result-table-alerts tr:hover td.alert-status-caution,.result-table-alerts tr.selected td.alert-status-caution{background:#ff0000;color:#fff}
