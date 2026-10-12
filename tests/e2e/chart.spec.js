@@ -610,7 +610,7 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await settings.getByLabel("검색 제목").fill("급등주 위주");
   const saveRequest = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "PUT");
   await settings.getByRole("button", { name: "검색조건 저장" }).click();
-  expect((await saveRequest).postDataJSON()).toMatchObject({ slot: 0, title: "급등주 위주" });
+  expect((await saveRequest).postDataJSON()).toMatchObject({ slot: 0, title: "급등주 위주", condition: { result_sort: 0 } });
   await expect(settings).toBeVisible();
   await expect(page.locator(".workspace-message")).toHaveCount(0);
   await expect(launcher.locator(".preset-description")).toContainText("급등주 위주");
@@ -620,6 +620,66 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await expect(settings.getByLabel("검색 제목")).toHaveValue("");
   await launcher.getByRole("button", { name: "검색조건 접기" }).click();
   await expect(settings).toHaveCount(0);
+});
+
+const movingAverageOptions = [
+  ["무관", "0"],
+  ["정배열 (20이평 > 60이평)", "20>60"],
+  ["20이평 상승", "u20"],
+  ["60이평 상승", "u60"],
+];
+
+for (const [index, [label, movingAverage]] of movingAverageOptions.entries()) {
+  test(`저장된 ${label} 조건을 복원하고 기존 정렬 값과 관계없이 result_sort 0을 전송한다`, async ({ page }) => {
+    await mockStockData(page, [{ slot: 0, title: "기존 저장 검색", condition: {
+      time: 5, moving_average: movingAverage, result_sort: index % 2 + 1,
+    } }]);
+    await page.goto("/");
+    await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+    const launcher = page.getByLabel("종목 및 저장 검색");
+    await expect(launcher.locator(".quick-presets .saved")).toHaveCount(1);
+    const savedSearch = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "POST");
+    await launcher.getByRole("button", { name: "검색1", exact: true }).click();
+    expect((await savedSearch).postDataJSON()).toMatchObject({ result_sort: 0, moving_average: movingAverage });
+    await expect(launcher.locator(".preset-description")).not.toContainText(/점수 오름차순|점수 내림차순/);
+    await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
+    const settings = page.getByLabel("검색 설정창");
+    await expect(settings.getByRole("group", { name: "최종 검색 결과 정렬", exact: true })).toHaveCount(0);
+    await expect(settings.getByRole("radio", { name: /^(임의|점수 오름차순|점수 내림차순)$/ })).toHaveCount(0);
+    const moving = settings.getByRole("group", { name: "이동평균선", exact: true });
+    await expect(moving.getByRole("radio", { name: label, exact: true })).toBeChecked();
+    await expect(moving.locator("input:checked")).toHaveCount(1);
+
+    const temporarySearch = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "POST");
+    await settings.locator(".builder-actions").getByRole("button", { name: "임시 검색", exact: true }).click();
+    expect((await temporarySearch).postDataJSON()).toMatchObject({ result_sort: 0, moving_average: movingAverage });
+    const save = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "PUT");
+    await settings.getByRole("button", { name: "검색조건 저장" }).click();
+    expect((await save).postDataJSON()).toMatchObject({ slot: 0, condition: { result_sort: 0, moving_average: movingAverage } });
+  });
+}
+
+test("이동평균선의 네 라디오 버튼은 하나만 선택되며 선택한 조건을 전송한다", async ({ page }) => {
+  await mockStockData(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  await page.getByRole("button", { name: "검색조건 만들기" }).click();
+  const settings = page.getByLabel("검색 설정창");
+  const moving = settings.getByRole("group", { name: "이동평균선", exact: true });
+  await expect(moving.getByRole("radio")).toHaveCount(4);
+  await expect(moving.getByRole("checkbox")).toHaveCount(0);
+  await expect(moving.getByRole("radio", { name: "무관", exact: true })).toBeChecked();
+  // Reproduce choosing 20-day then 60-day rise, then switch through the other options.
+  for (const [label, movingAverage] of [...movingAverageOptions.slice(2), ...movingAverageOptions.slice(0, 2)]) {
+    await moving.getByRole("radio", { name: label, exact: true }).check();
+    await expect(moving.locator("input:checked")).toHaveCount(1);
+    const search = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "POST");
+    await settings.locator(".builder-actions").getByRole("button", { name: "임시 검색", exact: true }).click();
+    expect((await search).postDataJSON()).toMatchObject({ moving_average: movingAverage, result_sort: 0 });
+  }
+  await settings.getByRole("button", { name: "초기화", exact: true }).click();
+  await expect(moving.getByRole("radio", { name: "무관", exact: true })).toBeChecked();
+  await expect(moving.locator("input:checked")).toHaveCount(1);
 });
 
 test("개미분석, 보유비중, 영향력, 세부 특이 거래량 조건을 API 형식으로 전송한다", async ({ page }) => {
@@ -666,7 +726,7 @@ test("개미분석, 보유비중, 영향력, 세부 특이 거래량 조건을 A
   await detailVolume.getByRole("radio", { name: "6개월", exact: true }).check();
   await detailVolume.getByRole("checkbox", { name: "외국인", exact: true }).check();
   await expect(detailVolume.getByText("국가", { exact: true })).toHaveCount(0);
-  await settings.getByRole("group", { name: "최종 검색 결과 정렬" }).getByRole("radio", { name: "점수 내림차순", exact: true }).check();
+  await expect(settings.getByRole("group", { name: "최종 검색 결과 정렬", exact: true })).toHaveCount(0);
 
   const searchRequest = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "POST");
   await settings.locator(".builder-actions").getByRole("button", { name: "임시 검색", exact: true }).click();
@@ -685,7 +745,7 @@ test("개미분석, 보유비중, 영향력, 세부 특이 거래량 조건을 A
   expect(condition.all_special_volume).toBe(0);
   expect(condition.specific_special_volume).toMatchObject({ time: 120, foreigner: 1 });
   expect(condition.specific_special_volume).not.toHaveProperty("nation");
-  expect(condition.result_sort).toBe(2);
+  expect(condition.result_sort).toBe(0);
 });
 
 test("v11.5.0 저장 검색 제목을 서버 응답에서 불러온다", async ({ page }) => {
@@ -715,7 +775,7 @@ test("v11.5.0 저장 검색 제목을 서버 응답에서 불러온다", async (
   await expect(settings.getByLabel("검색 제목")).toHaveValue("서버 저장 제목");
   await expect(settings.getByRole("radio", { name: "3달", exact: true })).toBeChecked();
   await expect(settings.getByRole("radio", { name: "상위 50", exact: true })).toBeChecked();
-  await expect(settings.getByRole("group", { name: "최종 검색 결과 정렬" }).getByRole("radio", { name: "점수 오름차순", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "최종 검색 결과 정렬", exact: true })).toHaveCount(0);
   await expect(settings.getByRole("group", { name: "개미 분석 필터" }).getByRole("checkbox", { name: "주가 증가", exact: true })).toBeChecked();
   await expect(settings.getByRole("group", { name: "보유비중 증감" }).getByRole("checkbox", { name: "외국인 감소", exact: true })).toBeChecked();
   await expect(settings.getByRole("group", { name: "보유비중 증감" }).getByText("국가", { exact: true })).toHaveCount(0);

@@ -5,13 +5,14 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 type Stock = { name: string; ticker: string };
 export type StockInfo = { name: string; ma20_up: boolean; bojong_profit_rate: number; trading_value: number; _5d_avg_trading_value: number; ibdrs: number; n_top_acc: number };
 export type StockInfoMap = Record<string, StockInfo>;
-type SearchPreset = { title: string; period: string; limit: number; perLimit: number; resultSort: string; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: string; ma20: boolean; ma60: boolean; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
+type MovingAverage = "0" | "20>60" | "u20" | "u60";
+type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: MovingAverage; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
 type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number; ma20Up?: boolean; score?: number };
 type ResultSort = { key: keyof ResultRow; asc: boolean } | null;
 type NewsItem = [string, string, string];
 type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
 
-const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, resultSort: "random", ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: "any", ma20: false, ma60: false, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any" };
+const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: "0", volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any" };
 const antFilterGroups = [
   ["주가", "price"],
   ["개미지수(모양 우선)", "ant_index_shape_first"],
@@ -70,7 +71,6 @@ function investorObject(mode: "holding" | "power", enabled: boolean, selections:
 }
 
 function toCondition(preset: SearchPreset, selections: Record<string, string>): ConditionalSearch {
-  const movingAverage = preset.ma20 ? "u20" : preset.ma60 ? "u60" : preset.ma === "regular" ? "20>60" : "0";
   const ant = Object.fromEntries([["disabled", preset.ant ? 0 : 1], ...antFilterGroups.map(([name, key]) => {
     const selected = selections[`ant-${name}`];
     return [key, selected === "증가" ? 1 : selected === "감소" ? 2 : 0];
@@ -83,13 +83,13 @@ function toCondition(preset: SearchPreset, selections: Record<string, string>): 
     ant_analysis_filter: ant,
     have: investorObject("holding", preset.holding, selections),
     power: investorObject("power", preset.influence, selections),
-    moving_average: movingAverage,
+    moving_average: preset.ma,
     rs: preset.rs === "상승" ? 1 : preset.rs === "하락" ? 2 : 0,
     ibdrs: preset.ibd === "80" ? ">80" : preset.ibd === "90" ? ">90" : "0",
     all_special_volume: volumeToTime[preset.volume] ?? 0,
     specific_special_volume: detail,
     recent_five_days_average_trading_value: valueToApi[preset.value] ?? "0",
-    result_sort: preset.resultSort === "asc" ? 1 : preset.resultSort === "desc" ? 2 : 0,
+    result_sort: 0,
   };
 }
 
@@ -103,15 +103,12 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
     period: timeToPeriod[condition.time ?? 5] ?? "1주",
     limit: condition.result_max ?? 20,
     perLimit: condition.each_result_max ?? 100,
-    resultSort: condition.result_sort === 1 ? "asc" : condition.result_sort === 2 ? "desc" : "random",
     ant: ant.disabled !== 1,
     holding: condition.have?.disabled !== 1,
     influence: condition.power?.disabled !== 1,
     rs: condition.rs === 1 ? "상승" : condition.rs === 2 ? "하락" : "any",
     ibd: condition.ibdrs === ">80" ? "80" : condition.ibdrs === ">90" ? "90" : "any",
-    ma: moving === "20>60" ? "regular" : "any",
-    ma20: moving === "u20",
-    ma60: moving === "u60",
+    ma: moving === "20>60" || moving === "u20" || moving === "u60" ? moving : "0",
     volume: timeToVolume[condition.all_special_volume ?? 0] ?? "any",
     detailVolumeEnabled: (detail.time ?? 0) !== 0 || investorKeys.some(key => detail[key] === 1),
     detailVolumePeriod: timeToVolume[detail.time ?? 0] ?? "any",
@@ -140,9 +137,8 @@ function describePreset(preset: SearchPreset) {
   if (preset.ant) filters.push("개미 분석");
   if (preset.holding) filters.push("보유비중 증감");
   if (preset.influence) filters.push("영향력");
-  if (preset.resultSort !== "random") filters.push(preset.resultSort === "asc" ? "점수 오름차순" : "점수 내림차순");
   if (preset.rs !== "any") filters.push(`RS ${preset.rs}`);
-  if (preset.ma !== "any" || preset.ma20 || preset.ma60) filters.push("이동평균선");
+  if (preset.ma !== "0") filters.push("이동평균선");
   if (preset.value !== "any") filters.push(`거래대금 ${preset.value}억 이상`);
   return `${preset.title} · ${filters.join(" · ")}`;
 }
@@ -422,12 +418,11 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
       <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달", "3달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
       <Condition title="최종 검색 결과 최대치 *" required><Radio values={[20, 50, 100, 200, 300]} value={preset.limit} set={limit => setPreset({ ...preset, limit: Number(limit) })} prefix="상위 " /></Condition>
       <Condition title="개별 검색결과 허용 종목수 *" required><Radio values={[100, 200, 400]} value={preset.perLimit} set={perLimit => setPreset({ ...preset, perLimit: Number(perLimit) })} prefix="상위 " /></Condition>
-      <Condition title="최종 검색 결과 정렬"><Radio values={["random", "asc", "desc"]} labels={["임의", "점수 오름차순", "점수 내림차순"]} value={preset.resultSort} set={resultSort => setPreset({ ...preset, resultSort: String(resultSort) })} /></Condition>
       <Condition title="개미 분석 필터"><Toggle checked={preset.ant} label="사용" onChange={ant => setPreset({ ...preset, ant })} />{preset.ant && <AntFilterMatrix value={investors} set={setInvestors} />}</Condition>
       <Condition title="보유비중 증감"><Toggle checked={preset.holding} label="사용" onChange={holding => setPreset({ ...preset, holding })} />{preset.holding && <InvestorMatrix mode="holding" value={investors} set={setInvestors} />}</Condition>
       <Condition title="영향력"><Toggle checked={preset.influence} label="사용" onChange={influence => setPreset({ ...preset, influence })} />{preset.influence && <InvestorMatrix mode="power" value={investors} set={setInvestors} />}</Condition>
       <div className="condition-columns"><Condition title="RS 증감"><Radio values={["any", "상승", "하락"]} labels={["무관", "상승", "하락"]} value={preset.rs} set={rs => setPreset({ ...preset, rs: String(rs) })} /></Condition><Condition title="IBD RS"><Radio values={["any", "80", "90"]} labels={["무관", ">80점", ">90점"]} value={preset.ibd} set={ibd => setPreset({ ...preset, ibd: String(ibd) })} /></Condition></div>
-      <Condition title="이동평균선"><Radio values={["any", "regular"]} labels={["무관", "정배열 (20이평 > 60이평)"]} value={preset.ma} set={ma => setPreset({ ...preset, ma: String(ma) })} /><Toggle checked={preset.ma20} label="20이평 상승" onChange={ma20 => setPreset({ ...preset, ma20 })} /><Toggle checked={preset.ma60} label="60이평 상승" onChange={ma60 => setPreset({ ...preset, ma60 })} /></Condition>
+      <Condition title="이동평균선"><Radio name="moving-average" values={["0", "20>60", "u20", "u60"]} labels={["무관", "정배열 (20이평 > 60이평)", "20이평 상승", "60이평 상승"]} value={preset.ma} set={ma => setPreset({ ...preset, ma: ma as MovingAverage })} /></Condition>
       <div className="condition-columns"><Condition title="전체 특이 거래량"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.volume} set={volume => setPreset({ ...preset, volume: String(volume) })} /></Condition><Condition title="최근 5일 평균 거래대금"><Radio values={["any", "10", "50", "100", "500"]} labels={["무관", "10억 이상", "50억 이상", "100억 이상", "500억 이상"]} value={preset.value} set={value => setPreset({ ...preset, value: String(value) })} /></Condition></div>
       <Condition title="세부 특이 거래량"><Toggle checked={preset.detailVolumeEnabled} label="사용" onChange={detailVolumeEnabled => setPreset({ ...preset, detailVolumeEnabled })} />{preset.detailVolumeEnabled && <div className="specific-volume-controls"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.detailVolumePeriod} set={detailVolumePeriod => setPreset({ ...preset, detailVolumePeriod: String(detailVolumePeriod) })} /><div className="detail-volume-options">{investorGroups.slice(1).map(name => <Toggle key={name} checked={preset.detailVolume.includes(name)} label={name} onChange={checked => setPreset({ ...preset, detailVolume: checked ? [...preset.detailVolume, name] : preset.detailVolume.filter(item => item !== name) })} />)}</div></div>}</Condition>
       <div className="temporary-search"><div><b>저장하지 않고 결과 확인</b><p>위에서 설정한 조건으로 검색 결과를 먼저 확인합니다.</p></div><button onClick={onSearch}>임시 검색</button></div>
@@ -524,7 +519,7 @@ function WatchPanel({ watchlists, watchTab, selectedWatch, ticker, onTab, onSele
 
 function Condition({ title, required, children }: { title: string; required?: boolean; children: React.ReactNode }) { return <fieldset className="condition-card"><legend className={required ? "required" : ""}>{title}</legend><div>{children}</div></fieldset>; }
 function Toggle({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) { return <label className="check-control"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} /><span>{label}</span></label>; }
-function Radio({ values, labels, value, set, prefix = "", disabled = false }: { values: (string | number)[]; labels?: string[]; value: string | number; set: (value: string | number) => void; prefix?: string; disabled?: boolean }) { return <div className="radio-row">{values.map((item, index) => <label key={item} className={disabled ? "disabled" : ""}><input type="radio" disabled={disabled} checked={value === item} onChange={() => set(item)} /><span>{prefix}{labels?.[index] ?? item}</span></label>)}</div>; }
+function Radio({ values, labels, value, set, name, prefix = "", disabled = false }: { values: (string | number)[]; labels?: string[]; value: string | number; set: (value: string | number) => void; name?: string; prefix?: string; disabled?: boolean }) { return <div className="radio-row">{values.map((item, index) => <label key={item} className={disabled ? "disabled" : ""}><input type="radio" name={name} disabled={disabled} checked={value === item} onChange={() => set(item)} /><span>{prefix}{labels?.[index] ?? item}</span></label>)}</div>; }
 function AntFilterMatrix({ value, set }: { value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix ant-filter-matrix">{antFilterGroups.map(([name]) => <div key={name}><span>{name}</span>{["증가", "감소"].map(option => { const key = `ant-${name}`; return <label key={option}><input type="checkbox" aria-label={`${name} ${option}`} checked={value[key] === option} onChange={event => { const next = { ...value }; if (event.target.checked) next[key] = option; else delete next[key]; set(next); }} />{option}</label>; })}</div>)}</div>; }
 function InvestorMatrix({ mode, value, set }: { mode: "holding" | "power"; value: Record<string, string>; set: (value: Record<string, string>) => void }) { return <div className="investor-matrix">{investorGroups.map(name => <div key={name}><span>{name}</span>{(mode === "holding" ? ["증가", "감소"] : ["매수력", "매도력"]).map(option => { const key = `${mode}-${name}`; return <label key={option}><input type="checkbox" aria-label={`${name} ${option}`} checked={value[key] === option} onChange={event => { const next = { ...value }; if (event.target.checked) next[key] = option; else delete next[key]; set(next); }} />{option}</label>; })}</div>)}</div>; }
 function Sortable({ label, field, sort, onClick }: { label: string; field: keyof ResultRow; sort: ResultSort; onClick: (key: keyof ResultRow) => void }) { return <th><button onClick={() => onClick(field)}>{label} {sort?.key === field ? (sort.asc ? "↑" : "↓") : "↕"}</button></th>; }
