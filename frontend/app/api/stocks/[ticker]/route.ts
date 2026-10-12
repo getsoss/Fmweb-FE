@@ -19,8 +19,8 @@ export async function GET(
 ) {
   const { ticker } = await context.params;
 
-  if (!/^\d{6}$/.test(ticker)) {
-    return NextResponse.json({ message: "종목코드는 숫자 6자리여야 합니다." }, { status: 400 });
+  if (!/^[a-zA-Z0-9]{6}$/.test(ticker)) {
+    return NextResponse.json({ message: "종목코드는 영문·숫자 6자리여야 합니다." }, { status: 400 });
   }
 
   try {

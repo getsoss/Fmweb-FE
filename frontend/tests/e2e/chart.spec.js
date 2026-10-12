@@ -85,6 +85,139 @@ test("v11.6.0 종목 정보로 전종목 검색결과와 종목명 조회를 제
   await expect(page.locator(".chart-identity")).toContainText("000020");
 });
 
+test("조건검색은 이전 컬럼 정렬과 북마크 모아보기를 초기화하고 서버 응답 순서를 유지한다", async ({ page }) => {
+  await mockStockData(page, [{ slot: 0, title: "저장 검색", condition: { time: 5 } }]);
+  const backendOrder = ["현대차", "삼성중공업", "SK하이닉스", "삼성전자"];
+  await page.route("**/api/conditional-search", route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    return route.fulfill({ json: { errno: 0, count: 4, result: [["005380", 1], ["010140", 8], ["000660", 3], ["005930", 2]] } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  const results = page.locator(".results-panel");
+  const names = results.locator("tbody tr td:nth-child(3) b");
+  const launcher = page.getByLabel("종목 및 저장 검색");
+  await expect(launcher.locator(".quick-presets .saved")).toHaveCount(1);
+  await results.getByRole("button", { name: "삼성전자 북마크 추가" }).click();
+  await results.getByRole("button", { name: "★ 모아보기", exact: true }).click();
+  await results.getByRole("button", { name: /^종목 / }).click();
+  await launcher.getByRole("button", { name: "검색1", exact: true }).click();
+  await expect(names).toHaveText(backendOrder);
+  await expect(results.getByRole("button", { name: /^종목 / })).toHaveText("종목 ↕");
+  await expect(results.getByRole("button", { name: "★ 모아보기", exact: true })).not.toHaveClass(/active/);
+  await results.getByRole("button", { name: "삼성전자 북마크 해제" }).click();
+  await expect(names).toHaveText(backendOrder);
+
+  await results.getByRole("button", { name: /^종목 / }).click();
+  await expect(names).not.toHaveText(backendOrder);
+  await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
+  await page.getByLabel("검색 설정창").locator(".builder-actions").getByRole("button", { name: "임시 검색", exact: true }).click();
+  await expect(names).toHaveText(backendOrder);
+});
+
+test("종목코드는 영문과 숫자를 입력하고 대소문자와 관계없이 조회한다", async ({ page }) => {
+  await mockStockData(page);
+  await page.route("**/api/stock-info", route => route.fulfill({ json: { count: 1, result: {
+    "00AB12": { name: "영문코드 종목", ma20_up: true, bojong_profit_rate: 0, trading_value: 1, _5d_avg_trading_value: 1, ibdrs: 1, n_top_acc: 0 },
+  } } }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  const launcher = page.getByLabel("종목 및 저장 검색");
+  const code = launcher.getByLabel("종목코드");
+  await code.fill("");
+  await code.pressSequentially("00ab12");
+  await expect(code).toHaveValue("00ab12");
+  await expect(launcher.getByLabel("종목이름")).toHaveValue("");
+  const request = page.waitForRequest("**/api/stocks/00AB12");
+  await launcher.getByRole("button", { name: "차트보기", exact: true }).click();
+  await request;
+  await expect(page.locator(".chart-identity")).toContainText("00AB12");
+  await expect(page.locator(".chart-identity")).toContainText("영문코드 종목");
+  await code.fill("AB12CD");
+  await expect(code).toHaveValue("AB12CD");
+  await code.pressSequentially("34");
+  await expect(code).toHaveValue("AB12CD");
+});
+
+test("2556개 결과에서도 입력 지연은 50ms 미만이며 마지막 종목까지 스크롤할 수 있다", async ({ page }, testInfo) => {
+  await mockStockData(page);
+  const stockInfo = Object.fromEntries(Array.from({ length: 2556 }, (_, index) => [String(100000 + index), {
+    name: `테스트종목${String(index).padStart(4, "0")}`, ma20_up: true, bojong_profit_rate: 0, trading_value: index,
+    _5d_avg_trading_value: index, ibdrs: 100 - index / 100, n_top_acc: index,
+  }]));
+  await page.route("**/api/stock-info", route => route.fulfill({ json: { count: 2556, result: stockInfo } }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+  const results = page.locator(".results-panel");
+  await results.getByRole("button", { name: "전종목 보기", exact: true }).click();
+  await expect(results.getByText("2556개 종목", { exact: true })).toBeVisible();
+  await results.getByRole("button", { name: "창 설정", exact: true }).click();
+  const columns = page.getByRole("dialog", { name: "검색창 설정 하기" });
+  for (const checkbox of await columns.getByRole("checkbox").all()) await checkbox.check();
+  await columns.getByRole("button", { name: "닫기" }).click();
+  const mountedRows = results.locator("tbody tr:not(.result-spacer)");
+  expect(await mountedRows.count()).toBeLessThan(40);
+  expect(await mountedRows.first().evaluate(element => element.getBoundingClientRect().height)).toBe(54);
+
+  const measurements = [];
+  const launcher = page.getByLabel("종목 및 저장 검색");
+  for (const [label, value] of [["종목이름", "asdf1234"], ["종목코드", "ab1234"], ["검색 제목", "asdf1234"]]) {
+    if (label === "검색 제목") await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
+    const input = page.getByLabel(label, { exact: true });
+    await input.fill("");
+    await input.focus();
+    await page.evaluate(async () => {
+      if (!PerformanceObserver.supportedEntryTypes.includes("event")) throw new Error("Event Timing API is required");
+      // Finish opening, focusing, and scrolling the panel before measuring typing.
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+      window.__inputTimings = [];
+      const started = performance.now();
+      const input = document.activeElement;
+      window.__inputObserver = new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          if (entry.startTime >= started && entry.target === input && entry.interactionId && ["keydown", "keypress", "keyup"].includes(entry.name)) {
+            window.__inputTimings.push({ name: entry.name, duration: entry.duration, interactionId: entry.interactionId,
+              inputDelay: entry.processingStart - entry.startTime, processingDuration: entry.processingEnd - entry.processingStart });
+          }
+        }
+      });
+      window.__inputObserver.observe({ type: "event", durationThreshold: 16 });
+    });
+    await input.pressSequentially(value, { delay: 60 });
+    await expect(input).toHaveValue(value);
+    // Allow the browser to deliver buffered Event Timing entries after painting.
+    await page.waitForTimeout(250);
+    const entries = await page.evaluate(() => {
+      window.__inputObserver.disconnect();
+      return window.__inputTimings;
+    });
+    // Interactions below the API's minimum reporting threshold are under 16ms.
+    const maxReportedMs = Math.max(0, ...entries.map(entry => entry.duration));
+    measurements.push({ label, maxReportedMs, reportingThresholdMs: 16, entries });
+    expect(maxReportedMs, `${label}: ${JSON.stringify(entries)}`).toBeLessThan(50);
+  }
+  await testInfo.attach("input-event-timing.json", { body: JSON.stringify(measurements, null, 2), contentType: "application/json" });
+  console.log("2556개 종목 입력 Event Timing:", measurements.map(({ label, maxReportedMs }) => ({ label, maxReportedMs })));
+  await launcher.getByRole("button", { name: "검색조건 접기" }).click();
+  await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
+  await expect(page.getByLabel("검색 제목", { exact: true })).toHaveValue("asdf1234");
+  await launcher.getByRole("button", { name: "검색조건 접기" }).click();
+  const scroll = results.locator(".result-table-wrap");
+  await scroll.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  const last = mountedRows.filter({ hasText: "테스트종목2555" });
+  await expect(last).toBeVisible();
+  await expect(last.locator("td").first()).toHaveText("2556");
+  await last.getByRole("button", { name: "테스트종목2555 북마크 추가" }).click();
+  await expect(last.getByRole("button", { name: "테스트종목2555 북마크 해제" })).toHaveAttribute("aria-pressed", "true");
+  await last.click();
+  await expect(page.locator(".chart-identity")).toContainText("102555");
+  await launcher.getByRole("button", { name: "검색조건 만들기" }).click();
+  await page.getByLabel("검색 설정창").locator(".builder-actions").getByRole("button", { name: "임시 검색", exact: true }).click();
+  await expect(results.getByText("4개 종목", { exact: true })).toBeAttached();
+  await expect(mountedRows).toHaveCount(4);
+});
+
 test("회원가입 이메일 인증 단계를 제공한다", async ({ page }) => {
   await page.route("**/api/auth/cert/mail", route => route.fulfill({ json: { status: 200, certKey: "test-cert-key" } }));
   await page.route("**/api/auth/cert/check", route => route.fulfill({ json: { status: 200 } }));
@@ -340,6 +473,7 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
 
   const chartRows = page.locator(".chart-engine table tr");
   const pricePane = chartRows.nth(0);
+  await expect(pricePane).toBeVisible();
   const pricePaneBox = await pricePane.boundingBox();
   expect(pricePaneBox).not.toBeNull();
 
@@ -483,6 +617,7 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await expect(settings.getByRole("button", { name: "저장조건 삭제" })).toBeEnabled();
   await settings.getByRole("button", { name: "저장조건 삭제" }).click();
   await expect(settings.getByRole("button", { name: "저장조건 삭제" })).toBeDisabled();
+  await expect(settings.getByLabel("검색 제목")).toHaveValue("");
   await launcher.getByRole("button", { name: "검색조건 접기" }).click();
   await expect(settings).toHaveCount(0);
 });
