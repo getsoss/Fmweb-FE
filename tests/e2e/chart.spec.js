@@ -574,7 +574,8 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
 });
 
 test("검색 결과 행 상태, 북마크, 창 설정을 유지한다", async ({ page }) => {
-  await mockStockData(page);
+  const server = await mockStockData(page);
+  server.watchlists["3"] = ["005380"];
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
 
@@ -1081,7 +1082,7 @@ test("알람가격을 관심종목과 검색결과에서 공유하고 재로그�
 for (const ma20Up of [true, false, undefined]) {
   test(`U 표시는 ma20_up=${ma20Up}만 따르고 알람가격·현재가와 무관하다`, async ({ page }) => {
     const server = await mockStockData(page);
-    server.watchlists = {};
+    server.watchlists = { "2": ["060310"] };
     server.alarmPrices = { "060310": 1600 };
     server.currentPrices = { "060310": 1320 };
     await page.route("**/api/stock-info", route => route.fulfill({ json: { count: 1, result: {

@@ -30,6 +30,7 @@ test("알람 상태는 최신 엑셀의 10단계 색과 모든 3% 경계를 반�
     return [ticker, { name: `알람검증${String(index).padStart(2, "0")}`, ma20_up: index % 2 === 0,
       bojong_profit_rate: 0, trading_value: 1, _5d_avg_trading_value: 1, ibdrs: 1, n_top_acc: 0 }];
   }));
+  server.watchlists = { "1": Object.keys(result) };
   await page.route("**/api/stock-info", route => route.fulfill({ json: { count: bands.length, result } }));
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
