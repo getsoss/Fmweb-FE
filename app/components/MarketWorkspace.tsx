@@ -53,13 +53,18 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const oneDecimal = (value: number) => value.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const integer = (value: number) => Math.round(value).toLocaleString("ko-KR");
 function alarmStatusText(row: ResultRow) {
-  const change = row.alertChange === null ? "" : `${row.alertChange > 0 ? "+" : ""}${row.alertChange}%`;
+  const rounded = row.alertChange === null ? null : Math.round(row.alertChange * 10) / 10;
+  const change = rounded === null ? "" : `${rounded > 0 ? "+" : ""}${rounded}%`;
   return `${row.ma20Up === true ? "U" : ""}${change}`;
 }
-function alertStatusClass(row: ResultRow) {
-  if (row.alertChange === null) return "";
-  if (row.alertPrice === null || row.alertPrice < row.price) return "alert-status-low";
-  return row.alertChange <= -20 ? "alert-status-warning" : "alert-status-caution";
+// 261019 workbook, 알람색: each 3% drop band includes its upper boundary.
+const alarmDropColors = ["#FF0000", "#EB781E", "#FFC107", "#E5E622", "#FFFF00", "#D5EAD6", "#7CE57C", "#00B050", "#66A3FF", "#3366FF"];
+function alarmStatusStyle(change: number | null): CSSProperties | undefined {
+  if (change === null) return undefined;
+  // Classify the unrounded change; absorb only floating point boundary noise.
+  const band = clamp(Math.ceil(-change / 3 - 1e-10) - 1, 0, alarmDropColors.length - 1);
+  const backgroundColor = alarmDropColors[band];
+  return { backgroundColor, color: backgroundColor === "#3366FF" ? "#fff" : "#111" };
 }
 const periodToTime: Record<string, number> = { "1주": 5, "2주": 10, "1달": 20, "2달": 40, "3달": 60 };
 const timeToPeriod: Record<number, string> = { 5: "1주", 10: "2주", 20: "1달", 40: "2달", 60: "3달" };
@@ -234,7 +239,7 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
     const alertPrice = alarmPrices[row.ticker] > 0 ? alarmPrices[row.ticker] : null;
     return {
       ...row, price, alertPrice,
-      alertChange: alertPrice !== null && price > 0 ? Math.round((price / alertPrice - 1) * 1000) / 10 : null,
+      alertChange: alertPrice !== null && price > 0 ? (price - alertPrice) / alertPrice * 100 : null,
     };
   }, [alarmPrices, currentPrices]);
   const resultRows = useMemo(() => results.map(withAlarm), [results, withAlarm]);
@@ -427,7 +432,7 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
     current.setPreset({ ...current.preset, title: current.title });
   }, []);
   const conditions = useMemo(() => (
-    <div className="condition-scroll"><div className="condition-title"><div><span className="panel-kicker">검색 설정창</span><h2 id="search-settings-title">{activeSlot === null ? "새 검색 만들기" : `검색 ${activeSlot + 1}`}</h2><p>검색조건은 임시 검색으로 먼저 확인한 뒤 원하는 위치에 저장할 수 있습니다.</p></div><div className="builder-actions"><button onClick={() => { setTitle(""); setPreset(emptyPreset); setActiveSlot(null); }}>초기화</button><button className="primary-action" onClick={onSearch}>임시 검색</button></div></div>
+    <div className="condition-scroll"><div className="condition-title"><div><span className="panel-kicker">검색 설정창</span><h2 id="search-settings-title">{activeSlot === null ? "새 검색 만들기" : `검색 ${activeSlot + 1}`}</h2><p>검색조건은 임시 검색으로 먼저 확인한 뒤 원하는 위치에 저장할 수 있습니다.</p></div><div className="builder-actions"><button onClick={() => { setTitle(""); setPreset(emptyPreset); setInvestors({}); setActiveSlot(null); }}>초기화</button><button className="primary-action" onClick={onSearch}>임시 검색</button></div></div>
       <Condition title="기간 설정 *" required><Radio values={["1주", "2주", "1달", "2달", "3달"]} value={preset.period} set={period => setPreset({ ...preset, period: String(period) })} /></Condition>
       <Condition title="최종 검색 결과 최대치 *" required><Radio values={[20, 50, 100, 200, 300]} value={preset.limit} set={limit => setPreset({ ...preset, limit: Number(limit) })} prefix="상위 " /></Condition>
       <Condition title="개별 검색결과 허용 종목수 *" required><Radio values={[100, 200, 400]} value={preset.perLimit} set={perLimit => setPreset({ ...preset, perLimit: Number(perLimit) })} prefix="상위 " /></Condition>
@@ -512,7 +517,7 @@ const ResultTable = memo(function ResultTable({ ordered, ticker, sort, hidden, b
               <td>{index + 1}</td>
               <td><button type="button" className="bookmark-star" aria-label={`${row.name} 북마크 ${bookmarked ? "해제" : "추가"}`} aria-pressed={bookmarked} onClick={event => { event.stopPropagation(); onToggleBookmark(row.ticker); }}>{bookmarked ? "★" : "☆"}</button></td>
               <td><b>{row.name}</b></td>
-              {!hidden.includes("alertChange") && <td className={`alert-status ${alertStatusClass(row)}`}>{alarmStatusText(row)}</td>}
+              {!hidden.includes("alertChange") && <td className="alert-status" style={alarmStatusStyle(row.alertChange)}>{alarmStatusText(row)}</td>}
               {!hidden.includes("alertPrice") && <td>{row.alertPrice?.toLocaleString() ?? ""}</td>}
               {!hidden.includes("profit") && <td>{oneDecimal(row.change)}%</td>}
               {!hidden.includes("value") && <td>{integer(row.value)}</td>}

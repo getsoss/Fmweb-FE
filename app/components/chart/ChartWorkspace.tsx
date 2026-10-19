@@ -22,6 +22,7 @@ import {
   type SeriesType,
   type UTCTimestamp,
 } from "lightweight-charts";
+import styles from "./ChartWorkspace.module.css";
 
 type Interval = "1D" | "1W" | "1M";
 type ChartKind = "candles" | "bars" | "line";
@@ -245,6 +246,8 @@ export default function ChartWorkspace({
   const [averagePrice, setAveragePrice] = useState(true);
   const [ma20, setMa20] = useState(true);
   const [ma60, setMa60] = useState(true);
+  const [showAntIndex, setShowAntIndex] = useState(true);
+  const [showRs, setShowRs] = useState(true);
   const [holdingInvestors, setHoldingInvestors] = useState<HoldingInvestorKey[]>([]);
   const [powerInvestors, setPowerInvestors] = useState<InvestorIndex[]>([]);
   const [alertSaving, setAlertSaving] = useState(false);
@@ -467,23 +470,36 @@ export default function ChartWorkspace({
       })),
     );
 
+    // Keep the same dates when daily indicators are hidden on weekly/monthly
+    // candles. Whitespace contributes no prices, lines, or extra chart pane.
+    const timeline = chart.addSeries(LineSeries, {
+      visible: false,
+      priceScaleId: "timeline",
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    timeline.setData(base.map((row) => ({ time: row.time })));
+
     let paneIndex = 1;
     const paneKeys: PaneKey[] = ["price"];
     const stretchFactors = [6];
 
-    const antIndex = chart.addSeries(LineSeries, {
-      color: "#f4b000",
-      lineWidth: 2,
-      priceScaleId: "ant-index",
-      priceLineVisible: false,
-      title: "",
-      priceFormat: compactPriceFormat,
-    });
-    antIndex.setData(lineData(indicatorRows.holdings, 2));
-    antIndex.moveToPane(paneIndex++);
-    antIndex.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
-    paneKeys.push("ant");
-    stretchFactors.push(1.5);
+    if (showAntIndex) {
+      const antIndex = chart.addSeries(LineSeries, {
+        color: "#f4b000",
+        lineWidth: 2,
+        priceScaleId: "ant-index",
+        priceLineVisible: false,
+        title: "",
+        priceFormat: compactPriceFormat,
+      });
+      antIndex.setData(lineData(indicatorRows.holdings, 2));
+      antIndex.moveToPane(paneIndex++);
+      antIndex.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
+      paneKeys.push("ant");
+      stretchFactors.push(1.5);
+    }
 
     if (holdingInvestors.length) {
       const holdingPane = paneIndex++;
@@ -521,7 +537,7 @@ export default function ChartWorkspace({
           lastValueVisible: false,
           title: label,
           autoscaleInfoProvider: () => ({
-            priceRange: { minValue: 0, maxValue: 100 },
+            priceRange: { minValue: 0, maxValue: 50 },
           }),
         });
         series.setData(
@@ -550,19 +566,21 @@ export default function ChartWorkspace({
       stretchFactors.push(2);
     }
 
-    const rsSeries = chart.addSeries(LineSeries, {
-      color: "#0d88c7",
-      lineWidth: 2,
-      priceScaleId: "rs",
-      priceFormat: percentPriceFormat,
-      priceLineVisible: false,
-      title: "RS",
-    });
-    rsSeries.setData(lineData(indicatorRows.rs, 1));
-    rsSeries.moveToPane(paneIndex);
-    rsSeries.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
-    paneKeys.push("rs");
-    stretchFactors.push(1.5);
+    if (showRs) {
+      const rsSeries = chart.addSeries(LineSeries, {
+        color: "#0d88c7",
+        lineWidth: 2,
+        priceScaleId: "rs",
+        priceFormat: percentPriceFormat,
+        priceLineVisible: false,
+        title: "RS",
+      });
+      rsSeries.setData(lineData(indicatorRows.rs, 1));
+      rsSeries.moveToPane(paneIndex);
+      rsSeries.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.15 } });
+      paneKeys.push("rs");
+      stretchFactors.push(1.5);
+    }
 
     const savedView = savedViewRef.current;
     chart.panes().forEach((pane, index) => {
@@ -594,23 +612,29 @@ export default function ChartWorkspace({
         visibleLogicalRange: timeScale.getVisibleLogicalRange(),
         viewKey,
         lastPriceIndex,
-        paneStretch: Object.fromEntries(
-          chart
-            .panes()
-            .map((pane, index) => [paneKeys[index], pane.getStretchFactor()]),
-        ),
+        paneStretch: {
+          ...savedViewRef.current?.paneStretch,
+          ...Object.fromEntries(
+            chart
+              .panes()
+              .map((pane, index) => [paneKeys[index], pane.getStretchFactor()]),
+          ),
+        },
       };
       chart.remove();
       chartRef.current = null;
       priceRef.current = null;
     };
   }, [
+    base,
     data,
     chartType,
     scale,
     averagePrice,
     ma20,
     ma60,
+    showAntIndex,
+    showRs,
     holdingInvestors,
     powerInvestors,
     indicatorRows,
@@ -723,12 +747,12 @@ export default function ChartWorkspace({
       </div>
 
       <div
-        className="indicator-selector chart-indicator-controls"
+        className={`indicator-selector chart-indicator-controls ${styles.indicatorControls}`}
         aria-label="차트 표시 지표"
       >
-        <div className="chart-indicator-group chart-overlay-controls">
+        <div className={`chart-indicator-group chart-overlay-controls ${styles.overlayControls}`}>
           <strong className="chart-indicator-label">주가 보조선</strong>
-          <div className="indicator-checks chart-overlay-options">
+          <div className={`indicator-checks chart-overlay-options ${styles.overlayOptions}`}>
             <Indicator
               checked={averagePrice}
               set={setAveragePrice}
@@ -736,6 +760,8 @@ export default function ChartWorkspace({
             />
             <Indicator checked={ma20} set={setMa20} label="20 이평선" />
             <Indicator checked={ma60} set={setMa60} label="60 이평선" />
+            <Indicator checked={showAntIndex} set={setShowAntIndex} label="개미지수" />
+            <Indicator checked={showRs} set={setShowRs} label="RS" />
           </div>
         </div>
 

@@ -1,0 +1,11 @@
+.indicatorControls .overlayControls .overlayOptions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.indicatorControls .overlayControls .overlayOptions label {
+  flex: 0 0 auto;
+}

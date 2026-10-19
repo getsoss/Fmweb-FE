@@ -248,9 +248,6 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .result-table-alerts tbody tr.result-spacer td{padding:0;border:0;background:transparent;font-size:0;line-height:0}
 
 .result-table-alerts td.alert-status{min-width:92px;font-size:16px}
-.result-table-alerts tbody tr td.alert-status-warning,.result-table-alerts tr:hover td.alert-status-warning,.result-table-alerts tr.selected td.alert-status-warning{background:#ffc000}
-.result-table-alerts tbody tr td.alert-status-caution,.result-table-alerts tr:hover td.alert-status-caution,.result-table-alerts tr.selected td.alert-status-caution{background:#ff0000;color:#fff}
-.result-table-alerts tbody tr td.alert-status-low,.result-table-alerts tr:hover td.alert-status-low,.result-table-alerts tr.selected td.alert-status-low{background:#10a9da}
 
 @media(max-width:720px){.account-dialog dl>div{grid-template-columns:120px minmax(0,1fr)}.account-password-dialog>label{grid-template-columns:1fr;gap:4px}.account-password-dialog .reset-actions{width:100%;margin:4px 0 72px}.account-password-dialog>.primary-button{width:100%}.column-modal>div{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 10px}.column-modal h2{font-size:23px}}
 
