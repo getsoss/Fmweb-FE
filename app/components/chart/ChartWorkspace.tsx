@@ -363,6 +363,7 @@ export default function ChartWorkspace({
     const chart = createChart(host, {
       autoSize: true,
       layout: {
+        attributionLogo: false,
         background: { type: ColorType.Solid, color: "#fff" },
         textColor: "#7c828a",
         fontFamily: "Inter,system-ui,sans-serif",
