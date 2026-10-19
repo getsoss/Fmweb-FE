@@ -263,3 +263,14 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .api-news-panel .news-list>a small{flex:none;color:var(--muted)}
 .search-api-message{margin:0;color:#59606d;font-size:12px;line-height:1.35}
 .delete-search:disabled{cursor:not-allowed;opacity:.45}
+
+/* Server portfolio feedback and saved alarm details in watchlists. */
+.portfolio-message{margin:6px 12px;font-size:12px;color:var(--body);line-height:1.5}
+.portfolio-message[role="alert"]{color:var(--down)}
+.portfolio-message button{margin-left:8px;padding:3px 7px;border:1px solid var(--hairline);border-radius:5px;background:#fff;color:var(--body);font-size:11px}
+.watch-list li>button:first-child{gap:12px;justify-content:space-between;min-width:0}
+.watch-alarm{flex:none;text-align:right;font-size:12px}
+.watch-alarm .alert-status{display:inline-block;padding:2px 6px;border-radius:3px}
+.watch-alarm .alert-status-warning{background:#ffc000;color:#111}
+.watch-alarm .alert-status-caution{background:#ff0000;color:#fff}
+.watch-alarm .alert-status-low{background:#10a9da;color:#111}

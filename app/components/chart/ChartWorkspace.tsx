@@ -42,7 +42,7 @@ type Props = {
   rs: number[][];
   ticker: string;
   name: string;
-  onAlertPriceChange: (price: number, currentPrice: number) => void;
+  onAlertPriceChange: (ticker: string, price: number) => Promise<boolean>;
 };
 
 type InvestorIndex = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
@@ -247,6 +247,7 @@ export default function ChartWorkspace({
   const [ma60, setMa60] = useState(true);
   const [holdingInvestors, setHoldingInvestors] = useState<HoldingInvestorKey[]>([]);
   const [powerInvestors, setPowerInvestors] = useState<InvestorIndex[]>([]);
+  const [alertSaving, setAlertSaving] = useState(false);
   const [hovered, setHovered] = useState<OHLC | null>(null);
   const [alertMenu, setAlertMenu] = useState<{
     left: number;
@@ -311,6 +312,14 @@ export default function ChartWorkspace({
     setAlertMenu(null);
     setHovered(null);
   }, [viewKey]);
+
+  async function saveAlertPrice(price: number) {
+    if (alertSaving) return;
+    setAlertSaving(true);
+    try {
+      if (await onAlertPriceChange(ticker, price)) setAlertMenu(null);
+    } finally { setAlertSaving(false); }
+  }
 
   function openAlertMenu(event: ReactMouseEvent<HTMLDivElement>) {
     const chart = chartRef.current;
@@ -696,19 +705,15 @@ export default function ChartWorkspace({
             >
               <button
                 role="menuitem"
-                onClick={() => {
-                  onAlertPriceChange(alertMenu.price, data.at(-1)?.close ?? 0);
-                  setAlertMenu(null);
-                }}
+                disabled={alertSaving}
+                onClick={() => void saveAlertPrice(alertMenu.price)}
               >
                 알람가격 넣기
               </button>
               <button
                 role="menuitem"
-                onClick={() => {
-                  onAlertPriceChange(0, data.at(-1)?.close ?? 0);
-                  setAlertMenu(null);
-                }}
+                disabled={alertSaving}
+                onClick={() => void saveAlertPrice(0)}
               >
                 알람가격 삭제
               </button>

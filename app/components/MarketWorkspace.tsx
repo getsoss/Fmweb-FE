@@ -2,17 +2,20 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 
+import { useServerPortfolio } from "../hooks/useServerPortfolio";
+
+type AlarmPriceChange = (ticker: string, price: number) => Promise<boolean>;
 type Stock = { name: string; ticker: string };
 export type StockInfo = { name: string; ma20_up: boolean; bojong_profit_rate: number; trading_value: number; _5d_avg_trading_value: number; ibdrs: number; n_top_acc: number };
 export type StockInfoMap = Record<string, StockInfo>;
-type MovingAverage = "0" | "20>60" | "u20" | "u60";
-type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: MovingAverage; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
+type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: number; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
 type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number; ma20Up?: boolean; score?: number };
 type ResultSort = { key: keyof ResultRow; asc: boolean } | null;
 type NewsItem = [string, string, string];
-type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
+type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; moving_average2?: number; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
 
-const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: "0", volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any" };
+const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: 0, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any" };
+const movingAverageOptions = [["정배열 (20이평 > 60이평)", 1], ["20이평 상승", 2], ["60이평 상승", 4], ["20이평 하락", 8], ["60이평 하락", 16]] as const;
 const antFilterGroups = [
   ["주가", "price"],
   ["개미지수(모양 우선)", "ant_index_shape_first"],
@@ -25,22 +28,21 @@ const antFilterGroups = [
 const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
 const investorKeys = ["individual", "foreigner", "othercorp", "inout", "organization", "finance", "insurance", "investtrust", "otherfinance", "bank", "pension", "privatefund", "privatefund_investtrust", "privatefund_pension", "investtrust_pension", "investtrust_privatefund_pension"];
 const sample: ResultRow[] = [
-  { name: "삼성전자", ticker: "005930", price: 74200, change: 1.42, alertPrice: 1300, alertChange: -12, alertUp: true, value: 456700, average: 543000, ibd: 99, rank: 33 },
-  { name: "SK하이닉스", ticker: "000660", price: 186300, change: -0.31, alertPrice: 111222, alertChange: -50, alertUp: false, value: 345300, average: 363400, ibd: 98, rank: 27 },
-  { name: "현대차", ticker: "005380", price: 247500, change: 2.16, alertPrice: 34000, alertChange: -20, alertUp: true, value: 212300, average: 197400, ibd: 97, rank: 14 },
+  { name: "삼성전자", ticker: "005930", price: 74200, change: 1.42, alertPrice: null, alertChange: null, alertUp: false, value: 456700, average: 543000, ibd: 99, rank: 33 },
+  { name: "SK하이닉스", ticker: "000660", price: 186300, change: -0.31, alertPrice: null, alertChange: null, alertUp: false, value: 345300, average: 363400, ibd: 98, rank: 27 },
+  { name: "현대차", ticker: "005380", price: 247500, change: 2.16, alertPrice: null, alertChange: null, alertUp: false, value: 212300, average: 197400, ibd: 97, rank: 14 },
   { name: "삼성중공업", ticker: "010140", price: 12680, change: 0.48, alertPrice: null, alertChange: null, alertUp: false, value: 97800, average: 88400, ibd: 95, rank: 45 },
 ];
 
 function stockInfoRow(ticker: string, info: StockInfo): ResultRow {
-  const existing = sample.find(row => row.ticker === ticker);
   return {
     name: info.name,
     ticker,
-    price: existing?.price ?? 0,
+    price: 0,
     change: info.bojong_profit_rate,
-    alertPrice: existing?.alertPrice ?? null,
-    alertChange: existing?.alertChange ?? null,
-    alertUp: existing?.alertUp ?? false,
+    alertPrice: null,
+    alertChange: null,
+    alertUp: false,
     value: info.trading_value,
     average: info._5d_avg_trading_value,
     ibd: info.ibdrs,
@@ -51,6 +53,9 @@ function stockInfoRow(ticker: string, info: StockInfo): ResultRow {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const oneDecimal = (value: number) => value.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const integer = (value: number) => Math.round(value).toLocaleString("ko-KR");
+function alarmStatusText(row: ResultRow) {
+  return row.alertChange === null ? "" : `${row.alertUp ? "U" : ""}${row.alertChange > 0 ? "+" : ""}${row.alertChange}%`;
+}
 function alertStatusClass(row: ResultRow) {
   if (row.alertChange === null) return "";
   if (!row.alertUp) return "alert-status-low";
@@ -83,7 +88,7 @@ function toCondition(preset: SearchPreset, selections: Record<string, string>): 
     ant_analysis_filter: ant,
     have: investorObject("holding", preset.holding, selections),
     power: investorObject("power", preset.influence, selections),
-    moving_average: preset.ma,
+    moving_average2: preset.ma,
     rs: preset.rs === "상승" ? 1 : preset.rs === "하락" ? 2 : 0,
     ibdrs: preset.ibd === "80" ? ">80" : preset.ibd === "90" ? ">90" : "0",
     all_special_volume: volumeToTime[preset.volume] ?? 0,
@@ -96,7 +101,8 @@ function toCondition(preset: SearchPreset, selections: Record<string, string>): 
 function fromCondition(condition: ConditionalSearch, index: number, title?: string): SearchPreset {
   const ant = condition.ant_analysis_filter ?? {};
   const detail = condition.specific_special_volume ?? {};
-  const moving = condition.moving_average ?? "0";
+  const legacyMoving: Record<string, number> = { "20>60": 1, u20: 2, u60: 4 };
+  const moving = condition.moving_average2 ?? legacyMoving[condition.moving_average ?? "0"] ?? 0;
   return {
     ...emptyPreset,
     title: title || `검색 ${index + 1}`,
@@ -108,7 +114,7 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
     influence: condition.power?.disabled !== 1,
     rs: condition.rs === 1 ? "상승" : condition.rs === 2 ? "하락" : "any",
     ibd: condition.ibdrs === ">80" ? "80" : condition.ibdrs === ">90" ? "90" : "any",
-    ma: moving === "20>60" || moving === "u20" || moving === "u60" ? moving : "0",
+    ma: Number.isInteger(moving) && moving >= 0 && moving <= 31 ? moving : 0,
     volume: timeToVolume[condition.all_special_volume ?? 0] ?? "any",
     detailVolumeEnabled: (detail.time ?? 0) !== 0 || investorKeys.some(key => detail[key] === 1),
     detailVolumePeriod: timeToVolume[detail.time ?? 0] ?? "any",
@@ -138,12 +144,12 @@ function describePreset(preset: SearchPreset) {
   if (preset.holding) filters.push("보유비중 증감");
   if (preset.influence) filters.push("영향력");
   if (preset.rs !== "any") filters.push(`RS ${preset.rs}`);
-  if (preset.ma !== "0") filters.push("이동평균선");
+  if (preset.ma !== 0) filters.push("이동평균선");
   if (preset.value !== "any") filters.push(`거래대금 ${preset.value}억 이상`);
   return `${preset.title} · ${filters.join(" · ")}`;
 }
 
-export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, chart, menu }: { stocks: Stock[]; stockInfo: StockInfoMap; ticker: string; onSelect: (ticker: string) => void; chart: (onAlertPriceChange: (price: number, currentPrice: number) => void) => React.ReactNode; menu: React.ReactNode }) {
+export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, chart, menu }: { stocks: Stock[]; stockInfo: StockInfoMap; ticker: string; onSelect: (ticker: string) => void; chart: (onAlertPriceChange: AlarmPriceChange) => React.ReactNode; menu: React.ReactNode }) {
   const marketRows = useMemo(() => {
     const rows = Object.entries(stockInfo).map(([code, info]) => stockInfoRow(code, info));
     return rows.length ? rows : sample;
@@ -156,7 +162,9 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   const [results, setResults] = useState<ResultRow[]>(marketRows);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [watchTab, setWatchTab] = useState(0);
-  const [watchlists, setWatchlists] = useState<string[][]>([["005930"], ["000660"], [], [], []]);
+  const [legacyWatchlists, setLegacyWatchlists] = useState<string[][]>([[], [], [], [], []]);
+  const portfolio = useServerPortfolio();
+  const { watchlists, watchLimit, watchLoaded, watchSaving, watchError, alarmPrices, currentPrices, alarmsLoaded, alarmSaving, alarmError, priceError, changeWatchlist, changeAlarmPrice, reload } = portfolio;
   const [gather, setGather] = useState(false);
   const [sort, setSort] = useState<ResultSort>({ key: "ibd", asc: false });
   const [hidden, setHidden] = useState<string[]>(["profit", "value", "average", "ibd", "rank"]);
@@ -176,7 +184,10 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
       const saved = localStorage.getItem("forcemonitor:workspace");
       const value = saved ? JSON.parse(saved) : {};
       if (value.bookmarks) setBookmarks(value.bookmarks);
-      if (value.watchlists) setWatchlists(value.watchlists);
+      const legacy = value.legacyWatchlists ?? value.watchlists;
+      if (Array.isArray(legacy)) setLegacyWatchlists(Array.from({ length: 5 }, (_, index) =>
+        Array.isArray(legacy[index]) ? [...new Set<string>(legacy[index].filter((code: unknown): code is string => typeof code === "string" && /^[a-zA-Z0-9]{6}$/.test(code)))] : [],
+      ));
       if (Array.isArray(value.hidden)) setHidden(value.hidden);
       if (Number.isFinite(value.columnSplit)) setColumnSplit(value.columnSplit);
       if (Number.isFinite(value.dockHeight)) setDockHeight(value.dockHeight);
@@ -202,8 +213,13 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   }, []);
   useEffect(() => {
     if (!preferencesLoaded) return;
-    localStorage.setItem("forcemonitor:workspace", JSON.stringify({ searchTitles: slots.map(slot => slot?.title ?? ""), bookmarks, watchlists, hidden, columnSplit, dockHeight, rightTop, rightMiddle }));
-  }, [preferencesLoaded, slots, bookmarks, watchlists, hidden, columnSplit, dockHeight, rightTop, rightMiddle]);
+    let previous;
+    try { previous = JSON.parse(localStorage.getItem("forcemonitor:workspace") ?? "{}"); }
+    catch { previous = {}; }
+    // Retain old local lists as a backup; active lists are loaded only from the server.
+    const legacyWatchlists = previous?.legacyWatchlists ?? previous?.watchlists;
+    localStorage.setItem("forcemonitor:workspace", JSON.stringify({ ...(legacyWatchlists ? { legacyWatchlists } : {}), searchTitles: slots.map(slot => slot?.title ?? ""), bookmarks, hidden, columnSplit, dockHeight, rightTop, rightMiddle }));
+  }, [preferencesLoaded, slots, bookmarks, hidden, columnSplit, dockHeight, rightTop, rightMiddle]);
   useEffect(() => {
     setDirectTicker(ticker);
     setDirectName(stocks.find(stock => stock.ticker === ticker)?.name ?? "");
@@ -213,18 +229,32 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
     requestAnimationFrame(() => document.getElementById("search-settings-panel")?.scrollIntoView({ block: "start" }));
   }, [settingsOpen]);
 
+  const withAlarm = useCallback((row: ResultRow): ResultRow => {
+    const price = currentPrices[row.ticker] ?? 0;
+    const alertPrice = alarmPrices[row.ticker] > 0 ? alarmPrices[row.ticker] : null;
+    return {
+      ...row, price, alertPrice,
+      alertChange: alertPrice !== null && price > 0 ? Math.round((price / alertPrice - 1) * 1000) / 10 : null,
+      alertUp: alertPrice !== null && price > 0 && alertPrice >= price,
+    };
+  }, [alarmPrices, currentPrices]);
+  const resultRows = useMemo(() => results.map(withAlarm), [results, withAlarm]);
   const ordered = useMemo(() => {
-    if (!sort && !gather) return results;
+    if (!sort && !gather) return resultRows;
     const bookmarked = new Set(bookmarks);
-    return [...results].sort((a, b) => {
+    return [...resultRows].sort((a, b) => {
       const bookmarkOrder = gather ? Number(bookmarked.has(b.ticker)) - Number(bookmarked.has(a.ticker)) : 0;
       if (bookmarkOrder || !sort) return bookmarkOrder;
       const av = a[sort.key], bv = b[sort.key];
       const direction = typeof av === "string" ? av.localeCompare(String(bv), "ko") : Number(av) - Number(bv);
       return sort.asc ? direction : -direction;
     });
-  }, [results, sort, gather, bookmarks]);
-  const selectedWatch = watchlists[watchTab].map(code => marketByTicker.get(code) ?? stocks.find(stock => stock.ticker === code)).filter(Boolean) as Stock[];
+  }, [resultRows, sort, gather, bookmarks]);
+  const watchRows = useMemo(() => watchlists[watchTab].map(code => marketByTicker.get(code) ?? {
+    name: stocks.find(stock => stock.ticker === code)?.name ?? code, ticker: code,
+    price: 0, change: 0, alertPrice: null, alertChange: null, alertUp: false, value: 0, average: 0, ibd: 0, rank: 0,
+  }), [watchlists, watchTab, marketByTicker, stocks]);
+  const selectedWatch = useMemo(() => watchRows.map(withAlarm), [watchRows, withAlarm]);
   const activeDescription = activeSlot === null ? "검색조건을 선택하거나 새 조건을 만들어 주세요." : slots[activeSlot] ? describePreset(slots[activeSlot]) : "검색조건이 설정되지 않았습니다.";
 
   function chooseSlot(index: number) {
@@ -285,25 +315,9 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
     setMessage(`${stock.name} 차트를 표시했습니다.`);
   }
   const setSortKey = useCallback((key: keyof ResultRow) => { setSort(current => ({ key, asc: current?.key === key ? !current.asc : true })); }, []);
-  const setAlertPrice = useCallback((price: number, currentPrice: number) => {
-    setResults(current => current.map(row => {
-      if (row.ticker !== ticker) return row;
-      if (price <= 0 || currentPrice <= 0) return { ...row, alertPrice: price, alertChange: null, alertUp: false };
-      const alertUp = price >= currentPrice;
-      const distanceRatio = alertUp ? currentPrice / price : price / currentPrice;
-      return { ...row, price: currentPrice, alertPrice: price, alertChange: Math.round((distanceRatio - 1) * 100), alertUp };
-    }));
-  }, [ticker]);
   const toggleBookmark = useCallback((code: string) => { setBookmarks(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]); }, []);
-  function addWatch(code: string) {
-    setWatchlists(current => {
-      const next = current.map(list => [...list]);
-      if (next[watchTab].includes(code)) { setMessage("동일 종목이 이미 있습니다."); return current; }
-      if (next[watchTab].length >= 50) { setMessage("관심종목 추가 공간이 없습니다."); return current; }
-      next[watchTab].push(code);
-      setMessage(`관심 ${watchTab + 1}에 추가했습니다.`);
-      return next;
-    });
+  async function addWatch(code: string) {
+    if (await changeWatchlist(watchTab, [code], "add")) setMessage(`관심 ${watchTab + 1}에 추가했습니다.`);
   }
   async function aiCopy() {
     const body = ordered.slice(0, 100).map(row => `${row.name}(${row.ticker}) IBD RS ${row.ibd}, 등락률 ${row.change}%`).join("\n") + "\n\n위 종목들을 분석해서, 현재 주식시장의 주도 섹터와 주도주가 무엇인지 설명해줘. 가장 좋은 종목도 추천해줘.";
@@ -339,7 +353,7 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   return <div className={`market-workspace-shell ${settingsOpen ? "settings-open" : ""}`}>
   <section className="market-workspace" style={workspaceStyle} aria-label="세력모니터 워크스페이스">
     <div className="workspace-primary">
-      <div className="workspace-chart-slot"><WorkspaceChart chart={chart} onAlertPriceChange={setAlertPrice} /></div>
+      <div className="workspace-chart-slot"><WorkspaceChart chart={chart} onAlertPriceChange={changeAlarmPrice} /></div>
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="차트와 검색 영역 높이 조절" aria-orientation="horizontal" aria-valuemin={206} aria-valuemax={300} aria-valuenow={dockHeight} tabIndex={0} onPointerDown={capture} onPointerMove={resizeDock} onDoubleClick={() => setDockHeight(224)} onKeyDown={event => { if (event.key === "ArrowUp") setDockHeight(value => clamp(value + 8, 206, 300)); if (event.key === "ArrowDown") setDockHeight(value => clamp(value - 8, 206, 300)); }} />
       <section className="workspace-panel search-dock" style={{ flexBasis: dockHeight }} aria-label="종목 및 저장 검색">
         <div className="stock-lookup">
@@ -357,9 +371,9 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
 
     <aside className="workspace-secondary" style={rightStyle}>
       <div className="workspace-menu">{menu}</div>
-      <ResultsPanel ordered={ordered} ticker={ticker} sort={sort} hidden={hidden} bookmarks={bookmarks} gather={gather} onSelect={onSelect} onSort={setSortKey} onToggleBookmark={toggleBookmark} onShowAll={() => { setResults(marketRows); setMessage("전체 종목을 표시합니다."); }} onClearBookmarks={() => setBookmarks([])} onToggleGather={() => setGather(!gather)} onToggleColumn={key => setHidden(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])} onAiCopy={aiCopy} />
+      <ResultsPanel serverMessage={[alarmError, priceError].filter(Boolean).join(" ")} loading={!alarmsLoaded && !alarmError} retryDisabled={watchSaving || alarmSaving} onReload={reload} ordered={ordered} ticker={ticker} sort={sort} hidden={hidden} bookmarks={bookmarks} gather={gather} onSelect={onSelect} onSort={setSortKey} onToggleBookmark={toggleBookmark} onShowAll={() => { setResults(marketRows); setMessage("전체 종목을 표시합니다."); }} onClearBookmarks={() => setBookmarks([])} onToggleGather={() => setGather(!gather)} onToggleColumn={key => setHidden(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])} onAiCopy={aiCopy} />
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="검색 결과와 관심종목 높이 조절" aria-orientation="horizontal" aria-valuemin={30} aria-valuemax={82 - rightMiddle} aria-valuenow={rightTop} tabIndex={0} onPointerDown={capture} onPointerMove={resizeRightTop} onDoubleClick={() => setRightTop(47)} onKeyDown={event => { if (event.key === "ArrowUp") setRightTop(value => clamp(value - 2, 30, 82 - rightMiddle)); if (event.key === "ArrowDown") setRightTop(value => clamp(value + 2, 30, 82 - rightMiddle)); }} />
-      <WatchPanel watchlists={watchlists} watchTab={watchTab} selectedWatch={selectedWatch} ticker={ticker} onTab={setWatchTab} onSelect={onSelect} onAdd={addWatch} onClear={() => setWatchlists(current => current.map((list, index) => index === watchTab ? [] : list))} onRemove={code => setWatchlists(current => current.map((list, index) => index === watchTab ? list.filter(item => item !== code) : list))} onMoveToResults={() => { const codes = new Set(selectedWatch.map(item => item.ticker)); setResults(marketRows.filter(row => codes.has(row.ticker))); setMessage(`관심 ${watchTab + 1} 종목을 검색 결과로 옮겼습니다.`); }} />
+      <WatchPanel legacyCodes={legacyWatchlists[watchTab]} onImport={() => void changeWatchlist(watchTab, legacyWatchlists[watchTab], "add")} watchlists={watchlists} watchTab={watchTab} selectedWatch={selectedWatch} ticker={ticker} limit={watchLimit} loaded={watchLoaded} saving={watchSaving} error={watchError} onReload={reload} retryDisabled={watchSaving || alarmSaving} onTab={setWatchTab} onSelect={onSelect} onAdd={addWatch} onClear={() => void changeWatchlist(watchTab, watchlists[watchTab], "delete")} onRemove={code => void changeWatchlist(watchTab, [code], "delete")} onMoveToResults={() => { setResults(watchRows); setMessage(`관심 ${watchTab + 1} 종목을 검색 결과로 옮겼습니다.`); }} />
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="관심종목과 뉴스 높이 조절" aria-orientation="horizontal" aria-valuemin={18} aria-valuemax={82 - rightTop} aria-valuenow={rightMiddle} tabIndex={0} onPointerDown={capture} onPointerMove={resizeRightMiddle} onDoubleClick={() => setRightMiddle(28)} onKeyDown={event => { if (event.key === "ArrowUp") setRightMiddle(value => clamp(value - 2, 18, 82 - rightTop)); if (event.key === "ArrowDown") setRightMiddle(value => clamp(value + 2, 18, 82 - rightTop)); }} />
       <NewsPanel name={stocks.find(row => row.ticker === ticker)?.name ?? ticker}/>
     </aside>
@@ -368,7 +382,7 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   </div>;
 }
 
-const WorkspaceChart = memo(function WorkspaceChart({ chart, onAlertPriceChange }: { chart: (onAlertPriceChange: (price: number, currentPrice: number) => void) => React.ReactNode; onAlertPriceChange: (price: number, currentPrice: number) => void }) {
+const WorkspaceChart = memo(function WorkspaceChart({ chart, onAlertPriceChange }: { chart: (onAlertPriceChange: AlarmPriceChange) => React.ReactNode; onAlertPriceChange: AlarmPriceChange }) {
   return chart(onAlertPriceChange);
 });
 
@@ -422,7 +436,7 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
       <Condition title="보유비중 증감"><Toggle checked={preset.holding} label="사용" onChange={holding => setPreset({ ...preset, holding })} />{preset.holding && <InvestorMatrix mode="holding" value={investors} set={setInvestors} />}</Condition>
       <Condition title="영향력"><Toggle checked={preset.influence} label="사용" onChange={influence => setPreset({ ...preset, influence })} />{preset.influence && <InvestorMatrix mode="power" value={investors} set={setInvestors} />}</Condition>
       <div className="condition-columns"><Condition title="RS 증감"><Radio values={["any", "상승", "하락"]} labels={["무관", "상승", "하락"]} value={preset.rs} set={rs => setPreset({ ...preset, rs: String(rs) })} /></Condition><Condition title="IBD RS"><Radio values={["any", "80", "90"]} labels={["무관", ">80점", ">90점"]} value={preset.ibd} set={ibd => setPreset({ ...preset, ibd: String(ibd) })} /></Condition></div>
-      <Condition title="이동평균선"><Radio name="moving-average" values={["0", "20>60", "u20", "u60"]} labels={["무관", "정배열 (20이평 > 60이평)", "20이평 상승", "60이평 상승"]} value={preset.ma} set={ma => setPreset({ ...preset, ma: ma as MovingAverage })} /></Condition>
+      <Condition title="이동평균선"><div className="radio-row">{movingAverageOptions.map(([label, bit]) => <Toggle key={bit} label={label} checked={Boolean(preset.ma & bit)} onChange={checked => setPreset({ ...preset, ma: checked ? preset.ma | bit : preset.ma & ~bit })} />)}</div></Condition>
       <div className="condition-columns"><Condition title="전체 특이 거래량"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.volume} set={volume => setPreset({ ...preset, volume: String(volume) })} /></Condition><Condition title="최근 5일 평균 거래대금"><Radio values={["any", "10", "50", "100", "500"]} labels={["무관", "10억 이상", "50억 이상", "100억 이상", "500억 이상"]} value={preset.value} set={value => setPreset({ ...preset, value: String(value) })} /></Condition></div>
       <Condition title="세부 특이 거래량"><Toggle checked={preset.detailVolumeEnabled} label="사용" onChange={detailVolumeEnabled => setPreset({ ...preset, detailVolumeEnabled })} />{preset.detailVolumeEnabled && <div className="specific-volume-controls"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.detailVolumePeriod} set={detailVolumePeriod => setPreset({ ...preset, detailVolumePeriod: String(detailVolumePeriod) })} /><div className="detail-volume-options">{investorGroups.slice(1).map(name => <Toggle key={name} checked={preset.detailVolume.includes(name)} label={name} onChange={checked => setPreset({ ...preset, detailVolume: checked ? [...preset.detailVolume, name] : preset.detailVolume.filter(item => item !== name) })} />)}</div></div>}</Condition>
       <div className="temporary-search"><div><b>저장하지 않고 결과 확인</b><p>위에서 설정한 조건으로 검색 결과를 먼저 확인합니다.</p></div><button onClick={onSearch}>임시 검색</button></div>
@@ -434,7 +448,7 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
   </section>;
 }
 
-function ResultsPanel({ ordered, ticker, sort, hidden, bookmarks, gather, onSelect, onSort, onToggleBookmark, onShowAll, onClearBookmarks, onToggleGather, onToggleColumn, onAiCopy }: { ordered: ResultRow[]; ticker: string; sort: ResultSort; hidden: string[]; bookmarks: string[]; gather: boolean; onSelect: (ticker: string) => void; onSort: (key: keyof ResultRow) => void; onToggleBookmark: (ticker: string) => void; onShowAll: () => void; onClearBookmarks: () => void; onToggleGather: () => void; onToggleColumn: (key: string) => void; onAiCopy: () => void }) {
+function ResultsPanel({ serverMessage, loading, retryDisabled, onReload, ordered, ticker, sort, hidden, bookmarks, gather, onSelect, onSort, onToggleBookmark, onShowAll, onClearBookmarks, onToggleGather, onToggleColumn, onAiCopy }: { serverMessage: string; loading: boolean; retryDisabled: boolean; onReload: () => void; ordered: ResultRow[]; ticker: string; sort: ResultSort; hidden: string[]; bookmarks: string[]; gather: boolean; onSelect: (ticker: string) => void; onSort: (key: keyof ResultRow) => void; onToggleBookmark: (ticker: string) => void; onShowAll: () => void; onClearBookmarks: () => void; onToggleGather: () => void; onToggleColumn: (key: string) => void; onAiCopy: () => void }) {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const columns = [
     ["alertPrice", "알람가격"],
@@ -447,6 +461,8 @@ function ResultsPanel({ ordered, ticker, sort, hidden, bookmarks, gather, onSele
   ] as const;
   return <div className="workspace-panel results-panel">
     <div className="panel-toolbar"><div><span className="panel-kicker">검색 결과</span><b>{ordered.length}개 종목</b></div><div><button onClick={onShowAll}>전종목 보기</button><button onClick={onClearBookmarks}>북마크 전체 삭제</button><button className={gather ? "active" : ""} onClick={onToggleGather}>★ 모아보기</button><button onClick={() => setColumnsOpen(true)}>창 설정</button><button className="ai-copy" onClick={onAiCopy}>AI 복사</button></div></div>
+    {serverMessage && <div className="portfolio-message" role="alert">{serverMessage}<button disabled={retryDisabled} onClick={onReload}>다시 불러오기</button></div>}
+    {loading && <p className="portfolio-message" role="status">알람가격을 불러오고 있습니다.</p>}
     <ResultTable ordered={ordered} ticker={ticker} sort={sort} hidden={hidden} bookmarks={bookmarks} onSelect={onSelect} onSort={onSort} onToggleBookmark={onToggleBookmark} />
     {columnsOpen && <div className="column-modal-backdrop" onMouseDown={() => setColumnsOpen(false)}><section className="column-modal" role="dialog" aria-modal="true" aria-label="검색창 설정 하기" onMouseDown={event => event.stopPropagation()}><header><h2>검색창 설정 하기</h2><button onClick={() => setColumnsOpen(false)} aria-label="닫기">×</button></header><div>{columns.map(([key, label]) => <label key={key}><input type="checkbox" checked={!hidden.includes(key)} onChange={() => onToggleColumn(key)}/><span>{label}</span></label>)}</div></section></div>}
   </div>;
@@ -497,7 +513,7 @@ const ResultTable = memo(function ResultTable({ ordered, ticker, sort, hidden, b
               <td>{index + 1}</td>
               <td><button type="button" className="bookmark-star" aria-label={`${row.name} 북마크 ${bookmarked ? "해제" : "추가"}`} aria-pressed={bookmarked} onClick={event => { event.stopPropagation(); onToggleBookmark(row.ticker); }}>{bookmarked ? "★" : "☆"}</button></td>
               <td><b>{row.name}</b></td>
-              {!hidden.includes("alertChange") && <td className={`alert-status ${alertStatusClass(row)}`}>{row.alertChange === null ? "" : `${row.alertUp ? "U" : ""}${row.alertChange}%`}</td>}
+              {!hidden.includes("alertChange") && <td className={`alert-status ${alertStatusClass(row)}`}>{alarmStatusText(row)}</td>}
               {!hidden.includes("alertPrice") && <td>{row.alertPrice?.toLocaleString() ?? ""}</td>}
               {!hidden.includes("profit") && <td>{oneDecimal(row.change)}%</td>}
               {!hidden.includes("value") && <td>{integer(row.value)}</td>}
@@ -513,8 +529,17 @@ const ResultTable = memo(function ResultTable({ ordered, ticker, sort, hidden, b
   );
 });
 
-function WatchPanel({ watchlists, watchTab, selectedWatch, ticker, onTab, onSelect, onAdd, onClear, onRemove, onMoveToResults }: { watchlists: string[][]; watchTab: number; selectedWatch: Stock[]; ticker: string; onTab: (index: number) => void; onSelect: (ticker: string) => void; onAdd: (ticker: string) => void; onClear: () => void; onRemove: (ticker: string) => void; onMoveToResults: () => void }) {
-  return <div className="workspace-panel watch-panel"><div className="watch-toolbar"><div className="watch-tabs">{watchlists.map((list, index) => <button className={watchTab === index ? "active" : ""} key={index} onClick={() => onTab(index)}>관심 {index + 1}<span>{list.length}/50</span></button>)}</div><div className="watch-actions"><button onClick={onClear}>전체 삭제</button><button onClick={() => onAdd(ticker)}>현재 종목 추가</button><button className="watch-to-results" disabled={!selectedWatch.length} onClick={onMoveToResults}>검색창에서 보기</button></div></div>{selectedWatch.length ? <ol className="watch-list">{selectedWatch.sort((a, b) => a.name.localeCompare(b.name, "ko")).map(stock => <li key={stock.ticker}><button onClick={() => onSelect(stock.ticker)}><span><b>{stock.name}</b><small>{stock.ticker}</small></span></button><button aria-label={`${stock.name} 관심종목 제외`} onClick={() => onRemove(stock.ticker)}>×</button></li>)}</ol> : <div className="panel-empty">관심종목이 없습니다. 검색 결과에서 종목을 추가해 보세요.</div>}</div>;
+function WatchPanel({ legacyCodes, onImport, watchlists, watchTab, selectedWatch, ticker, limit, loaded, saving, error, onReload, retryDisabled, onTab, onSelect, onAdd, onClear, onRemove, onMoveToResults }: { legacyCodes: string[]; onImport: () => void; watchlists: string[][]; watchTab: number; selectedWatch: ResultRow[]; ticker: string; limit: number | null; loaded: boolean; saving: boolean; error: string; onReload: () => void; retryDisabled: boolean; onTab: (index: number) => void; onSelect: (ticker: string) => void; onAdd: (ticker: string) => void; onClear: () => void; onRemove: (ticker: string) => void; onMoveToResults: () => void }) {
+  const ready = loaded && limit !== null && !saving;
+  const importCount = legacyCodes.filter(code => !watchlists[watchTab].includes(code)).length;
+  return <div className="workspace-panel watch-panel">
+    <div className="watch-toolbar"><div className="watch-tabs">{watchlists.map((list, index) => <button className={watchTab === index ? "active" : ""} key={index} onClick={() => onTab(index)}>관심 {index + 1}<span>{list.length}/{limit ?? "—"}</span></button>)}</div><div className="watch-actions"><button disabled={!ready || !selectedWatch.length} onClick={onClear}>전체 삭제</button><button disabled={!ready || watchlists[watchTab].length >= (limit ?? 0)} onClick={() => onAdd(ticker)}>현재 종목 추가</button><button className="watch-to-results" disabled={!loaded || !selectedWatch.length} onClick={onMoveToResults}>검색창에서 보기</button></div></div>
+    {error && <div className="portfolio-message" role="alert">{error}<button disabled={retryDisabled} onClick={onReload}>다시 불러오기</button></div>}
+    {!loaded && !error && <p className="portfolio-message" role="status">관심종목을 불러오고 있습니다.</p>}
+    {saving && <p className="portfolio-message" role="status">관심종목을 저장하고 있습니다.</p>}
+    {loaded && importCount > 0 && <div className="portfolio-message"><button disabled={!ready} onClick={onImport}>이 폴더의 이전 관심종목 가져오기 ({importCount})</button></div>}
+    {selectedWatch.length ? <ol className="watch-list">{[...selectedWatch].sort((a, b) => a.name.localeCompare(b.name, "ko")).map(stock => <li key={stock.ticker}><button onClick={() => onSelect(stock.ticker)}><span><b>{stock.name}</b><small>{stock.ticker}</small></span>{stock.alertPrice !== null && <span className="watch-alarm"><span className={`alert-status ${alertStatusClass(stock)}`}>{alarmStatusText(stock)}</span><small>알람가격 {stock.alertPrice.toLocaleString()}</small></span>}</button><button disabled={!ready} aria-label={`${stock.name} 관심종목 제외`} onClick={() => onRemove(stock.ticker)}>×</button></li>)}</ol> : loaded && <div className="panel-empty">관심종목이 없습니다. 검색 결과에서 종목을 추가해 보세요.</div>}
+  </div>;
 }
 
 function Condition({ title, required, children }: { title: string; required?: boolean; children: React.ReactNode }) { return <fieldset className="condition-card"><legend className={required ? "required" : ""}>{title}</legend><div>{children}</div></fieldset>; }
