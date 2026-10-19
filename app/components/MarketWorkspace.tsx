@@ -9,7 +9,7 @@ type Stock = { name: string; ticker: string };
 export type StockInfo = { name: string; ma20_up: boolean; bojong_profit_rate: number; trading_value: number; _5d_avg_trading_value: number; ibdrs: number; n_top_acc: number };
 export type StockInfoMap = Record<string, StockInfo>;
 type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: number; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
-type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; alertUp: boolean; value: number; average: number; ibd: number; rank: number; ma20Up?: boolean; score?: number };
+type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; value: number; average: number; ibd: number; rank: number; ma20Up?: boolean; score?: number };
 type ResultSort = { key: keyof ResultRow; asc: boolean } | null;
 type NewsItem = [string, string, string];
 type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; moving_average2?: number; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
@@ -28,10 +28,10 @@ const antFilterGroups = [
 const investorGroups = ["개인투자", "외국인", "기타법인", "내외국인", "기관계", "금융기관", "보험", "투신", "기타금융", "은행", "연기금등", "사모펀드", "사모펀드+투신", "사모펀드+연기금", "투신+연기금", "투신+사모+연기금"];
 const investorKeys = ["individual", "foreigner", "othercorp", "inout", "organization", "finance", "insurance", "investtrust", "otherfinance", "bank", "pension", "privatefund", "privatefund_investtrust", "privatefund_pension", "investtrust_pension", "investtrust_privatefund_pension"];
 const sample: ResultRow[] = [
-  { name: "삼성전자", ticker: "005930", price: 74200, change: 1.42, alertPrice: null, alertChange: null, alertUp: false, value: 456700, average: 543000, ibd: 99, rank: 33 },
-  { name: "SK하이닉스", ticker: "000660", price: 186300, change: -0.31, alertPrice: null, alertChange: null, alertUp: false, value: 345300, average: 363400, ibd: 98, rank: 27 },
-  { name: "현대차", ticker: "005380", price: 247500, change: 2.16, alertPrice: null, alertChange: null, alertUp: false, value: 212300, average: 197400, ibd: 97, rank: 14 },
-  { name: "삼성중공업", ticker: "010140", price: 12680, change: 0.48, alertPrice: null, alertChange: null, alertUp: false, value: 97800, average: 88400, ibd: 95, rank: 45 },
+  { name: "삼성전자", ticker: "005930", price: 74200, change: 1.42, alertPrice: null, alertChange: null, value: 456700, average: 543000, ibd: 99, rank: 33 },
+  { name: "SK하이닉스", ticker: "000660", price: 186300, change: -0.31, alertPrice: null, alertChange: null, value: 345300, average: 363400, ibd: 98, rank: 27 },
+  { name: "현대차", ticker: "005380", price: 247500, change: 2.16, alertPrice: null, alertChange: null, value: 212300, average: 197400, ibd: 97, rank: 14 },
+  { name: "삼성중공업", ticker: "010140", price: 12680, change: 0.48, alertPrice: null, alertChange: null, value: 97800, average: 88400, ibd: 95, rank: 45 },
 ];
 
 function stockInfoRow(ticker: string, info: StockInfo): ResultRow {
@@ -42,7 +42,6 @@ function stockInfoRow(ticker: string, info: StockInfo): ResultRow {
     change: info.bojong_profit_rate,
     alertPrice: null,
     alertChange: null,
-    alertUp: false,
     value: info.trading_value,
     average: info._5d_avg_trading_value,
     ibd: info.ibdrs,
@@ -54,11 +53,12 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const oneDecimal = (value: number) => value.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const integer = (value: number) => Math.round(value).toLocaleString("ko-KR");
 function alarmStatusText(row: ResultRow) {
-  return row.alertChange === null ? "" : `${row.alertUp ? "U" : ""}${row.alertChange > 0 ? "+" : ""}${row.alertChange}%`;
+  const change = row.alertChange === null ? "" : `${row.alertChange > 0 ? "+" : ""}${row.alertChange}%`;
+  return `${row.ma20Up === true ? "U" : ""}${change}`;
 }
 function alertStatusClass(row: ResultRow) {
   if (row.alertChange === null) return "";
-  if (!row.alertUp) return "alert-status-low";
+  if (row.alertPrice === null || row.alertPrice < row.price) return "alert-status-low";
   return row.alertChange <= -20 ? "alert-status-warning" : "alert-status-caution";
 }
 const periodToTime: Record<string, number> = { "1주": 5, "2주": 10, "1달": 20, "2달": 40, "3달": 60 };
@@ -235,7 +235,6 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
     return {
       ...row, price, alertPrice,
       alertChange: alertPrice !== null && price > 0 ? Math.round((price / alertPrice - 1) * 1000) / 10 : null,
-      alertUp: alertPrice !== null && price > 0 && alertPrice >= price,
     };
   }, [alarmPrices, currentPrices]);
   const resultRows = useMemo(() => results.map(withAlarm), [results, withAlarm]);
@@ -252,7 +251,7 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   }, [resultRows, sort, gather, bookmarks]);
   const watchRows = useMemo(() => watchlists[watchTab].map(code => marketByTicker.get(code) ?? {
     name: stocks.find(stock => stock.ticker === code)?.name ?? code, ticker: code,
-    price: 0, change: 0, alertPrice: null, alertChange: null, alertUp: false, value: 0, average: 0, ibd: 0, rank: 0,
+    price: 0, change: 0, alertPrice: null, alertChange: null, value: 0, average: 0, ibd: 0, rank: 0,
   }), [watchlists, watchTab, marketByTicker, stocks]);
   const selectedWatch = useMemo(() => watchRows.map(withAlarm), [watchRows, withAlarm]);
   const activeDescription = activeSlot === null ? "검색조건을 선택하거나 새 조건을 만들어 주세요." : slots[activeSlot] ? describePreset(slots[activeSlot]) : "검색조건이 설정되지 않았습니다.";
@@ -299,7 +298,7 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
       if (!response.ok || responseBody.errno !== 0) throw new Error(responseBody.message ?? "검색 결과를 반환하지 못했습니다.");
       const nextRows = (responseBody.result as [string, number][]).map(([code, score], index) => {
         const known = marketByTicker.get(code);
-        return known ? { ...known, score } : { name: stocks.find(stock => stock.ticker === code)?.name ?? code, ticker: code, price: 0, change: 0, alertPrice: null, alertChange: null, alertUp: false, value: 0, average: 0, ibd: 0, rank: index + 1, score };
+        return known ? { ...known, score } : { name: stocks.find(stock => stock.ticker === code)?.name ?? code, ticker: code, price: 0, change: 0, alertPrice: null, alertChange: null, value: 0, average: 0, ibd: 0, rank: index + 1, score };
       });
       setSort(null); setGather(false); setResults(nextRows); setMessage(`${label} 결과 · ${nextRows.length}개 종목`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "조건검색을 실행하지 못했습니다."); }
@@ -538,7 +537,7 @@ function WatchPanel({ legacyCodes, onImport, watchlists, watchTab, selectedWatch
     {!loaded && !error && <p className="portfolio-message" role="status">관심종목을 불러오고 있습니다.</p>}
     {saving && <p className="portfolio-message" role="status">관심종목을 저장하고 있습니다.</p>}
     {loaded && importCount > 0 && <div className="portfolio-message"><button disabled={!ready} onClick={onImport}>이 폴더의 이전 관심종목 가져오기 ({importCount})</button></div>}
-    {selectedWatch.length ? <ol className="watch-list">{[...selectedWatch].sort((a, b) => a.name.localeCompare(b.name, "ko")).map(stock => <li key={stock.ticker}><button onClick={() => onSelect(stock.ticker)}><span><b>{stock.name}</b><small>{stock.ticker}</small></span>{stock.alertPrice !== null && <span className="watch-alarm"><span className={`alert-status ${alertStatusClass(stock)}`}>{alarmStatusText(stock)}</span><small>알람가격 {stock.alertPrice.toLocaleString()}</small></span>}</button><button disabled={!ready} aria-label={`${stock.name} 관심종목 제외`} onClick={() => onRemove(stock.ticker)}>×</button></li>)}</ol> : loaded && <div className="panel-empty">관심종목이 없습니다. 검색 결과에서 종목을 추가해 보세요.</div>}
+    {selectedWatch.length ? <ol className="watch-list">{[...selectedWatch].sort((a, b) => a.name.localeCompare(b.name, "ko")).map(stock => <li key={stock.ticker}><button onClick={() => onSelect(stock.ticker)}><span><b>{stock.name}</b><small>{stock.ticker}</small></span>{stock.alertPrice !== null && <span className="watch-alarm"><small>알람가격 {stock.alertPrice.toLocaleString()}</small></span>}</button><button disabled={!ready} aria-label={`${stock.name} 관심종목 제외`} onClick={() => onRemove(stock.ticker)}>×</button></li>)}</ol> : loaded && <div className="panel-empty">관심종목이 없습니다. 검색 결과에서 종목을 추가해 보세요.</div>}
   </div>;
 }
 

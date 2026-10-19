@@ -602,7 +602,7 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
   const dongwhaRow = page.locator(".result-table-alerts tbody tr").filter({ hasText: "동화약품" });
   const statusCell = dongwhaRow.locator("td").nth(3);
   const alertPriceCell = dongwhaRow.locator("td").nth(4);
-  await expect(statusCell).toHaveText("");
+  await expect(statusCell).toHaveText("U");
   await expect(alertPriceCell).toHaveText("");
   await dongwhaRow.click();
   await expect(page.locator(".chart-identity")).toContainText("000020");
@@ -636,7 +636,7 @@ test("주가 차트 우클릭으로 현재 종목의 알람가격을 넣고 삭�
   );
   await alertMenu.getByRole("menuitem", { name: "알람가격 삭제" }).click();
   await expect(alertPriceCell).toHaveText("");
-  await expect(statusCell).toHaveText("");
+  await expect(statusCell).toHaveText("U");
 
   const antPaneBox = await chartRows.nth(2).boundingBox();
   expect(antPaneBox).not.toBeNull();
@@ -1115,7 +1115,7 @@ test("서버의 관심종목 최대 개수를 적용하고 저장 중 중복 요
   expect(writes).toBe(1);
 });
 
-test("알람가격·상태를 관심종목과 검색결과에서 공유하고 재로그인·새 브라우저에서도 복원한다", async ({ page, browser }) => {
+test("알람가격을 관심종목과 검색결과에서 공유하고 재로그인·새 브라우저에서도 복원한다", async ({ page, browser }) => {
   const server = await mockStockData(page);
   server.alarmPrices = { "005930": 100000.5 };
   server.currentPrices["005930"] = 110000.55;
@@ -1125,19 +1125,19 @@ test("알람가격·상태를 관심종목과 검색결과에서 공유하고 �
   const watch = page.locator(".watch-panel");
   const samsung = results.locator("tbody tr").filter({ hasText: "삼성전자" });
   await expect(samsung.locator("td").nth(4)).toHaveText("100,000.5");
-  await expect(samsung.locator("td").nth(3)).toHaveText("+10%");
-  await expect(watch.locator(".watch-list")).toContainText("+10%");
+  await expect(samsung.locator("td").nth(3)).toHaveText("U+10%");
+  await expect(watch.locator(".watch-list .alert-status")).toHaveCount(0);
   await expect(watch.locator(".watch-list")).toContainText("알람가격 100,000.5");
   await watch.getByRole("button", { name: "검색창에서 보기" }).click();
   await expect(samsung.locator("td").nth(4)).toHaveText("100,000.5");
   await results.getByRole("button", { name: "전종목 보기", exact: true }).click();
-  await expect(samsung.locator("td").nth(3)).toHaveText("+10%");
+  await expect(samsung.locator("td").nth(3)).toHaveText("U+10%");
   server.currentPrices["005930"] = 80000.4;
   const refresh = page.waitForResponse("**/api/current-price");
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await refresh;
   await expect(samsung.locator("td").nth(3)).toHaveText("U-20%");
-  await expect(watch.locator(".watch-list")).toContainText("U-20%");
+  await expect(watch.locator(".watch-list .alert-status")).toHaveCount(0);
   await page.getByRole("button", { name: "계정", exact: true }).click();
   await page.getByRole("dialog", { name: "마이페이지" }).getByRole("button", { name: "로그아웃", exact: true }).click();
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
@@ -1149,11 +1149,56 @@ test("알람가격·상태를 관심종목과 검색결과에서 공유하고 �
     await other.goto("/");
     await other.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
     await expect(other.locator(".watch-list")).toContainText("알람가격 100,000.5");
-    await expect(other.locator(".watch-list")).toContainText("U-20%");
+    await expect(other.locator(".watch-list .alert-status")).toHaveCount(0);
+    await expect(other.locator(".results-panel tbody tr").filter({ hasText: "삼성전자" }).locator("td").nth(3)).toHaveText("U-20%");
   } finally { await context.close(); }
 });
 
-test("서버에 알람가격이 없거나 현재가를 받지 못하면 임의의 상태를 표시하지 않는다", async ({ page }) => {
+for (const ma20Up of [true, false, undefined]) {
+  test(`U 표시는 ma20_up=${ma20Up}만 따르고 알람가격·현재가와 무관하다`, async ({ page }) => {
+    const server = await mockStockData(page);
+    server.watchlists = {};
+    server.alarmPrices = { "060310": 1600 };
+    server.currentPrices = { "060310": 1320 };
+    await page.route("**/api/stock-info", route => route.fulfill({ json: { count: 1, result: {
+      "060310": { name: "3S", ...(ma20Up === undefined ? {} : { ma20_up: ma20Up }), bojong_profit_rate: 0,
+        trading_value: 1, _5d_avg_trading_value: 1, ibdrs: 1, n_top_acc: 0 },
+    } } }));
+    await page.goto("/");
+    await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
+    const row = page.locator(".results-panel tbody tr").filter({ hasText: "3S" });
+    const status = row.locator("td").nth(3);
+    const prefix = ma20Up === true ? "U" : "";
+    await expect(status).toHaveText(`${prefix}-17.5%`);
+    await row.click();
+    await page.locator(".watch-panel").getByRole("button", { name: "현재 종목 추가" }).click();
+    await expect(page.locator(".watch-list li")).toHaveCount(1);
+    await expect(page.locator(".watch-list li")).toHaveText("3S060310알람가격 1,600×");
+
+    server.currentPrices["060310"] = 2000;
+    const refresh = page.waitForResponse("**/api/current-price");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await refresh;
+    await expect(status).toHaveText(`${prefix}+25%`);
+
+    const pricePane = page.locator(".chart-engine table tr").first();
+    await page.locator(".chart-engine canvas").first().waitFor();
+    const box = await pricePane.boundingBox();
+    const openMenu = () => page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.4, { button: "right" });
+    await openMenu();
+    await page.getByRole("menuitem", { name: "알람가격 삭제" }).click();
+    await expect(row.locator("td").nth(4)).toHaveText("");
+    await expect(status).toHaveText(prefix);
+    await expect(page.locator(".watch-list li")).toHaveText("3S060310×");
+    await openMenu();
+    await page.getByRole("menuitem", { name: "알람가격 넣기" }).click();
+    await expect(row.locator("td").nth(4)).not.toHaveText("");
+    await expect(status).toHaveText(new RegExp(`^${prefix}[+-]?\\d+(\\.\\d+)?%$`));
+    await expect(page.locator(".watch-list")).not.toContainText(/U|%/);
+  });
+}
+
+test("알람가격이나 현재가가 없어도 ma20_up으로 U만 표시한다", async ({ page }) => {
   const server = await mockStockData(page);
   server.alarmPrices = {};
   server.currentPrices = {};
@@ -1161,12 +1206,12 @@ test("서버에 알람가격이 없거나 현재가를 받지 못하면 임의�
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   const samsung = page.locator(".results-panel tbody tr").filter({ hasText: "삼성전자" });
   await expect(samsung.locator("td").nth(4)).toHaveText("");
-  await expect(samsung.locator("td").nth(3)).toHaveText("");
+  await expect(samsung.locator("td").nth(3)).toHaveText("U");
   server.alarmPrices["005930"] = 100000;
   await page.reload();
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   await expect(samsung.locator("td").nth(4)).toHaveText("100,000");
-  await expect(samsung.locator("td").nth(3)).toHaveText("");
+  await expect(samsung.locator("td").nth(3)).toHaveText("U");
 });
 
 test("알람가격 로딩 실패 중에는 서버 값을 덮어쓰지 않고 재시도한다", async ({ page }) => {
