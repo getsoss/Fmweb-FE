@@ -1058,9 +1058,8 @@ test("알람가격을 관심종목과 검색결과에서 공유하고 재로그�
   await results.getByRole("button", { name: "전종목 보기", exact: true }).click();
   await expect(samsung.locator("td").nth(3)).toHaveText("U+10%");
   server.currentPrices["005930"] = 80000.4;
-  const refresh = page.waitForResponse("**/api/current-price");
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await refresh;
+  await page.reload();
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   await expect(samsung.locator("td").nth(3)).toHaveText("U-20%");
   await expect(watch.locator(".watch-list .alert-status")).toHaveCount(0);
   await page.getByRole("button", { name: "계정", exact: true }).click();
@@ -1101,10 +1100,11 @@ for (const ma20Up of [true, false, undefined]) {
     await expect(page.locator(".watch-list li")).toHaveText("3S060310알람가격 1,600×");
 
     server.currentPrices["060310"] = 2000;
-    const refresh = page.waitForResponse("**/api/current-price");
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await refresh;
+    await page.reload();
+    await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
     await expect(status).toHaveText(`${prefix}+25%`);
+    await row.click();
+    await expect(page.locator(".chart-identity")).toContainText("060310");
 
     const pricePane = page.locator(".chart-engine table tr").first();
     await page.locator(".chart-engine canvas").first().waitFor();

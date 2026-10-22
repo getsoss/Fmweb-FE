@@ -14,9 +14,8 @@ const bands = [
 const rgb = hex => `rgb(${[1, 3, 5].map(start => parseInt(hex.slice(start, start + 2), 16)).join(", ")})`;
 
 async function refreshPrices(page) {
-  const response = page.waitForResponse("**/api/current-price");
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await response;
+  await page.reload();
+  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
 }
 
 test("알람 상태는 최신 엑셀의 10단계 색과 모든 3% 경계를 반영한다", async ({ page }) => {
@@ -50,7 +49,7 @@ test("알람 상태는 최신 엑셀의 10단계 색과 모든 3% 경계를 반�
   await expect(orangeRow.locator(".alert-status")).toHaveCSS("background-color", rgb("#EB781E"));
 });
 
-test("현재가 갱신은 알람 색만 바꾸고 가격 미수신·알람 삭제 시 색을 지운다", async ({ page }) => {
+test("새로고침으로 조회한 현재가는 알람 색에 반영하고 가격 미수신·알람 삭제 시 색을 지운다", async ({ page }) => {
   const server = await mockStockData(page);
   server.alarmPrices = { "005930": 100000 };
   server.currentPrices = { "005930": 80000 };

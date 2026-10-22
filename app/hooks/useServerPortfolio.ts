@@ -24,6 +24,13 @@ function priceMap(body: unknown): PriceMap {
   return Object.fromEntries(entries) as PriceMap;
 }
 
+// Current prices change daily. Share one attempt for this document, including
+// in-flight requests and failures, across retries and workspace remounts.
+let currentPricesRequest: Promise<PriceMap> | undefined;
+function loadCurrentPrices() {
+  return currentPricesRequest ??= request("/api/current-price").then(priceMap);
+}
+
 export function useServerPortfolio() {
   const [watchlists, setWatchlists] = useState<string[][]>([[], [], [], [], []]);
   const [watchLimit, setWatchLimit] = useState<number | null>(null);
@@ -59,6 +66,17 @@ export function useServerPortfolio() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    loadCurrentPrices().then(prices => {
+      if (active) { setCurrentPrices(prices); setPriceError(""); }
+    }).catch(error => {
+      if (active) setPriceError(`${errorMessage(error, "현재가를 불러오지 못했습니다.")} 페이지를 새로고침해 주세요.`);
+    });
+    // Keep the shared request alive for a subsequent mount (also in Strict Mode).
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     const options = { signal: controller.signal };
     setWatchLoaded(false);
@@ -66,7 +84,6 @@ export function useServerPortfolio() {
     setAlarmsLoaded(false);
     setWatchError("");
     setAlarmError("");
-    let refreshingPrices = false;
 
     request("/api/watchlist", options).then(body => {
       if (!isRecord(body) || !isRecord(body.result)) throw new Error("관심종목 응답 형식이 올바르지 않습니다.");
@@ -92,27 +109,7 @@ export function useServerPortfolio() {
     }).catch(error => {
       if (!controller.signal.aborted) setAlarmError(errorMessage(error, "알람가격을 불러오지 못했습니다."));
     });
-    async function refreshPrices() {
-      if (refreshingPrices || document.visibilityState === "hidden") return;
-      refreshingPrices = true;
-      try {
-        const prices = priceMap(await request("/api/current-price", options));
-        if (!controller.signal.aborted) { setCurrentPrices(prices); setPriceError(""); }
-      } catch (error) {
-        if (!controller.signal.aborted) setPriceError(errorMessage(error, "현재가를 불러오지 못했습니다."));
-      } finally { refreshingPrices = false; }
-    }
-    void refreshPrices();
-    const timer = window.setInterval(() => void refreshPrices(), 30_000);
-    const onVisible = () => { if (document.visibilityState === "visible") void refreshPrices(); };
-    window.addEventListener("focus", onVisible);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      controller.abort();
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onVisible);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    return () => controller.abort();
   }, [reloadKey]);
 
   const changeWatchlist = useCallback(async (slot: number, codes: string[], mode: "add" | "delete") => {

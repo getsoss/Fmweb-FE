@@ -71,12 +71,6 @@ test("관심종목이 아닌 검색결과의 임시 알람은 서버에 쓰지 �
   expect(writes).toEqual([]);
   expect(server.alarmPrices).not.toHaveProperty("000020");
 
-  server.currentPrices["000020"] = price * 1.1;
-  const refresh = page.waitForResponse("**/api/current-price");
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await refresh;
-  await expect(status).toHaveText("U+10%");
-  await expect(status).toHaveCSS("background-color", "rgb(255, 0, 0)");
   await openAlarmMenu(page);
   await page.getByRole("menuitem", { name: "알람가격 삭제" }).click();
   await expect(resultRow(page).locator("td").nth(4)).toHaveText("");
@@ -217,9 +211,9 @@ test("관심종목이 다른 폴더에 남으면 알람을 복원하고 마지�
 test("임시 알람 승격·관심 알람 저장 후 다시 불러오면 최신 서버 가격이 이전 세션 값을 대체한다", async ({ page }) => {
   const server = await mockStockData(page);
   server.alarmPrices = {};
-  let failCurrentPrice = false;
-  await page.route("**/api/current-price", route => failCurrentPrice
-    ? route.fulfill({ status: 503, json: { message: "현재가 일시 조회 실패" } }) : route.fallback());
+  let failAlarmWrite = false;
+  await page.route("**/api/alarm-price", route => failAlarmWrite && route.request().method() === "PUT"
+    ? route.fulfill({ status: 503, json: { message: "알람가격 일시 저장 실패" } }) : route.fallback());
   await enter(page);
   const price = await setAlarm(page);
   await page.locator(".watch-panel").getByRole("button", { name: "현재 종목 추가", exact: true }).click();
@@ -227,14 +221,13 @@ test("임시 알람 승격·관심 알람 저장 후 다시 불러오면 최신 
   expect(server.alarmPrices["000020"]).toBe(price);
 
   async function reloadServerAlarm(latestPrice) {
-    server.alarmPrices["000020"] = latestPrice;
-    failCurrentPrice = true;
-    const failedRefresh = page.waitForResponse(response => response.url().endsWith("/api/current-price") && response.status() === 503);
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await failedRefresh;
+    failAlarmWrite = true;
+    await openAlarmMenu(page);
+    await page.getByRole("menuitem", { name: "알람가격 넣기" }).click();
     const results = page.locator(".results-panel");
-    await expect(results.getByRole("alert")).toContainText("현재가 일시 조회 실패");
-    failCurrentPrice = false;
+    await expect(results.getByRole("alert")).toContainText("알람가격 일시 저장 실패");
+    failAlarmWrite = false;
+    server.alarmPrices["000020"] = latestPrice;
     const alarmReload = page.waitForResponse(response => response.url().endsWith("/api/alarm-price") && response.request().method() === "GET");
     await results.getByRole("button", { name: "다시 불러오기", exact: true }).click();
     await alarmReload;
