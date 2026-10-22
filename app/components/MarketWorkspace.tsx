@@ -360,11 +360,19 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
       <div className="workspace-chart-slot"><WorkspaceChart chart={chart} onAlertPriceChange={changeAlarmPrice} /></div>
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="차트와 검색 영역 높이 조절" aria-orientation="horizontal" aria-valuemin={206} aria-valuemax={300} aria-valuenow={dockHeight} tabIndex={0} onPointerDown={capture} onPointerMove={resizeDock} onDoubleClick={() => setDockHeight(224)} onKeyDown={event => { if (event.key === "ArrowUp") setDockHeight(value => clamp(value + 8, 206, 300)); if (event.key === "ArrowDown") setDockHeight(value => clamp(value - 8, 206, 300)); }} />
       <section className="workspace-panel search-dock" style={{ flexBasis: dockHeight }} aria-label="종목 및 저장 검색">
-        <div className="stock-lookup">
+        <form
+          className="stock-lookup"
+          aria-label="종목 조회"
+          onSubmit={event => { event.preventDefault(); showDirectStock(); }}
+          onKeyDown={event => {
+            // Some IMEs report keyCode 229 while confirming composed text.
+            if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault();
+          }}
+        >
           <label>종목이름<input value={directName} onChange={event => { setDirectName(event.target.value); setDirectTicker(""); }} placeholder="삼성전자" /></label>
           <label>종목코드<input inputMode="text" maxLength={6} value={directTicker} onChange={event => { setDirectTicker(event.target.value.replace(/[^a-zA-Z0-9]/g, "")); setDirectName(""); }} placeholder="005930" /></label>
-          <button onClick={showDirectStock}>차트보기</button>
-        </div>
+          <button type="submit">차트보기</button>
+        </form>
         <div className="quick-presets" aria-label="저장 검색">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => chooseSlot(index)}>검색{index + 1}</button>)}</div>
         <p className="preset-description"><span>검색조건</span>{activeDescription}</p>{message && <p className="search-api-message" role="status">{message}</p>}
         <div className="search-settings-entry"><button className="open-search-settings" aria-expanded={settingsOpen} aria-controls="search-settings-panel" onClick={() => setSettingsOpen(value => !value)}>{settingsOpen ? "검색조건 접기" : "검색조건 만들기"}</button></div>
