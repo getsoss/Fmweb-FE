@@ -661,13 +661,13 @@ test("검색조건 만들기는 워크스페이스 아래 논모달 설정 영�
   await page.locator(".result-table tbody tr").filter({ hasText: "SK하이닉스" }).click();
   await expect(page.locator(".chart-identity")).toContainText("000660");
   await expect(settings).toHaveCount(1);
-  await expect(settings.getByRole("radio", { name: "1주", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "기간 설정 *", exact: true }).getByRole("radio", { name: "1주", exact: true })).toBeChecked();
   await expect(settings.getByRole("radio", { name: "상위 20", exact: true })).toBeChecked();
   await expect(settings.getByRole("radio", { name: "3달", exact: true })).toBeVisible();
   await settings.getByRole("radio", { name: "3달", exact: true }).check();
   await settings.getByRole("radio", { name: "상위 50", exact: true }).check();
   await settings.getByRole("button", { name: "초기화", exact: true }).click();
-  await expect(settings.getByRole("radio", { name: "1주", exact: true })).toBeChecked();
+  await expect(settings.getByRole("group", { name: "기간 설정 *", exact: true }).getByRole("radio", { name: "1주", exact: true })).toBeChecked();
   await expect(settings.getByRole("radio", { name: "상위 20", exact: true })).toBeChecked();
   await settings.getByRole("button", { name: /^검색 1/ }).click();
   await settings.getByLabel("검색 제목").fill("급등주 위주");

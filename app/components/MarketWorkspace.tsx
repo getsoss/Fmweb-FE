@@ -9,13 +9,14 @@ type AlarmPriceChange = (ticker: string, price: number) => Promise<boolean>;
 type Stock = { name: string; ticker: string };
 export type StockInfo = { name: string; ma20_up: boolean; bojong_profit_rate: number; trading_value: number; _5d_avg_trading_value: number; ibdrs: number; n_top_acc: number };
 export type StockInfoMap = Record<string, StockInfo>;
-type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: number; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string };
+type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: number; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string; priceCorrection: number };
 type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; value: number; average: number; ibd: number; rank: number; ma20Up?: boolean; score?: number };
 type ResultSort = { key: keyof ResultRow; asc: boolean } | null;
 type NewsItem = [string, string, string];
-type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; moving_average2?: number; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string };
+type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; moving_average2?: number; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string; price_correction?: number };
 
-const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: 0, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any" };
+const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: 0, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any", priceCorrection: 0 };
+const priceCorrectionOptions = [["무관", 0], ["3일", 3], ["1주", 5], ["2주", 10], ["3주", 15], ["4주", 20]] as const;
 const movingAverageOptions = [["정배열 (20이평 > 60이평)", 1], ["20이평 상승", 2], ["60이평 상승", 4], ["20이평 하락", 8], ["60이평 하락", 16]] as const;
 const antFilterGroups = [
   ["주가", "price"],
@@ -100,6 +101,7 @@ function toCondition(preset: SearchPreset, selections: Record<string, string>): 
     all_special_volume: volumeToTime[preset.volume] ?? 0,
     specific_special_volume: detail,
     recent_five_days_average_trading_value: valueToApi[preset.value] ?? "0",
+    price_correction: preset.priceCorrection,
     result_sort: 0,
   };
 }
@@ -109,6 +111,7 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
   const detail = condition.specific_special_volume ?? {};
   const legacyMoving: Record<string, number> = { "20>60": 1, u20: 2, u60: 4 };
   const moving = condition.moving_average2 ?? legacyMoving[condition.moving_average ?? "0"] ?? 0;
+  const priceCorrection = condition.price_correction ?? 0;
   return {
     ...emptyPreset,
     title: title || `검색 ${index + 1}`,
@@ -126,6 +129,7 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
     detailVolumePeriod: timeToVolume[detail.time ?? 0] ?? "any",
     detailVolume: investorGroups.filter((_, investorIndex) => detail[investorKeys[investorIndex]] === 1),
     value: valueFromApi[condition.recent_five_days_average_trading_value ?? "0"] ?? "any",
+    priceCorrection: priceCorrectionOptions.some(([, value]) => value === priceCorrection) ? priceCorrection : 0,
   };
 }
 
@@ -152,6 +156,8 @@ function describePreset(preset: SearchPreset) {
   if (preset.rs !== "any") filters.push(`RS ${preset.rs}`);
   if (preset.ma !== 0) filters.push("이동평균선");
   if (preset.value !== "any") filters.push(`거래대금 ${preset.value}억 이상`);
+  const correction = priceCorrectionOptions.find(([, value]) => value === preset.priceCorrection);
+  if (correction && preset.priceCorrection !== 0) filters.push(`주가조정 ${correction[0]}`);
   return `${preset.title} · ${filters.join(" · ")}`;
 }
 
@@ -424,6 +430,7 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
       <Condition title="이동평균선"><div className="radio-row">{movingAverageOptions.map(([label, bit]) => <Toggle key={bit} label={label} checked={Boolean(preset.ma & bit)} onChange={checked => setPreset({ ...preset, ma: checked ? preset.ma | bit : preset.ma & ~bit })} />)}</div></Condition>
       <div className="condition-columns"><Condition title="전체 특이 거래량"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.volume} set={volume => setPreset({ ...preset, volume: String(volume) })} /></Condition><Condition title="최근 5일 평균 거래대금"><Radio values={["any", "10", "50", "100", "500"]} labels={["무관", "10억 이상", "50억 이상", "100억 이상", "500억 이상"]} value={preset.value} set={value => setPreset({ ...preset, value: String(value) })} /></Condition></div>
       <Condition title="세부 특이 거래량"><Toggle checked={preset.detailVolumeEnabled} label="사용" onChange={detailVolumeEnabled => setPreset({ ...preset, detailVolumeEnabled })} />{preset.detailVolumeEnabled && <div className="specific-volume-controls"><Radio values={["any", "3m", "6m", "1y"]} labels={["무관", "3개월", "6개월", "1년"]} value={preset.detailVolumePeriod} set={detailVolumePeriod => setPreset({ ...preset, detailVolumePeriod: String(detailVolumePeriod) })} /><div className="detail-volume-options">{investorGroups.slice(1).map(name => <Toggle key={name} checked={preset.detailVolume.includes(name)} label={name} onChange={checked => setPreset({ ...preset, detailVolume: checked ? [...preset.detailVolume, name] : preset.detailVolume.filter(item => item !== name) })} />)}</div></div>}</Condition>
+      <Condition title="필터: 주가조정"><Radio name="price-correction" values={priceCorrectionOptions.map(([, value]) => value)} labels={priceCorrectionOptions.map(([label]) => label)} value={preset.priceCorrection} set={priceCorrection => setPreset({ ...preset, priceCorrection: Number(priceCorrection) })} /></Condition>
       <div className="temporary-search"><div><b>저장하지 않고 결과 확인</b><p>위에서 설정한 조건으로 검색 결과를 먼저 확인합니다.</p></div><button onClick={onSearch}>임시 검색</button></div>
     </div>
   ), [preset, activeSlot, investors, setPreset, setActiveSlot, setInvestors, onSearch]);
