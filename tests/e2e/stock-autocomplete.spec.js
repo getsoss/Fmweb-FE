@@ -115,27 +115,6 @@ test("특수문자를 검색식으로 해석하지 않고 정확한 종목명을
   await expect(options).toHaveCount(0);
 });
 
-test("조회한 검색어와 최근기록을 저장하지 않고 빈 입력창에는 목록을 표시하지 않는다", async ({ page }) => {
-  await mockStockData(page);
-  const lookup = await enter(page);
-  const input = lookup.getByLabel("종목이름", { exact: true });
-  await input.fill("하이");
-  await page.getByRole("option", { name: /SK하이닉스/ }).click();
-  await expect(page.locator(".chart-identity")).toContainText("000660");
-  const stored = await page.evaluate(() => ({ local: Object.fromEntries(Object.entries(localStorage)), session: Object.fromEntries(Object.entries(sessionStorage)) }));
-  expect(JSON.stringify(stored)).not.toContain("하이");
-  expect(JSON.stringify(stored)).not.toContain("SK하이닉스");
-  await input.fill("");
-  await expect(page.getByRole("listbox", { name: "종목 자동완성" })).toHaveCount(0);
-  await input.blur();
-  await input.focus();
-  await expect(page.getByRole("listbox", { name: "종목 자동완성" })).toHaveCount(0);
-  await page.reload();
-  await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
-  await page.getByLabel("종목이름", { exact: true }).fill("");
-  await expect(page.getByRole("listbox", { name: "종목 자동완성" })).toHaveCount(0);
-});
-
 test("2556개 종목의 자동완성은 입력 지연 50ms 미만으로 10개만 표시하고 화면 안에 배치한다", async ({ page }, testInfo) => {
   await mockStockData(page);
   await customStocks(page, Object.fromEntries(Array.from({ length: 2556 }, (_, i) => [String(100000 + i), info(`test종목${String(i).padStart(4, "0")}`)])));

@@ -7,20 +7,44 @@ import styles from "./StockLookup.module.css";
 
 type Props = { stocks: LookupStock[]; ticker: string; onSelect: (ticker: string) => void; onMessage: (message: string) => void };
 
+const RECENT_STOCKS_KEY = "forcemonitor:recent-stocks";
+
+function readRecentStocks(fallback: string[] = []): string[] {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(RECENT_STOCKS_KEY) ?? "[]");
+    if (!Array.isArray(stored)) return [];
+    return [...new Set(stored.filter((code): code is string => typeof code === "string" && /^[a-zA-Z0-9]{6}$/.test(code)).map(code => code.toUpperCase()))].slice(0, 10);
+  } catch { return fallback; }
+}
+
 export default memo(function StockLookup({ stocks, ticker, onSelect, onMessage }: Props) {
   const [name, setName] = useState(stocks.find(stock => stock.ticker === ticker)?.name ?? "");
   const [code, setCode] = useState(ticker);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
+  const [recent, setRecent] = useState<string[]>([]);
   const [position, setPosition] = useState<CSSProperties | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const listId = useId();
   const index = useMemo(() => indexStocks(stocks), [stocks]);
-  const suggestions = useMemo(() => suggestStocks(index, name), [index, name]);
+  const stocksByCode = useMemo(() => new Map(stocks.map(stock => [stock.ticker.toUpperCase(), stock])), [stocks]);
+  const historyMode = !normalizeStockName(name);
+  const suggestions = useMemo(() => historyMode
+    ? recent.map(code => stocksByCode.get(code)).filter((stock): stock is LookupStock => !!stock)
+    : suggestStocks(index, name), [historyMode, recent, stocksByCode, index, name]);
   const expanded = open && suggestions.length > 0;
   const visible = expanded && position !== null;
+
+  useEffect(() => {
+    setRecent(readRecentStocks());
+    const sync = (event: StorageEvent) => {
+      if (event.key === RECENT_STOCKS_KEY || event.key === null) { setRecent(readRecentStocks()); setActive(-1); }
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
 
   useEffect(() => {
     setCode(ticker);
@@ -37,7 +61,7 @@ export default memo(function StockLookup({ stocks, ticker, onSelect, onMessage }
       if (bounds.bottom < 0 || bounds.top > window.innerHeight) { setPosition(null); return; }
       const below = window.innerHeight - bounds.bottom - 12;
       const above = bounds.top - 12;
-      const upwards = below < Math.min(suggestions.length * 44 + 8, 200) && above > below;
+      const upwards = below < Math.min(suggestions.length * 44 + 8 + (historyMode ? 28 : 0), 200) && above > below;
       const width = Math.min(Math.max(bounds.width, 260), window.innerWidth - 16);
       setPosition({
         left: Math.max(8, Math.min(bounds.left, window.innerWidth - width - 8)), width,
@@ -52,7 +76,7 @@ export default memo(function StockLookup({ stocks, ticker, onSelect, onMessage }
     window.addEventListener("resize", update);
     window.addEventListener("scroll", onScroll, true);
     return () => { observer.disconnect(); window.removeEventListener("resize", update); window.removeEventListener("scroll", onScroll, true); };
-  }, [expanded, suggestions.length]);
+  }, [expanded, suggestions.length, historyMode]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -66,10 +90,13 @@ export default memo(function StockLookup({ stocks, ticker, onSelect, onMessage }
   }, [expanded]);
 
   useEffect(() => {
-    if (visible && active >= 0) listRef.current?.children[active]?.scrollIntoView({ block: "nearest" });
+    if (visible && active >= 0) listRef.current?.querySelectorAll('[role="option"]')[active]?.scrollIntoView({ block: "nearest" });
   }, [active, visible]);
 
   function select(stock: LookupStock) {
+    const next = [stock.ticker.toUpperCase(), ...readRecentStocks(recent).filter(code => code !== stock.ticker.toUpperCase())].slice(0, 10);
+    setRecent(next);
+    try { localStorage.setItem(RECENT_STOCKS_KEY, JSON.stringify(next)); } catch { /* Keep lookup available when browser storage is unavailable. */ }
     setCode(stock.ticker); setName(stock.name); setOpen(false); setActive(-1);
     onSelect(stock.ticker);
     onMessage(`${stock.name} 차트를 표시했습니다.`);
@@ -78,7 +105,7 @@ export default memo(function StockLookup({ stocks, ticker, onSelect, onMessage }
   function submit() {
     const stock = suggestions[active] ?? (code.trim()
       ? stocks.find(item => item.ticker.toUpperCase() === code.trim().toUpperCase())
-      : stocks.find(item => normalizeStockName(item.name) === normalizeStockName(name)) ?? suggestions[0]);
+      : stocks.find(item => normalizeStockName(item.name) === normalizeStockName(name)) ?? (historyMode ? undefined : suggestions[0]));
     if (stock) select(stock);
     else onMessage("종목명 또는 영문·숫자 6자리 종목코드를 확인해 주세요.");
   }
@@ -107,7 +134,8 @@ export default memo(function StockLookup({ stocks, ticker, onSelect, onMessage }
         onChange={event => { setCode(event.target.value.replace(/[^a-zA-Z0-9]/g, "")); setName(""); setOpen(false); setActive(-1); }} /></label>
       <button type="submit">차트보기</button>
     </form>
-    {visible && createPortal(<ul ref={listRef} id={listId} role="listbox" aria-label="종목 자동완성" className={styles.suggestions} style={position}>
+    {visible && createPortal(<ul ref={listRef} id={listId} role="listbox" aria-label={historyMode ? "최근 조회 종목" : "종목 자동완성"} className={styles.suggestions} style={position}>
+      {historyMode && <li role="presentation" className={styles.heading}>최근 조회 종목</li>}
       {suggestions.map((stock, item) => <li key={stock.ticker} id={`${listId}-${item}`} role="option" aria-selected={active === item}
         className={styles.option} onMouseDown={event => event.preventDefault()}
         onPointerMove={() => setActive(item)} onClick={() => select(stock)}>

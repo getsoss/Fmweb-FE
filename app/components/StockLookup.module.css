@@ -25,6 +25,12 @@
   cursor: pointer;
 }
 
+.heading {
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .option[aria-selected="true"] {
   background: #edf3ff;
   color: var(--primary);
