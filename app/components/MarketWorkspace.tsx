@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 
 import { useServerPortfolio } from "../hooks/useServerPortfolio";
+import StockLookup from "./StockLookup";
 
 type AlarmPriceChange = (ticker: string, price: number) => Promise<boolean>;
 type Stock = { name: string; ticker: string };
@@ -175,8 +176,6 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
   const [hidden, setHidden] = useState<string[]>(["profit", "value", "average", "ibd", "rank"]);
   const [message, setMessage] = useState("");
   const [investors, setInvestors] = useState<Record<string, string>>({});
-  const [directTicker, setDirectTicker] = useState(ticker);
-  const [directName, setDirectName] = useState(stocks.find(stock => stock.ticker === ticker)?.name ?? "");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [columnSplit, setColumnSplit] = useState(66);
   const [dockHeight, setDockHeight] = useState(224);
@@ -225,10 +224,6 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
     const legacyWatchlists = previous?.legacyWatchlists ?? previous?.watchlists;
     localStorage.setItem("forcemonitor:workspace", JSON.stringify({ ...(legacyWatchlists ? { legacyWatchlists } : {}), searchTitles: slots.map(slot => slot?.title ?? ""), bookmarks, hidden, columnSplit, dockHeight, rightTop, rightMiddle }));
   }, [preferencesLoaded, slots, bookmarks, hidden, columnSplit, dockHeight, rightTop, rightMiddle]);
-  useEffect(() => {
-    setDirectTicker(ticker);
-    setDirectName(stocks.find(stock => stock.ticker === ticker)?.name ?? "");
-  }, [ticker, stocks]);
   useEffect(() => {
     if (!settingsOpen) return;
     requestAnimationFrame(() => document.getElementById("search-settings-panel")?.scrollIntoView({ block: "start" }));
@@ -308,16 +303,6 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
       setSort(null); setGather(false); setResults(nextRows); setMessage(`${label} 결과 · ${nextRows.length}개 종목`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "조건검색을 실행하지 못했습니다."); }
   }
-  function showDirectStock() {
-    const stock = directTicker.trim()
-      ? stocks.find(item => item.ticker.toUpperCase() === directTicker.trim().toUpperCase())
-      : stocks.find(item => item.name === directName.trim());
-    if (!stock) return setMessage("종목명 또는 영문·숫자 6자리 종목코드를 확인해 주세요.");
-    setDirectTicker(stock.ticker);
-    setDirectName(stock.name);
-    onSelect(stock.ticker);
-    setMessage(`${stock.name} 차트를 표시했습니다.`);
-  }
   const setSortKey = useCallback((key: keyof ResultRow) => { setSort(current => ({ key, asc: current?.key === key ? !current.asc : true })); }, []);
   const toggleBookmark = useCallback((code: string) => { setBookmarks(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]); }, []);
   async function addWatch(code: string) {
@@ -360,19 +345,7 @@ export default function MarketWorkspace({ stocks, stockInfo, ticker, onSelect, c
       <div className="workspace-chart-slot"><WorkspaceChart chart={chart} onAlertPriceChange={changeAlarmPrice} /></div>
       <div className="workspace-resizer workspace-resizer-row" role="separator" aria-label="차트와 검색 영역 높이 조절" aria-orientation="horizontal" aria-valuemin={206} aria-valuemax={300} aria-valuenow={dockHeight} tabIndex={0} onPointerDown={capture} onPointerMove={resizeDock} onDoubleClick={() => setDockHeight(224)} onKeyDown={event => { if (event.key === "ArrowUp") setDockHeight(value => clamp(value + 8, 206, 300)); if (event.key === "ArrowDown") setDockHeight(value => clamp(value - 8, 206, 300)); }} />
       <section className="workspace-panel search-dock" style={{ flexBasis: dockHeight }} aria-label="종목 및 저장 검색">
-        <form
-          className="stock-lookup"
-          aria-label="종목 조회"
-          onSubmit={event => { event.preventDefault(); showDirectStock(); }}
-          onKeyDown={event => {
-            // Some IMEs report keyCode 229 while confirming composed text.
-            if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault();
-          }}
-        >
-          <label>종목이름<input value={directName} onChange={event => { setDirectName(event.target.value); setDirectTicker(""); }} placeholder="삼성전자" /></label>
-          <label>종목코드<input inputMode="text" maxLength={6} value={directTicker} onChange={event => { setDirectTicker(event.target.value.replace(/[^a-zA-Z0-9]/g, "")); setDirectName(""); }} placeholder="005930" /></label>
-          <button type="submit">차트보기</button>
-        </form>
+        <StockLookup stocks={stocks} ticker={ticker} onSelect={onSelect} onMessage={setMessage} />
         <div className="quick-presets" aria-label="저장 검색">{slots.map((slot, index) => <button key={index} className={`${activeSlot === index ? "active" : ""} ${slot ? "saved" : "empty"}`} onClick={() => chooseSlot(index)}>검색{index + 1}</button>)}</div>
         <p className="preset-description"><span>검색조건</span>{activeDescription}</p>{message && <p className="search-api-message" role="status">{message}</p>}
         <div className="search-settings-entry"><button className="open-search-settings" aria-expanded={settingsOpen} aria-controls="search-settings-panel" onClick={() => setSettingsOpen(value => !value)}>{settingsOpen ? "검색조건 접기" : "검색조건 만들기"}</button></div>
