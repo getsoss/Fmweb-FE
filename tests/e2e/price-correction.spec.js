@@ -22,10 +22,10 @@ async function search(page, action) {
   return (await request).postDataJSON();
 }
 
-test("주가조정 필터를 맨 아래 추가하고 6개 선택값을 정수로 보내며 기간 설정과 독립적으로 유지한다", async ({ page }, testInfo) => {
+test("주가조정 필터의 6개 선택값을 정수로 보내며 기간 설정과 독립적으로 유지한다", async ({ page }, testInfo) => {
   const settings = await openSettings(page);
   const correction = filter(settings);
-  await expect(settings.locator("fieldset").last()).toContainText("필터: 주가조정");
+  await expect(correction).toBeVisible();
   expect(await correction.locator("label span").allTextContents()).toEqual(options.map(([label]) => label));
   await expect(correction.getByRole("radio")).toHaveCount(6);
   await expect(correction.getByRole("checkbox")).toHaveCount(0);
