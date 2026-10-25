@@ -59,6 +59,52 @@ test("초성·한글 혼합·영문 대소문자 입력으로 일치하는 종�
   await expect(page.locator(".chart-identity")).toContainText("000660");
 });
 
+test("초성검색은 전체 후보에서 짧은 종목명 10개를 먼저 골라 한섬을 표시하고 선택한 차트를 조회한다", async ({ page }) => {
+  await mockStockData(page);
+  const result = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [String(100000 + i), info(`화승엔터프라이즈${i}`)]));
+  Object.assign(result, {
+    "005930": info("삼성전자"), "100500": info("화승엔터프라이즈"), "100501": info("한솔제지"),
+    "100502": info("해성디에스"), "100503": info("힘스"), "020000": info("한섬"),
+  });
+  await customStocks(page, result);
+  const lookup = await enter(page);
+  const input = lookup.getByLabel("종목이름", { exact: true });
+  const options = page.getByRole("listbox", { name: "종목 자동완성" }).getByRole("option");
+  for (const query of ["ㅎㅅ", "ᄒᄉ"]) {
+    await input.fill(query);
+    await expect(options).toHaveText([
+      "힘스100503", "한섬020000", "한솔제지100501", "해성디에스100502", "화승엔터프라이즈100500",
+      ...Array.from({ length: 5 }, (_, i) => `화승엔터프라이즈${i}${100000 + i}`),
+    ]);
+  }
+  await input.press("Enter");
+  await expect(page.locator(".chart-identity")).toContainText("100503");
+  await input.fill("ㅎㅅ");
+  await input.press("ArrowDown");
+  await input.press("ArrowDown");
+  await input.press("Enter");
+  await expect(page.locator(".chart-identity")).toContainText("020000");
+  await expect(input).toHaveValue("한섬");
+  await expect(lookup.getByLabel("종목코드", { exact: true })).toHaveValue("020000");
+});
+
+test("초성 혼합 검색도 길이를 우선하고 같은 길이의 응답 순서와 일반 검색 순위를 유지한다", async ({ page }) => {
+  await mockStockData(page);
+  await customStocks(page, {
+    "005930": info("삼성전자"), "100000": info("한솔제지"), "100001": info("대한섬"),
+    "100002": info("한성"), "100003": info("한섬"), "100004": info("한성디에스"),
+  });
+  const lookup = await enter(page);
+  const input = lookup.getByLabel("종목이름", { exact: true });
+  const options = page.getByRole("listbox", { name: "종목 자동완성" }).getByRole("option");
+  for (const query of ["ㅎㅅ", "한ㅅ"]) {
+    await input.fill(query);
+    await expect(options).toHaveText(["한성100002", "한섬100003", "대한섬100001", "한솔제지100000", "한성디에스100004"]);
+  }
+  await input.fill("한");
+  await expect(options).toHaveText(["한솔제지100000", "한성100002", "한섬100003", "한성디에스100004", "대한섬100001"]);
+});
+
 test("방향키·Escape·Tab·바깥 클릭으로 후보를 조작하고 입력 변경 시 선택을 초기화한다", async ({ page }) => {
   await mockStockData(page);
   const lookup = await enter(page);
@@ -115,7 +161,7 @@ test("특수문자를 검색식으로 해석하지 않고 정확한 종목명을
   await expect(options).toHaveCount(0);
 });
 
-test("2556개 종목의 자동완성은 입력 지연 50ms 미만으로 10개만 표시하고 화면 안에 배치한다", async ({ page }, testInfo) => {
+test("2556개 종목의 자동완성·초성검색은 입력 지연 50ms 미만으로 10개만 표시하고 화면 안에 배치한다", async ({ page }, testInfo) => {
   await mockStockData(page);
   await customStocks(page, Object.fromEntries(Array.from({ length: 2556 }, (_, i) => [String(100000 + i), info(`test종목${String(i).padStart(4, "0")}`)])));
   const lookup = await enter(page);
@@ -135,6 +181,11 @@ test("2556개 종목의 자동완성은 입력 지연 50ms 미만으로 10개만
   });
   await input.pressSequentially("test", { delay: 60 });
   const list = page.getByRole("listbox", { name: "종목 자동완성" });
+  await expect(list.getByRole("option")).toHaveCount(10);
+  await input.fill("testㅈㅁ");
+  // A real Backspace interaction exercises the initial-consonant ranking path.
+  await input.press("Backspace");
+  await expect(input).toHaveValue("testㅈ");
   await expect(list.getByRole("option")).toHaveCount(10);
   await page.waitForTimeout(250);
   const timings = await page.evaluate(() => { window.__autocompleteObserver.disconnect(); return window.__autocompleteTimings; });
