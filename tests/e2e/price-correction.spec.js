@@ -80,7 +80,7 @@ test("주가조정 선택을 조건과 함께 저장하고 새로고침·초기�
   const write = page.waitForRequest(request => request.url().endsWith("/api/conditional-search") && request.method() === "PUT");
   await settings.getByRole("button", { name: "검색조건 저장", exact: true }).click();
   expect((await write).postDataJSON()).toMatchObject({ slot: 0, title: "2주 조정 검색", condition: { price_correction: 10 } });
-  await expect(page.locator(".search-api-message")).toContainText("조건을 저장했습니다");
+  await expect(page.locator(".preset-description")).toContainText("2주 조정 검색");
   await page.reload();
   await enterSettings(page);
   await settings.locator(".preset-slots").getByRole("button", { name: /2주 조정 검색/ }).click();

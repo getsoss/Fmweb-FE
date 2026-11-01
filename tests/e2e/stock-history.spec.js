@@ -32,7 +32,7 @@ test("실제 조회한 종목을 로컬에 저장하고 빈 이름 입력창의 
   await input.fill("");
   await expect(history(page).getByRole("option")).toHaveText(["삼성전자005930", "SK하이닉스000660"]);
   await input.press("Enter");
-  await expect(page.locator(".search-api-message")).toContainText("종목명 또는");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("종목명 또는");
   expect(await stored(page)).toEqual(["005930", "000660"]);
   await input.blur();
   await expect(history(page)).toHaveCount(0);

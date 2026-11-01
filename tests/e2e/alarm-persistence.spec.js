@@ -1,5 +1,6 @@
 const { expect, test } = require("@playwright/test");
 const { mockStockData } = require("./helpers/stock-data");
+const { removeWatchStock, activeCount } = require("./helpers/watchlist-ui");
 
 function resultRow(page, name = "동화약품") {
   return page.locator(".results-panel tbody tr").filter({ hasText: name });
@@ -54,7 +55,7 @@ async function expectOtherBrowser(browser, server, price) {
     await enter(page);
     await expect(resultRow(page).locator("td").nth(4)).toHaveText(price === null ? "" : price.toLocaleString("en-US"));
     await expect(resultRow(page).locator(".alert-status")).toHaveText(price === null ? "U" : /^U[+-]?\d+(\.\d+)?%$/);
-    await expect(page.locator(".watch-list .alert-status")).toHaveCount(0);
+    await expect(page.locator(".watch-panel .alert-status")).toHaveCount(0);
   } finally { await context.close(); }
 }
 
@@ -97,11 +98,11 @@ test("임시 알람 종목을 관심종목에 추가하면 서버에 영구 저�
   await expect.poll(() => server.watchlists["1"]).toContain("000020");
   expect(server.alarmPrices["000020"]).toBe(price);
   expect(writes).toContainEqual({ mode: "add", alarm_prices: { "000020": price } });
-  await expect(page.locator(".watch-list")).toContainText(`알람가격 ${price.toLocaleString("en-US")}`);
-  await expect(page.locator(".watch-list .alert-status")).toHaveCount(0);
+  await expect(resultRow(page).getByRole("button", { name: /북마크/ })).toHaveAttribute("data-watched", "true");
+  await expect(page.locator(".watch-panel .alert-status")).toHaveCount(0);
   await logoutAndEnter(page);
   await expect(resultRow(page).locator("td").nth(4)).toHaveText(price.toLocaleString("en-US"));
-  await expect(page.locator(".watch-list")).toContainText(`알람가격 ${price.toLocaleString("en-US")}`);
+  await expect(resultRow(page).getByRole("button", { name: /북마크/ })).toHaveAttribute("data-watched", "true");
   await expectOtherBrowser(browser, server, price);
 });
 
@@ -116,7 +117,7 @@ test("현재 폴더가 비어 있어도 다른 관심 폴더에 있는 종목의
   expect(server.alarmPrices["000020"]).toBe(price);
   const watch = page.locator(".watch-panel");
   await watch.getByRole("button", { name: /^관심 5/ }).click();
-  await expect(watch.locator(".watch-list")).toContainText(`알람가격 ${price.toLocaleString("en-US")}`);
+  await expect(resultRow(page).getByRole("button", { name: /북마크/ })).toHaveAttribute("data-watched", "true");
   await watch.getByRole("button", { name: /^관심 1/ }).click();
   await openAlarmMenu(page);
   await page.getByRole("menuitem", { name: "알람가격 삭제" }).click();
@@ -136,7 +137,7 @@ test("관심종목 추가가 실패해도 임시 알람을 유지하고 미등�
   const price = await setAlarm(page);
   const watch = page.locator(".watch-panel");
   await watch.getByRole("button", { name: "현재 종목 추가", exact: true }).click();
-  await expect(watch.getByRole("alert")).toContainText("관심종목 추가 실패");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("관심종목 추가 실패");
   await expect(resultRow(page).locator("td").nth(4)).toHaveText(price.toLocaleString("en-US"));
   expect(server.watchlists["1"]).not.toContain("000020");
   // The API has no transaction: alarm promotion can succeed before adding the
@@ -147,7 +148,7 @@ test("관심종목 추가가 실패해도 임시 알람을 유지하고 미등�
   await watch.getByRole("button", { name: "현재 종목 추가", exact: true }).click();
   await expect.poll(() => server.watchlists["1"]).toContain("000020");
   expect(server.alarmPrices["000020"]).toBe(price);
-  await expect(watch.locator(".watch-list")).toContainText(`알람가격 ${price.toLocaleString("en-US")}`);
+  await expect(resultRow(page).getByRole("button", { name: /북마크/ })).toHaveAttribute("data-watched", "true");
 });
 
 test("임시 알람의 서버 승격이 실패하면 관심종목 추가 요청을 막고 임시값을 보존해 재시도한다", async ({ page }) => {
@@ -165,7 +166,7 @@ test("임시 알람의 서버 승격이 실패하면 관심종목 추가 요청�
   const price = await setAlarm(page);
   const watch = page.locator(".watch-panel");
   await watch.getByRole("button", { name: "현재 종목 추가", exact: true }).click();
-  await expect(watch.getByRole("alert")).toContainText("임시 알람 영구 저장 실패");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("임시 알람 영구 저장 실패");
   await expect(resultRow(page).locator("td").nth(4)).toHaveText(price.toLocaleString("en-US"));
   await expect(resultRow(page).locator(".alert-status")).toHaveText(/^U-\d+(\.\d+)?%$/);
   expect(watchWrites).toBe(0);
@@ -179,7 +180,7 @@ test("임시 알람의 서버 승격이 실패하면 관심종목 추가 요청�
   expect(server.alarmPrices["000020"]).toBe(price);
   expect(watchWrites).toBe(1);
   expect(alarmWrites).toHaveLength(2);
-  await expect(watch.locator(".watch-list")).toContainText(`알람가격 ${price.toLocaleString("en-US")}`);
+  await expect(resultRow(page).getByRole("button", { name: /북마크/ })).toHaveAttribute("data-watched", "true");
 });
 
 test("관심종목이 다른 폴더에 남으면 알람을 복원하고 마지막 폴더에서 제거하면 현재 세션에서만 유지한다", async ({ page, browser }) => {
@@ -190,15 +191,15 @@ test("관심종목이 다른 폴더에 남으면 알람을 복원하고 마지�
   await enter(page);
   const watch = page.locator(".watch-panel");
   await expect(resultRow(page).locator("td").nth(4)).toHaveText("20,000");
-  await watch.getByRole("button", { name: "동화약품 관심종목 제외", exact: true }).click();
-  await expect(watch.locator(".watch-list li")).toHaveCount(0);
+  await removeWatchStock(page, "동화약품");
+  await expect(activeCount(watch)).toHaveText(/^0\//);
   expect(server.watchlists["5"]).toContain("000020");
   await logoutAndEnter(page);
   await expect(resultRow(page).locator("td").nth(4)).toHaveText("20,000");
 
   await watch.getByRole("button", { name: /^관심 5/ }).click();
-  await watch.getByRole("button", { name: "동화약품 관심종목 제외", exact: true }).click();
-  await expect(watch.locator(".watch-list li")).toHaveCount(0);
+  await removeWatchStock(page, "동화약품");
+  await expect(activeCount(watch)).toHaveText(/^0\//);
   await expect(resultRow(page).locator("td").nth(4)).toHaveText("20,000");
   expect(server.alarmPrices["000020"]).toBe(20000);
   expect(writes).toEqual([]);
@@ -225,15 +226,15 @@ test("임시 알람 승격·관심 알람 저장 후 다시 불러오면 최신 
     await openAlarmMenu(page);
     await page.getByRole("menuitem", { name: "알람가격 넣기" }).click();
     const results = page.locator(".results-panel");
-    await expect(results.getByRole("alert")).toContainText("알람가격 일시 저장 실패");
+    await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("알람가격 일시 저장 실패");
     failAlarmWrite = false;
     server.alarmPrices["000020"] = latestPrice;
     const alarmReload = page.waitForResponse(response => response.url().endsWith("/api/alarm-price") && response.request().method() === "GET");
-    await results.getByRole("button", { name: "다시 불러오기", exact: true }).click();
+    await page.locator(".workspace-feedback").getByRole("button", { name: "다시 불러오기", exact: true }).click();
     await alarmReload;
     await expect(resultRow(page).locator("td").nth(4)).toHaveText(latestPrice.toLocaleString("en-US"));
-    await expect(page.locator(".watch-list")).toContainText(`알람가격 ${latestPrice.toLocaleString("en-US")}`);
-    await expect(results.getByRole("alert")).toHaveCount(0);
+    await expect(resultRow(page).getByRole("button", { name: /북마크/ })).toHaveAttribute("data-watched", "true");
+    await expect(page.locator(".workspace-feedback").getByRole("alert")).toHaveCount(0);
   }
 
   await reloadServerAlarm(33000);
@@ -256,8 +257,8 @@ test("마지막 관심종목 제거 후 임시 알람을 삭제하면 재추가 
   await enter(page);
   const watch = page.locator(".watch-panel");
   await expect(resultRow(page).locator("td").nth(4)).toHaveText("20,000");
-  await watch.getByRole("button", { name: "동화약품 관심종목 제외", exact: true }).click();
-  await expect(watch.locator(".watch-list li")).toHaveCount(0);
+  await removeWatchStock(page, "동화약품");
+  await expect(activeCount(watch)).toHaveText(/^0\//);
   await expect(resultRow(page).locator("td").nth(4)).toHaveText("20,000");
   await openAlarmMenu(page);
   await page.getByRole("menuitem", { name: "알람가격 삭제" }).click();
@@ -275,7 +276,7 @@ test("마지막 관심종목 제거 후 임시 알람을 삭제하면 재추가 
   ]);
   expect(server.alarmPrices).not.toHaveProperty("000020");
   await expect(resultRow(page).locator("td").nth(4)).toHaveText("");
-  await expect(watch.locator(".watch-list")).not.toContainText("알람가격");
+  await expect(watch).not.toContainText("알람가격");
   await logoutAndEnter(page);
   await expect(resultRow(page).locator("td").nth(4)).toHaveText("");
   await expect(resultRow(page).locator(".alert-status")).toHaveText("U");

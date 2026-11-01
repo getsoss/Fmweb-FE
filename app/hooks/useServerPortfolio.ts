@@ -117,7 +117,7 @@ export function useServerPortfolio() {
     if (!watchLoaded || watchLimit === null || !alarmsLoaded) { setWatchError("관심종목과 알람가격을 불러온 뒤 다시 시도해 주세요."); return false; }
     const current = watchlists[slot];
     const changed = mode === "add" ? codes.filter(code => !current.includes(code)) : codes.filter(code => current.includes(code));
-    if (!changed.length) { setWatchError(mode === "add" ? "동일 종목이 이미 있습니다." : "삭제할 관심종목이 없습니다."); return false; }
+    if (!changed.length) { setWatchError(""); return true; }
     if (mode === "add" && new Set([...current, ...changed]).size > watchLimit) {
       setWatchError(`관심종목은 폴더당 ${watchLimit}개까지 저장할 수 있습니다.`); return false;
     }

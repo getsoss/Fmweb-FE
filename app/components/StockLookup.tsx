@@ -99,7 +99,7 @@ export default memo(function StockLookup({ stocks, ticker, onSelect, onMessage }
     try { localStorage.setItem(RECENT_STOCKS_KEY, JSON.stringify(next)); } catch { /* Keep lookup available when browser storage is unavailable. */ }
     setCode(stock.ticker); setName(stock.name); setOpen(false); setActive(-1);
     onSelect(stock.ticker);
-    onMessage(`${stock.name} 차트를 표시했습니다.`);
+    onMessage("");
   }
 
   function submit() {

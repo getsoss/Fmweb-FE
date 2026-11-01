@@ -1,6 +1,7 @@
 const { expect, test } = require("@playwright/test");
 
 const { mockStockData } = require("./helpers/stock-data");
+const { removeWatchStock, activeCount } = require("./helpers/watchlist-ui");
 
 test("와이어프레임 기반 랜딩과 외부 링크를 제공한다", async ({ page }) => {
   await page.goto("/");
@@ -218,10 +219,11 @@ test("v2 워크스페이스에서 복수 차트와 크기 조절 패널을 동�
     const actions = element.querySelector(".watch-actions")?.getBoundingClientRect();
     return { tabsCenter: (tabs?.top ?? 0) + (tabs?.height ?? 0) / 2, actionsCenter: (actions?.top ?? 0) + (actions?.height ?? 0) / 2 };
   });
-  expect(Math.abs(watchLayout.tabsCenter - watchLayout.actionsCenter)).toBeLessThanOrEqual(1);
+  expect(watchLayout.actionsCenter).toBeGreaterThan(watchLayout.tabsCenter);
+  await expect(page.locator(".watch-list")).toHaveCount(0);
   await expect(page.locator(".news-panel")).toBeVisible();
   await expect(page.locator(".news-panel").getByRole("link", { name: "삼성전자 뉴스 제목 3일 전" })).toHaveAttribute("href", "https://example.com/news");
-  await expect(page.getByRole("separator")).toHaveCount(4);
+  await expect(page.getByRole("separator")).toHaveCount(3);
   const viewport = await page.evaluate(() => ({
     clientHeight: document.documentElement.clientHeight,
     workspaceBottom: document.querySelector(".workspace-page")?.getBoundingClientRect().bottom ?? 0,
@@ -601,7 +603,7 @@ test("검색 결과 행 상태, 북마크, 창 설정을 유지한다", async ({
   const bookmark = table.getByRole("button", { name: "삼성전자 북마크 추가" });
   await bookmark.click();
   await expect(table.getByRole("button", { name: "삼성전자 북마크 해제" })).toHaveAttribute("aria-pressed", "true");
-  expect(await table.getByRole("button", { name: "삼성전자 북마크 해제" }).evaluate(element => getComputedStyle(element).color)).toBe("rgb(255, 192, 0)");
+  expect(await table.getByRole("button", { name: "삼성전자 북마크 해제" }).evaluate(element => getComputedStyle(element).color)).toBe("rgb(255, 0, 0)");
   await page.getByRole("button", { name: "전종목 보기", exact: true }).click();
   await expect(page.locator(".workspace-message")).toHaveCount(0);
 
@@ -885,17 +887,17 @@ test("관심종목 변경을 서버의 1~5번 폴더에 저장하고 새 브라�
   const add = page.waitForRequest(request => request.url().endsWith("/api/watchlist") && request.method() === "PUT");
   await watch.getByRole("button", { name: "현재 종목 추가", exact: true }).click();
   expect((await add).postDataJSON()).toEqual({ slot: 3, jmcodes: ["005930"], mode: "add" });
-  await expect(watch.locator(".watch-list")).toContainText("삼성전자");
+  await expect(activeCount(watch)).toHaveText(/^1\//);
   await watch.getByRole("button", { name: "관심 2" }).click();
   const remove = page.waitForRequest(request => request.url().endsWith("/api/watchlist") && request.method() === "PUT");
-  await watch.getByRole("button", { name: "SK하이닉스 관심종목 제외" }).click();
+  await removeWatchStock(page, "SK하이닉스");
   expect((await remove).postDataJSON()).toEqual({ slot: 2, jmcodes: ["000660"], mode: "delete" });
-  await expect(watch.locator(".watch-list")).toHaveCount(0);
+  await expect(activeCount(watch)).toHaveText(/^0\//);
   await watch.getByRole("button", { name: "관심 1" }).click();
   const clear = page.waitForRequest(request => request.url().endsWith("/api/watchlist") && request.method() === "PUT");
   await watch.getByRole("button", { name: "전체 삭제", exact: true }).click();
   expect((await clear).postDataJSON()).toEqual({ slot: 1, jmcodes: ["005930"], mode: "delete" });
-  await expect(watch.locator(".watch-list")).toHaveCount(0);
+  await expect(activeCount(watch)).toHaveText(/^0\//);
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("forcemonitor:workspace")));
   expect(stored).not.toHaveProperty("watchlists");
 
@@ -909,7 +911,7 @@ test("관심종목 변경을 서버의 1~5번 폴더에 저장하고 새 브라�
     await expect(restored.getByRole("button", { name: "관심 1" })).toContainText("0/100");
     await expect(restored.getByRole("button", { name: "관심 2" })).toContainText("0/100");
     await restored.getByRole("button", { name: "관심 3" }).click();
-    await expect(restored.locator(".watch-list")).toContainText("삼성전자");
+    await expect(activeCount(restored)).toHaveText(/^1\//);
   } finally { await context.close(); }
 });
 
@@ -924,7 +926,7 @@ test("로컬 관심종목을 서버 목록에 섞지 않고 백업만 보존한�
   const watch = page.locator(".watch-panel");
   await expect(watch.getByRole("button", { name: "관심 1" })).toContainText("0/50");
   await watch.getByRole("button", { name: "관심 5" }).click();
-  await expect(watch.locator(".watch-list")).toContainText("00AB12");
+  await expect(activeCount(watch)).toHaveText(/^1\//);
   await watch.getByRole("button", { name: "검색창에서 보기" }).click();
   await expect(page.locator(".results-panel tbody")).toContainText("00AB12");
   expect(writes).toBe(0);
@@ -940,12 +942,13 @@ test("이전 로컬 관심종목은 사용자가 가져오기를 선택하면 �
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   const watch = page.locator(".watch-panel");
-  await expect(watch.locator(".watch-list li")).toHaveCount(1);
+  await expect(activeCount(watch)).toHaveText(/^1\//);
   const add = page.waitForRequest(request => request.url().endsWith("/api/watchlist") && request.method() === "PUT");
   await watch.getByRole("button", { name: "이 폴더의 이전 관심종목 가져오기 (2)", exact: true }).click();
   expect((await add).postDataJSON()).toEqual({ slot: 1, jmcodes: ["005930", "000660"], mode: "add" });
-  await expect(watch.locator(".watch-list li")).toHaveCount(3);
-  await expect(watch.locator(".watch-list")).toContainText("현대차");
+  await expect(activeCount(watch)).toHaveText(/^3\//);
+  await watch.getByRole("button", { name: "검색창에서 보기" }).click();
+  await expect(page.locator(".results-panel tbody")).toContainText("현대차");
   await expect(watch.getByRole("button", { name: /이전 관심종목 가져오기/ })).toHaveCount(0);
   expect(server.watchlists["1"]).toEqual(["005380", "005930", "000660"]);
 });
@@ -961,18 +964,18 @@ test("관심종목 추가·삭제 실패 시 목록을 유지하고 성공 후�
   await expect(watch.getByRole("button", { name: "현재 종목 추가", exact: true })).toBeEnabled();
   await watch.getByRole("button", { name: "관심 2" }).click();
   await watch.getByRole("button", { name: "현재 종목 추가", exact: true }).click();
-  await expect(watch.getByRole("alert")).toContainText("관심종목 저장 실패");
-  await expect(watch.locator(".watch-list li")).toHaveCount(1);
-  await expect(watch.locator(".watch-list")).toContainText("SK하이닉스");
-  await watch.getByRole("button", { name: "SK하이닉스 관심종목 제외" }).click();
-  await expect(watch.getByRole("alert")).toContainText("관심종목 저장 실패");
-  await expect(watch.locator(".watch-list li")).toHaveCount(1);
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("관심종목 저장 실패");
+  await expect(activeCount(watch)).toHaveText(/^1\//);
+  expect(server.watchlists["2"]).toEqual(["000660"]);
+  await removeWatchStock(page, "SK하이닉스");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("관심종목 저장 실패");
+  await expect(activeCount(watch)).toHaveText(/^1\//);
   await watch.getByRole("button", { name: "전체 삭제", exact: true }).click();
-  await expect(watch.getByRole("alert")).toContainText("관심종목 저장 실패");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("관심종목 저장 실패");
   expect(server.watchlists["2"]).toEqual(["000660"]);
   fail = false;
   await watch.getByRole("button", { name: "전체 삭제", exact: true }).click();
-  await expect(watch.locator(".watch-list li")).toHaveCount(0);
+  await expect(activeCount(watch)).toHaveText(/^0\//);
   expect(server.watchlists["2"]).toEqual([]);
 });
 
@@ -983,11 +986,11 @@ test("관심종목 로딩에 실패하면 저장을 막고 다시 불러온다",
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   const watch = page.locator(".watch-panel");
-  await expect(watch.getByRole("alert")).toContainText("목록을 읽지 못했습니다");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("목록을 읽지 못했습니다");
   await expect(watch.getByRole("button", { name: "현재 종목 추가", exact: true })).toBeDisabled();
   fail = false;
-  await watch.getByRole("button", { name: "다시 불러오기" }).click();
-  await expect(watch.locator(".watch-list")).toContainText("삼성전자");
+  await page.locator(".workspace-feedback").getByRole("button", { name: "다시 불러오기" }).click();
+  await expect(activeCount(watch)).toHaveText(/^1\//);
   await expect(watch.getByRole("button", { name: "현재 종목 추가", exact: true })).toBeEnabled();
 });
 
@@ -999,12 +1002,12 @@ test("관심종목 최대 개수를 읽지 못하면 기존 목록은 표시하�
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   const watch = page.locator(".watch-panel");
-  await expect(watch.locator(".watch-list")).toContainText("삼성전자");
-  await expect(watch.getByRole("alert")).toContainText("최대 개수 조회 실패");
+  await expect(activeCount(watch)).toHaveText(/^1\//);
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("최대 개수 조회 실패");
   await expect(watch.getByRole("button", { name: "현재 종목 추가", exact: true })).toBeDisabled();
   await expect(watch.getByRole("button", { name: "전체 삭제", exact: true })).toBeDisabled();
   fail = false;
-  await watch.getByRole("button", { name: "다시 불러오기" }).click();
+  await page.locator(".workspace-feedback").getByRole("button", { name: "다시 불러오기" }).click();
   await expect(watch.getByRole("button", { name: "관심 1" })).toContainText("1/100");
   await expect(watch.getByRole("button", { name: "전체 삭제", exact: true })).toBeEnabled();
 });
@@ -1031,7 +1034,7 @@ test("서버의 관심종목 최대 개수를 적용하고 저장 중 중복 요
   await watch.getByRole("button", { name: "현재 종목 추가", exact: true }).click();
   await request;
   await expect(watch.getByRole("button", { name: "현재 종목 추가", exact: true })).toBeDisabled();
-  await expect(watch.locator(".watch-list")).toHaveCount(0);
+  await expect(activeCount(watch)).toHaveText(/^0\//);
   await watch.getByRole("button", { name: "관심 4" }).click();
   complete();
   await expect(watch.getByRole("button", { name: "관심 3" })).toContainText("1/1");
@@ -1051,8 +1054,8 @@ test("알람가격을 관심종목과 검색결과에서 공유하고 재로그�
   const samsung = results.locator("tbody tr").filter({ hasText: "삼성전자" });
   await expect(samsung.locator("td").nth(4)).toHaveText("100,000.5");
   await expect(samsung.locator("td").nth(3)).toHaveText("U+10%");
-  await expect(watch.locator(".watch-list .alert-status")).toHaveCount(0);
-  await expect(watch.locator(".watch-list")).toContainText("알람가격 100,000.5");
+  await expect(watch.locator(".alert-status")).toHaveCount(0);
+  await expect(samsung.getByRole("button", { name: /북마크/ })).toHaveAttribute("data-watched", "true");
   await watch.getByRole("button", { name: "검색창에서 보기" }).click();
   await expect(samsung.locator("td").nth(4)).toHaveText("100,000.5");
   await results.getByRole("button", { name: "전종목 보기", exact: true }).click();
@@ -1061,19 +1064,19 @@ test("알람가격을 관심종목과 검색결과에서 공유하고 재로그�
   await page.reload();
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   await expect(samsung.locator("td").nth(3)).toHaveText("U-20%");
-  await expect(watch.locator(".watch-list .alert-status")).toHaveCount(0);
+  await expect(watch.locator(".alert-status")).toHaveCount(0);
   await page.getByRole("button", { name: "계정", exact: true }).click();
   await page.getByRole("dialog", { name: "마이페이지" }).getByRole("button", { name: "로그아웃", exact: true }).click();
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
-  await expect(page.locator(".watch-list")).toContainText("알람가격 100,000.5");
+  await expect(page.locator(".results-panel tbody tr").filter({ hasText: "삼성전자" }).locator("td").nth(4)).toHaveText("100,000.5");
   const context = await browser.newContext();
   try {
     const other = await context.newPage();
     await mockStockData(other, [], server);
     await other.goto("/");
     await other.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
-    await expect(other.locator(".watch-list")).toContainText("알람가격 100,000.5");
-    await expect(other.locator(".watch-list .alert-status")).toHaveCount(0);
+    await expect(other.locator(".results-panel tbody tr").filter({ hasText: "삼성전자" }).locator("td").nth(4)).toHaveText("100,000.5");
+    await expect(other.locator(".watch-panel .alert-status")).toHaveCount(0);
     await expect(other.locator(".results-panel tbody tr").filter({ hasText: "삼성전자" }).locator("td").nth(3)).toHaveText("U-20%");
   } finally { await context.close(); }
 });
@@ -1096,8 +1099,8 @@ for (const ma20Up of [true, false, undefined]) {
     await expect(status).toHaveText(`${prefix}-17.5%`);
     await row.click();
     await page.locator(".watch-panel").getByRole("button", { name: "현재 종목 추가" }).click();
-    await expect(page.locator(".watch-list li")).toHaveCount(1);
-    await expect(page.locator(".watch-list li")).toHaveText("3S060310알람가격 1,600×");
+    await expect(page.locator(".watch-panel .watch-tabs button.active span")).toHaveText(/^1\//);
+    await expect(row.locator("td").nth(4)).toHaveText("1,600");
 
     server.currentPrices["060310"] = 2000;
     await page.reload();
@@ -1114,12 +1117,12 @@ for (const ma20Up of [true, false, undefined]) {
     await page.getByRole("menuitem", { name: "알람가격 삭제" }).click();
     await expect(row.locator("td").nth(4)).toHaveText("");
     await expect(status).toHaveText(prefix);
-    await expect(page.locator(".watch-list li")).toHaveText("3S060310×");
+    expect(server.alarmPrices).not.toHaveProperty("060310");
     await openMenu();
     await page.getByRole("menuitem", { name: "알람가격 넣기" }).click();
     await expect(row.locator("td").nth(4)).not.toHaveText("");
     await expect(status).toHaveText(new RegExp(`^${prefix}[+-]?\\d+(\\.\\d+)?%$`));
-    await expect(page.locator(".watch-list")).not.toContainText(/U|%/);
+    await expect(page.locator(".watch-panel")).not.toContainText(/U|%/);
   });
 }
 
@@ -1149,17 +1152,17 @@ test("알람가격 로딩 실패 중에는 서버 값을 덮어쓰지 않고 재
   await page.goto("/");
   await page.getByRole("button", { name: "세력모니터 창으로 가기" }).click();
   const results = page.locator(".results-panel");
-  await expect(results.getByRole("alert")).toContainText("알람가격 조회 실패");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("알람가격 조회 실패");
   const pane = page.locator(".chart-engine table tr").first();
   await expect(pane).toBeVisible();
   const bounds = await pane.boundingBox();
   await page.mouse.click(bounds.x + bounds.width * .6, bounds.y + bounds.height * .4, { button: "right" });
   await page.getByRole("menuitem", { name: "알람가격 넣기" }).click();
-  await expect(results.getByRole("alert")).toContainText("알람가격을 불러온 뒤");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("알람가격을 불러온 뒤");
   expect(writes).toBe(0);
   expect(server.alarmPrices["005930"]).toBe(100000);
   fail = false;
-  await results.getByRole("button", { name: "다시 불러오기" }).click();
+  await page.locator(".workspace-feedback").getByRole("button", { name: "다시 불러오기" }).click();
   await expect(results.locator("tbody tr").filter({ hasText: "삼성전자" }).locator("td").nth(4)).toHaveText("100,000");
 });
 
@@ -1181,7 +1184,7 @@ test("알람가격 추가·삭제는 서버 성공 후 반영하며 실패 시 �
   }
   await openMenu();
   await page.getByRole("menuitem", { name: "알람가격 넣기" }).click();
-  await expect(page.locator(".results-panel").getByRole("alert")).toContainText("알람가격 저장 실패");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("알람가격 저장 실패");
   await expect(samsung.locator("td").nth(4)).toHaveText("100,000");
   fail = false;
   const add = page.waitForRequest(request => request.url().endsWith("/api/alarm-price") && request.method() === "PUT");
@@ -1190,18 +1193,18 @@ test("알람가격 추가·삭제는 서버 성공 후 반영하며 실패 시 �
   expect(added.mode).toBe("add");
   expect(added.alarm_prices["005930"]).toBeGreaterThan(0);
   await expect(samsung.locator("td").nth(4)).toHaveText(added.alarm_prices["005930"].toLocaleString("en-US"));
-  await expect(page.locator(".watch-list")).toContainText(`알람가격 ${added.alarm_prices["005930"].toLocaleString("en-US")}`);
+  await expect(samsung.getByRole("button", { name: /북마크/ })).toHaveAttribute("data-watched", "true");
   fail = true;
   await openMenu();
   await page.getByRole("menuitem", { name: "알람가격 삭제" }).click();
-  await expect(page.locator(".results-panel").getByRole("alert")).toContainText("알람가격 저장 실패");
+  await expect(page.locator(".workspace-feedback").getByRole("alert")).toContainText("알람가격 저장 실패");
   expect(server.alarmPrices["005930"]).toBe(added.alarm_prices["005930"]);
   fail = false;
   const remove = page.waitForRequest(request => request.url().endsWith("/api/alarm-price") && request.method() === "PUT");
   await page.getByRole("menuitem", { name: "알람가격 삭제" }).click();
   expect((await remove).postDataJSON()).toEqual({ mode: "delete", alarm_prices: { "005930": 0 } });
   await expect(samsung.locator("td").nth(4)).toHaveText("");
-  await expect(page.locator(".watch-list .watch-alarm")).toHaveCount(0);
+  await expect(page.locator(".watch-panel .watch-alarm")).toHaveCount(0);
 });
 
 test("로그아웃하면 워크스페이스를 닫고 랜딩 초기 화면으로 돌아간다", async ({ page }) => {

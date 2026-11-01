@@ -1,0 +1,8 @@
+.container { position:fixed; z-index:110; width:270px; color:var(--ink); font-size:13px; }
+.folders,.actions { padding:4px; border:1px solid var(--hairline); border-radius:10px; background:#fff; box-shadow:0 8px 24px rgba(10,11,13,.16); }
+.folders { width:174px; }
+.actions { position:absolute; left:178px; width:88px; }
+.container button { width:100%; min-height:36px; padding:7px 10px; display:flex; align-items:center; justify-content:space-between; gap:12px; border:0; border-radius:6px; background:transparent; color:inherit; font:inherit; cursor:pointer; white-space:nowrap; }
+.container button:hover,.container button:focus-visible,.container .active { background:#edf3ff; outline:none; }
+.container button:disabled { opacity:.4; cursor:not-allowed; }
+.container small { color:var(--muted); font-size:12px; }

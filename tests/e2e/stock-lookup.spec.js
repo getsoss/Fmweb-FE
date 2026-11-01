@@ -54,10 +54,10 @@ test("조회할 수 없는 입력의 Enter도 차트보기와 같은 오류를 �
   });
   await lookup.getByLabel("종목코드", { exact: true }).fill("999999");
   await lookup.getByLabel("종목코드", { exact: true }).press("Enter");
-  const message = page.getByLabel("종목 및 저장 검색").getByRole("status");
-  await expect(message).toHaveText("종목명 또는 영문·숫자 6자리 종목코드를 확인해 주세요.");
+  const message = page.locator(".workspace-feedback").getByRole("alert");
+  await expect(message).toContainText("종목명 또는 영문·숫자 6자리 종목코드를 확인해 주세요.");
   await lookup.getByRole("button", { name: "차트보기", exact: true }).click();
-  await expect(message).toHaveText("종목명 또는 영문·숫자 6자리 종목코드를 확인해 주세요.");
+  await expect(message).toContainText("종목명 또는 영문·숫자 6자리 종목코드를 확인해 주세요.");
   await expect(page.locator(".chart-identity")).toContainText("005930");
   expect(requests).toEqual([]);
 });

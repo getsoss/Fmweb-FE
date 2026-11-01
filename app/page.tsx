@@ -45,7 +45,7 @@ export default function Home() {
           ticker={ticker}
           onSelect={selectTicker}
           menu={<nav className="workspace-service-links" aria-label="서비스 링크"><a href="https://cafe.naver.com/motrader" target="_blank" rel="noreferrer" aria-label="모트레이더 네이버카페 새 창에서 열기">네이버카페</a><a href="https://gemini.google.com" target="_blank" rel="noreferrer">제미나이</a><a href="https://chatgpt.com" target="_blank" rel="noreferrer">ChatGPT</a><button className="account-button" onClick={() => signedIn ? setAccountOpen(true) : setShowLogin(true)}>계정</button></nav>}
-          chart={onAlertPriceChange => <ChartWorkspace
+          chart={(onAlertPriceChange, alarmPrices) => <ChartWorkspace
             rows={data.candles}
             holdings={data.holdings}
             holdingChanges={data.holdingChanges}
@@ -54,6 +54,7 @@ export default function Home() {
             rs={data.rs}
             ticker={data.ticker}
             name={name}
+            alertPrice={alarmPrices[data.ticker] ?? null}
             onAlertPriceChange={onAlertPriceChange}
           />}
         />

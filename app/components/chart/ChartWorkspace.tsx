@@ -14,9 +14,11 @@ import {
   CrosshairMode,
   HistogramSeries,
   LineSeries,
+  LineStyle,
   PriceScaleMode,
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type LogicalRange,
   type SeriesType,
@@ -43,6 +45,7 @@ type Props = {
   rs: number[][];
   ticker: string;
   name: string;
+  alertPrice: number | null;
   onAlertPriceChange: (ticker: string, price: number) => Promise<boolean>;
 };
 
@@ -233,12 +236,16 @@ export default function ChartWorkspace({
   rs,
   ticker,
   name,
+  alertPrice,
   onAlertPriceChange,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const priceRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const alarmLineRef = useRef<IPriceLine | null>(null);
+  const alertPriceRef = useRef(alertPrice);
+  alertPriceRef.current = alertPrice;
   const savedViewRef = useRef<SavedChartView | null>(null);
   const [interval, setInterval] = useState<Interval>("1D");
   const [chartType, setChartType] = useState<ChartKind>("candles");
@@ -419,6 +426,10 @@ export default function ChartWorkspace({
     }
     price.priceScale().applyOptions({ mode: scaleMode(scale) });
     priceRef.current = price;
+    const alarm = alertPriceRef.current;
+    if (alarm !== null && Number.isFinite(alarm) && alarm > 0) {
+      alarmLineRef.current = price.createPriceLine({ price: alarm, color: "#FF0000", lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: "알람" });
+    }
 
     if (averagePrice) {
       const series = chart.addSeries(LineSeries, {
@@ -625,6 +636,7 @@ export default function ChartWorkspace({
       chart.remove();
       chartRef.current = null;
       priceRef.current = null;
+      alarmLineRef.current = null;
     };
   }, [
     base,
@@ -645,6 +657,18 @@ export default function ChartWorkspace({
   useEffect(() => {
     priceRef.current?.priceScale().applyOptions({ mode: scaleMode(scale) });
   }, [scale]);
+
+  useEffect(() => {
+    const price = priceRef.current;
+    if (!price) return;
+    if (alertPrice !== null && Number.isFinite(alertPrice) && alertPrice > 0) {
+      if (alarmLineRef.current) alarmLineRef.current.applyOptions({ price: alertPrice });
+      else alarmLineRef.current = price.createPriceLine({ price: alertPrice, color: "#FF0000", lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: "알람" });
+    } else if (alarmLineRef.current) {
+      price.removePriceLine(alarmLineRef.current);
+      alarmLineRef.current = null;
+    }
+  }, [alertPrice]);
 
   return (
     <section className="pro-chart" aria-label={`${name} 주가 차트`}>

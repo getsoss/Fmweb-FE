@@ -81,5 +81,5 @@ test("새로고침으로 조회한 현재가는 알람 색에 반영하고 가�
   await expect(row.locator("td").nth(4)).toHaveText("");
   await expect(status).toHaveText("U");
   await expect(status).not.toHaveAttribute("style", /background-color:/);
-  await expect(page.locator(".watch-list")).not.toContainText(/U|%/);
+  await expect(page.locator(".watch-panel")).not.toContainText(/U|%/);
 });

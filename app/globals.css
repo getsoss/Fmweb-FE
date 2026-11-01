@@ -238,7 +238,11 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .result-table-alerts tbody tr:nth-child(odd) td{background:#dce6f1}
 .result-table-alerts tbody tr:hover td,.result-table-alerts tbody tr.selected td{background:#a7e0e3}
 .result-table-alerts .bookmark-star{padding:0;border:0;background:transparent;color:#59606d;font-size:21px;line-height:1}
-.result-table-alerts tr.bookmarked .bookmark-star{color:#ffc000}
+.result-table-alerts .bookmark-star{color:transparent}
+.result-table-alerts .bookmark-star svg{display:block;width:22px;height:22px}
+.result-table-alerts .bookmark-star[data-bookmarked="true"]{color:#ffff00}
+.result-table-alerts .bookmark-star[data-watched="true"]{color:#00b0f0}
+.result-table-alerts .bookmark-star[data-bookmarked="true"][data-watched="true"]{color:#ff0000}
 
 /* Virtual result rows retain their original striping and table scroll height. */
 .result-table-alerts tbody tr.result-row-odd td{background:#dce6f1}
@@ -258,7 +262,6 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .api-news-panel .news-list>a{padding:8px 0;display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--hairline-soft);color:var(--ink);font-size:12px;text-decoration:none}
 .api-news-panel .news-list>a span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .api-news-panel .news-list>a small{flex:none;color:var(--muted)}
-.search-api-message{margin:0;color:#59606d;font-size:12px;line-height:1.35}
 .delete-search:disabled{cursor:not-allowed;opacity:.45}
 
 /* Server portfolio feedback and saved alarm details in watchlists. */
@@ -267,3 +270,13 @@ html:has(.app-shell),body:has(.app-shell){height:100%;overflow:hidden}
 .portfolio-message button{margin-left:8px;padding:3px 7px;border:1px solid var(--hairline);border-radius:5px;background:#fff;color:var(--body);font-size:11px}
 .watch-list li>button:first-child{gap:12px;justify-content:space-between;min-width:0}
 .watch-alarm{flex:none;text-align:right;font-size:12px}
+
+/* 261029 revisions 045–050: watch folders occupy only their controls. */
+.workspace-secondary>.watch-panel{padding:8px;margin-bottom:8px;overflow:hidden}
+.watch-panel .watch-toolbar{margin:0;gap:8px;flex-wrap:wrap;overflow:visible}
+.watch-toolbar .watch-tabs{flex:1 1 100%;max-width:100%;gap:6px;overflow-x:auto}
+.watch-toolbar .watch-tabs button{flex:0 0 auto;min-width:78px;height:42px;padding:0 6px;gap:5px;font-size:12px;white-space:nowrap}
+.watch-toolbar .watch-actions{flex:1 1 100%;justify-content:flex-start;flex-wrap:wrap;gap:6px}
+.watch-toolbar .watch-actions button{height:32px;padding:0 9px;white-space:nowrap}
+.workspace-feedback{position:fixed;z-index:120;right:16px;bottom:16px;display:grid;gap:8px;max-width:min(480px,calc(100vw - 32px));pointer-events:none}
+.workspace-feedback .portfolio-message{margin:0;padding:12px 14px;border:1px solid var(--hairline);border-radius:10px;background:#fff;box-shadow:0 8px 24px rgba(10,11,13,.16);pointer-events:auto}

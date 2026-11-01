@@ -6,7 +6,7 @@ const filters = [
   { issue: 16, title: "필터: 이번 달 배당 예정 종목", key: "dividend", options: [["무관", 0], ["배제", 1]] },
   { issue: 17, title: "필터: 5일 평균 거래대금", key: "filter_5davgtrdvalue", options: [["무관", 0], ["10억 이하", -1000], ["10억 이상", 1000], ["50억 이상", 5000], ["100억 이상", 10000], ["500억 이상", 50000]] },
   { issue: 18, title: "필터: RS", key: "filter_rs", options: [["무관", 0], ["100% 이하", -100], ["100% 이상", 100]] },
-  { issue: 19, title: "필터: 손절폭", key: "filter_losscutmargin", options: [["무관", 0], ["~5%", 50], ["5~10%", 500100], ["10~15%", 1000150], ["15%~", 1509999]] },
+  { issue: 19, title: "필터: 손절폭", key: "filter_losscutmargin", options: [["무관", 0], ["<5%", 50], ["5~10%", 500100], ["10~15%", 1000150], [">15%", 1509999]] },
 ];
 const defaults = { net_profit_margin: 0, dividend: 0, filter_5davgtrdvalue: 0, filter_rs: 0, filter_losscutmargin: 0 };
 const selected = { net_profit_margin: 2, dividend: 1, filter_5davgtrdvalue: -1000, filter_rs: -100, filter_losscutmargin: 1000150 };
@@ -101,7 +101,7 @@ test("신규 필터 5개를 함께 저장하고 패널 재열기·새로고침·
   const write = page.waitForRequest(request => request.url().includes("/api/conditional-search") && request.method() === "PUT");
   await settings.getByRole("button", { name: "검색조건 저장", exact: true }).click();
   expect((await write).postDataJSON()).toMatchObject({ slot: 0, title: "신규 필터 조합", condition: { ...selected, price_correction: 10, time: 60 } });
-  await expect(page.locator(".search-api-message")).toContainText("조건을 저장했습니다");
+  await expect(page.locator(".preset-description")).toContainText("신규 필터 조합");
   await page.getByRole("button", { name: "검색조건 접기", exact: true }).click();
   await page.getByRole("button", { name: "검색조건 만들기", exact: true }).click();
   await expectSelections(settings, selected);
