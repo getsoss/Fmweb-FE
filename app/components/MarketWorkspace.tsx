@@ -9,18 +9,19 @@ type AlarmPriceChange = (ticker: string, price: number) => Promise<boolean>;
 type Stock = { name: string; ticker: string };
 export type StockInfo = { name: string; ma20_up: boolean; bojong_profit_rate: number; trading_value: number; _5d_avg_trading_value: number; ibdrs: number; n_top_acc: number };
 export type StockInfoMap = Record<string, StockInfo>;
-type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: number; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string; priceCorrection: number; netProfitMargin: number; dividend: number; filter5dAvgTrdValue: number; filterRs: number };
+type SearchPreset = { title: string; period: string; limit: number; perLimit: number; ant: boolean; holding: boolean; influence: boolean; rs: string; ibd: string; ma: number; volume: string; detailVolumeEnabled: boolean; detailVolumePeriod: string; detailVolume: string[]; value: string; priceCorrection: number; netProfitMargin: number; dividend: number; filter5dAvgTrdValue: number; filterRs: number; filterLosscutMargin: number };
 type ResultRow = Stock & { price: number; change: number; alertPrice: number | null; alertChange: number | null; value: number; average: number; ibd: number; rank: number; ma20Up?: boolean; score?: number };
 type ResultSort = { key: keyof ResultRow; asc: boolean } | null;
 type NewsItem = [string, string, string];
-type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; moving_average2?: number; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string; price_correction?: number; net_profit_margin?: number; dividend?: number; filter_5davgtrdvalue?: number; filter_rs?: number };
+type ConditionalSearch = Record<string, unknown> & { time?: number; result_max?: number; each_result_max?: number; ant_analysis_filter?: Record<string, number>; have?: Record<string, number>; power?: Record<string, number>; moving_average?: string; moving_average2?: number; rs?: number; ibdrs?: string; all_special_volume?: number; specific_special_volume?: Record<string, number>; recent_five_days_average_trading_value?: string; price_correction?: number; net_profit_margin?: number; dividend?: number; filter_5davgtrdvalue?: number; filter_rs?: number; filter_losscutmargin?: number };
 
-const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: 0, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any", priceCorrection: 0, netProfitMargin: 0, dividend: 0, filter5dAvgTrdValue: 0, filterRs: 0 };
+const emptyPreset: SearchPreset = { title: "", period: "1주", limit: 20, perLimit: 100, ant: false, holding: false, influence: false, rs: "any", ibd: "any", ma: 0, volume: "any", detailVolumeEnabled: false, detailVolumePeriod: "any", detailVolume: [], value: "any", priceCorrection: 0, netProfitMargin: 0, dividend: 0, filter5dAvgTrdValue: 0, filterRs: 0, filterLosscutMargin: 0 };
 const priceCorrectionOptions = [["무관", 0], ["3일", 3], ["1주", 5], ["2주", 10], ["3주", 15], ["4주", 20]] as const;
 const netProfitMarginOptions = [["무관", 0], ["최근 결산 기준", 1], ["3년 평균 기준", 2]] as const;
 const dividendOptions = [["무관", 0], ["배제", 1]] as const;
 const filter5dAvgTrdValueOptions = [["무관", 0], ["10억 이하", -1000], ["10억 이상", 1000], ["50억 이상", 5000], ["100억 이상", 10000], ["500억 이상", 50000]] as const;
 const filterRsOptions = [["무관", 0], ["100% 이하", -100], ["100% 이상", 100]] as const;
+const filterLosscutMarginOptions = [["무관", 0], ["~5%", 50], ["5~10%", 500100], ["10~15%", 1000150], ["15%~", 1509999]] as const;
 const movingAverageOptions = [["정배열 (20이평 > 60이평)", 1], ["20이평 상승", 2], ["60이평 상승", 4], ["20이평 하락", 8], ["60이평 하락", 16]] as const;
 const antFilterGroups = [
   ["주가", "price"],
@@ -114,6 +115,7 @@ function toCondition(preset: SearchPreset, selections: Record<string, string>): 
     dividend: preset.dividend,
     filter_5davgtrdvalue: preset.filter5dAvgTrdValue,
     filter_rs: preset.filterRs,
+    filter_losscutmargin: preset.filterLosscutMargin,
     result_sort: 0,
   };
 }
@@ -145,6 +147,7 @@ function fromCondition(condition: ConditionalSearch, index: number, title?: stri
     dividend: filterOptionValue(condition.dividend, dividendOptions),
     filter5dAvgTrdValue: filterOptionValue(condition.filter_5davgtrdvalue, filter5dAvgTrdValueOptions),
     filterRs: filterOptionValue(condition.filter_rs, filterRsOptions),
+    filterLosscutMargin: filterOptionValue(condition.filter_losscutmargin, filterLosscutMarginOptions),
   };
 }
 
@@ -177,6 +180,7 @@ function describePreset(preset: SearchPreset) {
     ["RS 필터", preset.filterRs, filterRsOptions],
     ["순이익률 1% 이상", preset.netProfitMargin, netProfitMarginOptions],
     ["이번 달 배당 예정 종목", preset.dividend, dividendOptions],
+    ["손절폭", preset.filterLosscutMargin, filterLosscutMarginOptions],
   ] as const) {
     const selected = options.find(([, option]) => option === value);
     if (selected && value !== 0) filters.push(`${title} ${selected[0]}`);
@@ -457,6 +461,7 @@ function SearchSettingsPanel({ slots, activeSlot, preset, investors, onClose, on
       <Condition title="필터: 5일 평균 거래대금"><Radio name="filter-5davgtrdvalue" values={filter5dAvgTrdValueOptions.map(([, value]) => value)} labels={filter5dAvgTrdValueOptions.map(([label]) => label)} value={preset.filter5dAvgTrdValue} set={filter5dAvgTrdValue => setPreset({ ...preset, filter5dAvgTrdValue: Number(filter5dAvgTrdValue) })} /></Condition>
       <div className="condition-columns"><Condition title="필터: RS"><Radio name="filter-rs" values={filterRsOptions.map(([, value]) => value)} labels={filterRsOptions.map(([label]) => label)} value={preset.filterRs} set={filterRs => setPreset({ ...preset, filterRs: Number(filterRs) })} /></Condition><Condition title="필터: 순이익률 1% 이상"><Radio name="net-profit-margin" values={netProfitMarginOptions.map(([, value]) => value)} labels={netProfitMarginOptions.map(([label]) => label)} value={preset.netProfitMargin} set={netProfitMargin => setPreset({ ...preset, netProfitMargin: Number(netProfitMargin) })} /></Condition></div>
       <Condition title="필터: 이번 달 배당 예정 종목"><Radio name="dividend" values={dividendOptions.map(([, value]) => value)} labels={dividendOptions.map(([label]) => label)} value={preset.dividend} set={dividend => setPreset({ ...preset, dividend: Number(dividend) })} /></Condition>
+      <Condition title="필터: 손절폭"><Radio name="filter-losscutmargin" values={filterLosscutMarginOptions.map(([, value]) => value)} labels={filterLosscutMarginOptions.map(([label]) => label)} value={preset.filterLosscutMargin} set={filterLosscutMargin => setPreset({ ...preset, filterLosscutMargin: Number(filterLosscutMargin) })} /></Condition>
       <div className="temporary-search"><div><b>저장하지 않고 결과 확인</b><p>위에서 설정한 조건으로 검색 결과를 먼저 확인합니다.</p></div><button onClick={onSearch}>임시 검색</button></div>
     </div>
   ), [preset, activeSlot, investors, setPreset, setActiveSlot, setInvestors, onSearch]);

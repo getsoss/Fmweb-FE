@@ -6,9 +6,10 @@ const filters = [
   { issue: 16, title: "필터: 이번 달 배당 예정 종목", key: "dividend", options: [["무관", 0], ["배제", 1]] },
   { issue: 17, title: "필터: 5일 평균 거래대금", key: "filter_5davgtrdvalue", options: [["무관", 0], ["10억 이하", -1000], ["10억 이상", 1000], ["50억 이상", 5000], ["100억 이상", 10000], ["500억 이상", 50000]] },
   { issue: 18, title: "필터: RS", key: "filter_rs", options: [["무관", 0], ["100% 이하", -100], ["100% 이상", 100]] },
+  { issue: 19, title: "필터: 손절폭", key: "filter_losscutmargin", options: [["무관", 0], ["~5%", 50], ["5~10%", 500100], ["10~15%", 1000150], ["15%~", 1509999]] },
 ];
-const defaults = { net_profit_margin: 0, dividend: 0, filter_5davgtrdvalue: 0, filter_rs: 0 };
-const selected = { net_profit_margin: 2, dividend: 1, filter_5davgtrdvalue: -1000, filter_rs: -100 };
+const defaults = { net_profit_margin: 0, dividend: 0, filter_5davgtrdvalue: 0, filter_rs: 0, filter_losscutmargin: 0 };
+const selected = { net_profit_margin: 2, dividend: 1, filter_5davgtrdvalue: -1000, filter_rs: -100, filter_losscutmargin: 1000150 };
 const group = (settings, title) => settings.getByRole("group", { name: title, exact: true });
 
 async function enterSettings(page) {
@@ -76,7 +77,7 @@ for (const filter of filters) {
   });
 }
 
-test("신규 필터 4개를 함께 저장하고 패널 재열기·새로고침·초기화·삭제 후 일관되게 복원한다", async ({ page }, testInfo) => {
+test("신규 필터 5개를 함께 저장하고 패널 재열기·새로고침·초기화·삭제 후 일관되게 복원한다", async ({ page }, testInfo) => {
   const saved = [];
   const settings = await openSettings(page, saved);
   await page.route("**/api/conditional-search*", route => {
@@ -88,8 +89,8 @@ test("신규 필터 4개를 함께 저장하고 패널 재열기·새로고침·
     if (route.request().method() === "DELETE") { saved.splice(0); return route.fulfill({ status: 204 }); }
     return route.fallback();
   });
-  expect((await settings.locator("fieldset > legend").allTextContents()).slice(-5)).toEqual([
-    "필터: 주가조정", "필터: 5일 평균 거래대금", "필터: RS", "필터: 순이익률 1% 이상", "필터: 이번 달 배당 예정 종목",
+  expect((await settings.locator("fieldset > legend").allTextContents()).slice(-6)).toEqual([
+    "필터: 주가조정", "필터: 5일 평균 거래대금", "필터: RS", "필터: 순이익률 1% 이상", "필터: 이번 달 배당 예정 종목", "필터: 손절폭",
   ]);
   await settings.locator(".preset-slots").getByRole("button", { name: /^검색 1/ }).click();
   await settings.getByLabel("검색 제목").fill("신규 필터 조합");
@@ -109,10 +110,10 @@ test("신규 필터 4개를 함께 저장하고 패널 재열기·새로고침·
   const quick = page.getByLabel("종목 및 저장 검색").getByRole("button", { name: "검색1", exact: true });
   expect(await search(page, () => quick.click())).toMatchObject({ ...selected, price_correction: 10, time: 60 });
   await expectSelections(settings, selected);
-  for (const text of ["5일 평균 거래대금 10억 이하", "RS 필터 100% 이하", "순이익률 1% 이상 3년 평균 기준", "이번 달 배당 예정 종목 배제"]) {
+  for (const text of ["5일 평균 거래대금 10억 이하", "RS 필터 100% 이하", "순이익률 1% 이상 3년 평균 기준", "이번 달 배당 예정 종목 배제", "손절폭 10~15%"]) {
     await expect(page.locator(".preset-description")).toContainText(text);
   }
-  await group(settings, "필터: 이번 달 배당 예정 종목").scrollIntoViewIfNeeded();
+  await group(settings, "필터: 손절폭").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("search-filters-desktop.png") });
   await page.setViewportSize({ width: 1100, height: 720 });
   for (const filter of filters) {
@@ -120,7 +121,7 @@ test("신규 필터 4개를 함께 저장하고 패널 재열기·새로고침·
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(1101);
   }
-  await group(settings, "필터: 이번 달 배당 예정 종목").scrollIntoViewIfNeeded();
+  await group(settings, "필터: 손절폭").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("search-filters-narrow.png") });
   await settings.locator(".preset-slots").getByRole("button", { name: /^검색 2/ }).click();
   await expectSelections(settings, defaults);
@@ -141,11 +142,11 @@ test("신규 필터 4개를 함께 저장하고 패널 재열기·새로고침·
 
 test("5개 저장 슬롯의 유효한 필터값을 독립적으로 복원해 빠른 검색에 반영한다", async ({ page }) => {
   const combinations = [
-    { net_profit_margin: 1, dividend: 1, filter_5davgtrdvalue: -1000, filter_rs: -100 },
-    { net_profit_margin: 2, dividend: 0, filter_5davgtrdvalue: 1000, filter_rs: 100 },
-    { net_profit_margin: 0, dividend: 1, filter_5davgtrdvalue: 5000, filter_rs: 0 },
-    { net_profit_margin: 1, dividend: 0, filter_5davgtrdvalue: 10000, filter_rs: -100 },
-    { net_profit_margin: 2, dividend: 1, filter_5davgtrdvalue: 50000, filter_rs: 100 },
+    { net_profit_margin: 1, dividend: 1, filter_5davgtrdvalue: -1000, filter_rs: -100, filter_losscutmargin: 0 },
+    { net_profit_margin: 2, dividend: 0, filter_5davgtrdvalue: 1000, filter_rs: 100, filter_losscutmargin: 50 },
+    { net_profit_margin: 0, dividend: 1, filter_5davgtrdvalue: 5000, filter_rs: 0, filter_losscutmargin: 500100 },
+    { net_profit_margin: 1, dividend: 0, filter_5davgtrdvalue: 10000, filter_rs: -100, filter_losscutmargin: 1000150 },
+    { net_profit_margin: 2, dividend: 1, filter_5davgtrdvalue: 50000, filter_rs: 100, filter_losscutmargin: 1509999 },
   ];
   const saved = combinations.map((values, slot) => ({ slot, title: `조합 ${slot + 1}`, condition: { ...values, time: 60, rs: 2, recent_five_days_average_trading_value: ">=10b", price_correction: 3 } }));
   const settings = await openSettings(page, saved);
@@ -158,13 +159,13 @@ test("5개 저장 슬롯의 유효한 필터값을 독립적으로 복원해 빠
   }
 });
 
-test("새 필드가 없는 기존 조건과 잘못된 타입·범위는 네 필터 모두 무관으로 복원한다", async ({ page }) => {
+test("새 필드가 없는 기존 조건과 잘못된 타입·범위는 다섯 필터 모두 무관으로 복원한다", async ({ page }) => {
   const conditions = [
     {},
-    { net_profit_margin: 99, dividend: -1, filter_5davgtrdvalue: -5000, filter_rs: -99 },
-    { net_profit_margin: "2", dividend: "1", filter_5davgtrdvalue: "-1000", filter_rs: "-100" },
-    { net_profit_margin: null, dividend: null, filter_5davgtrdvalue: null, filter_rs: null },
-    { net_profit_margin: 1.5, dividend: 0.5, filter_5davgtrdvalue: 1000.5, filter_rs: 100.5 },
+    { net_profit_margin: 99, dividend: -1, filter_5davgtrdvalue: -5000, filter_rs: -99, filter_losscutmargin: -50 },
+    { net_profit_margin: "2", dividend: "1", filter_5davgtrdvalue: "-1000", filter_rs: "-100", filter_losscutmargin: "1000150" },
+    { net_profit_margin: null, dividend: null, filter_5davgtrdvalue: null, filter_rs: null, filter_losscutmargin: null },
+    { net_profit_margin: 1.5, dividend: 0.5, filter_5davgtrdvalue: 1000.5, filter_rs: 100.5, filter_losscutmargin: 50.5 },
   ];
   const saved = conditions.map((condition, slot) => ({ slot, title: `기존 조건 ${slot + 1}`, condition: { ...condition, time: 10, price_correction: 5, rs: 1 } }));
   const settings = await openSettings(page, saved);
